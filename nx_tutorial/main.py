@@ -1,27 +1,39 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 from collections import defaultdict
-G = nx.karate_club_graph()
-# print("Degrees")
-# for v in G:
-#     print(f"{v:4} {G.degree(v): 6}")
 
-I_SET = {14, 16}
+from ortools.linear_solver import pywraplp
+from ortools.linear_solver.pywraplp import Constraint, Solver, Variable, Objective
+# ============================ Initialize Graph ============================
+from typing import Set, Dict
+
+G = nx.balanced_tree(4, 2)
+# ============================ Level Contours ============================
+
+# Set of initial infected
+I_SET = {0}
+
 # Compute distances
 dist_dict = nx.multi_source_dijkstra_path_length(G, I_SET)
 
 # convert dict vertex -> distance
 # to distance -> [vertex]
-
-level_dists = defaultdict(list)
+level_dists = defaultdict(set)
 for (i, v) in dist_dict.items():
-    level_dists[v].append(i)
+    level_dists[v].add(i)
 
 print(level_dists)
 
 # Obtain V_1 and V_2
-print(f"Distance 1: {level_dists[1]}")
-print(f"Distance 2: {level_dists[2]}")
+
+# Set of vertices distance 1 away from infected I
+V1: Set[int] = level_dists[1]
+
+# Set of vertices distance 2 away from infected I
+V2: Set[int] = level_dists[2]
+
+print(f"Distance 1: {V1}")
+print(f"Distance 2: {V2}")
 
 # convert dict of distances to array
 N = G.number_of_nodes()
@@ -29,8 +41,100 @@ dists = [0] * N
 for (i, v) in dist_dict.items():
     dists[i] = v
 
-# flip by distances
+# ============================ Constraints ============================
+solver: Solver = pywraplp.Solver.CreateSolver('GLOP')
 
+# Constants
+k = 2 # the cost budget
+
+# V1 indicator set
+X1: Dict[int, Variable] = {}
+Y1: Dict[int, Variable] = {}
+
+# V2 indicator set
+X2: Dict[int, Variable] = {}
+Y2: Dict[int, Variable] = {}
+
+# Declare Variables
+for u in V1:
+    X1[u] = solver.NumVar(0, 1, f"V1_x{u}")
+    Y1[u] = solver.NumVar(0, 1, f"V1_y{u}")
+
+for v in V2:
+    X2[v] = solver.NumVar(0, 1, f"V2_x{v}")
+    Y2[v] = solver.NumVar(0, 1, f"V2_y{v}")
+
+# First set of constraints X + Y = 1
+# By definition, X and Y sum to 1
+
+# Quarantine (x) / Free (y) Indicators
+# Parameter indicators (we have control)
+for u in V1:
+    solver.Add(X1[u] + Y1[u] == 1)
+
+# Safe (x) / Exposed (y) Indicators
+# Result indicators (we have no control)
+for v in V2:
+    solver.Add(X2[v] + Y2[v] == 1)
+
+
+# Second set of constraints: k (cost) constraint
+# The cost of quarantine is a linear combination
+cost: Constraint = solver.Constraint(0, k)
+for u in V1:
+    # For now, the coefficient of every variable is 1 (The cost is uniform)
+    cost.SetCoefficient(X1[u], 1)
+
+
+# Third set of constraints: specify who is considered "saved"
+# (anyone "not exposed" must have no contact)
+
+# or, once v in V1 is exposed (Y1 = 1),
+# all v's neighbors in V2 must be exposed (Y2 >= Y1 = 1)
+
+# We only examine edges between sets V1 and V2
+for u in V1:
+    for v in G.neighbors(u):
+        if v in V2:
+            solver.Add(Y2[v] >= Y1[u])
+
+# Set minimization objective
+# Number of people free in V1 and people exposed in V2
+numExposed: Objective = solver.Objective()
+for u in V1:
+    numExposed.SetCoefficient(Y1[u], 1)
+
+for v in V2:
+    numExposed.SetCoefficient(Y2[v], 1)
+
+numExposed.SetMinimization()
+
+# Solve and display solution
+status = solver.Solve()
+if status == solver.OPTIMAL:
+    print("Optimal!")
+    # Indicators
+    quaran_sol: Dict[int, float] = {}
+    safe_sol: Dict[int, float] = {}
+
+    # Implement Rounding?
+    quarantined: Set[int] = set()
+    safe: Set[int] = set()
+    for u in V1:
+        quaran_sol[u] = X1[u].solution_value()
+
+    for v in V2:
+        safe_sol[v] = X2[v].solution_value()
+
+    print(quaran_sol)
+    print(safe_sol)
+else:
+    if status == solver.FEASIBLE:
+        print("A potentially suboptimal solution was found.")
+    else:
+        print('The solver could not solve the problem.')
+
+# ============================ Drawing ============================
 # set layout
 pos = nx.spring_layout(G, iterations=200, seed=42)
 
