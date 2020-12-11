@@ -11,7 +11,7 @@ G = nx.balanced_tree(4, 2)
 # ============================ Level Contours ============================
 
 # Set of initial infected
-I_SET = {0}
+I_SET = {0, 1}
 
 # Compute distances
 dist_dict = nx.multi_source_dijkstra_path_length(G, I_SET)
@@ -22,7 +22,7 @@ level_dists = defaultdict(set)
 for (i, v) in dist_dict.items():
     level_dists[v].add(i)
 
-print(level_dists)
+# print(level_dists)
 
 # Obtain V_1 and V_2
 
@@ -32,6 +32,7 @@ V1: Set[int] = level_dists[1]
 # Set of vertices distance 2 away from infected I
 V2: Set[int] = level_dists[2]
 
+print("============================ Level Contours ============================")
 print(f"Distance 1: {V1}")
 print(f"Distance 2: {V2}")
 
@@ -112,7 +113,7 @@ numExposed.SetMinimization()
 # Solve and display solution
 status = solver.Solve()
 if status == solver.OPTIMAL:
-    print("Optimal!")
+    print("============================ Optimal Solution ============================")
     # Indicators
     quaran_sol: Dict[int, float] = {}
     safe_sol: Dict[int, float] = {}
@@ -120,14 +121,23 @@ if status == solver.OPTIMAL:
     # Implement Rounding?
     quarantined: Set[int] = set()
     safe: Set[int] = set()
+
     for u in V1:
         quaran_sol[u] = X1[u].solution_value()
+        if quaran_sol[u] > 0.5:
+            quarantined.add(u)
 
     for v in V2:
         safe_sol[v] = X2[v].solution_value()
+        if safe_sol[v] > 0.5:
+            safe.add(v)
 
-    print(quaran_sol)
-    print(safe_sol)
+    print(f"Quarantined Solution: {quaran_sol}")
+    print(f"Safe Solution: {safe_sol}")
+
+    print("============================ Basic Rounding ============================")
+    print(f"Quarantined: {quarantined}")
+    print(f"Safe: {safe}")
 else:
     if status == solver.FEASIBLE:
         print("A potentially suboptimal solution was found.")
@@ -135,15 +145,37 @@ else:
         print('The solver could not solve the problem.')
 
 # ============================ Drawing ============================
+
 # set layout
 pos = nx.spring_layout(G, iterations=200, seed=42)
 
-# set drawing parameters
-params = {
+status = []
+for i in range(N):
+    if i in V1:
+        c = "blue" if (i in quarantined) else "orange"
+    elif i in V2:
+        c = "green" if (i in safe) else "yellow"
+    elif i in I_SET:
+        c = "red"
+    else:
+        c = "grey"
+    status.append(c)
+
+dist_params = {
     "pos": pos,
-    "node_color": dists,
+    "node_color": status,
     "with_labels": True,
-    "cmap": plt.cm.Blues,
 }
-nx.draw(G, **params)
+nx.draw(G, **dist_params)
 plt.show()
+
+
+# # Drawing Distances
+# dist_params = {
+#     "pos": pos,
+#     "node_color": dists,
+#     "with_labels": True,
+#     "cmap": plt.cm.Blues,
+# }
+# nx.draw(G, **dist_params)
+# plt.show()
