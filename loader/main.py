@@ -1,18 +1,53 @@
+import math
+
 import networkx as nx
 import matplotlib.pyplot as plt
+import numpy as np
 from collections import defaultdict
 
 from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Constraint, Solver, Variable, Objective
-# ============================ Initialize Graph ============================
-from typing import Set, Dict
 
-G = nx.balanced_tree(4, 2)
+from typing import Set, Dict
+import pickle as pkl
+
+np.random.seed(42)
+# ============================ Initialize Graph ============================
+
+# Tree
+# G = nx.balanced_tree(4, 2)
+
+# Random Tree
+
+# G = nx.barabasi_albert_graph(100, 2, seed=42)
+# Load dataset
+
+data_name = "mon10k"
+data_dir = f"../data/mont/labelled/{data_name}"
+G: nx.Graph = nx.read_edgelist(f"{data_dir}/data.txt", nodetype=int)
+
+# Drawing Distances
+# pos = nx.spring_layout(G, iterations=200, seed=42)
+# dist_params = {
+#     "pos": pos,
+#     "with_labels": False,
+# }
+# nx.draw(G, **dist_params)
+# plt.show()
+
 # ============================ Level Contours ============================
 
 # Set of initial infected
-I_SET = {0, 1}
+N = G.number_of_nodes()
+NUM_INFECTED = int(N / 20)
 
+rand_infected = np.random.choice(N, NUM_INFECTED, replace=False)
+I_SET = set(rand_infected)
+print(f"Infected: {I_SET}")
+
+# COSTS = np.random.randint(1, 20, size=N)
+COSTS = np.ones(N)
+print(f"COSTS: {COSTS}")
 # Compute distances
 dist_dict = nx.multi_source_dijkstra_path_length(G, I_SET)
 
@@ -37,7 +72,6 @@ print(f"Distance 1: {V1}")
 print(f"Distance 2: {V2}")
 
 # convert dict of distances to array
-N = G.number_of_nodes()
 dists = [0] * N
 for (i, v) in dist_dict.items():
     dists[i] = v
@@ -46,7 +80,7 @@ for (i, v) in dist_dict.items():
 solver: Solver = pywraplp.Solver.CreateSolver('GLOP')
 
 # Constants
-k = 2 # the cost budget
+k = int(0.8 * NUM_INFECTED) # the cost budget
 
 # V1 indicator set
 X1: Dict[int, Variable] = {}
@@ -84,7 +118,7 @@ for v in V2:
 cost: Constraint = solver.Constraint(0, k)
 for u in V1:
     # For now, the coefficient of every variable is 1 (The cost is uniform)
-    cost.SetCoefficient(X1[u], 1)
+    cost.SetCoefficient(X1[u], int(COSTS[u]))
 
 
 # Third set of constraints: specify who is considered "saved"
@@ -144,10 +178,11 @@ else:
     else:
         print('The solver could not solve the problem.')
 
-# ============================ Drawing ============================
+print('\nAdvanced usage:')
+print('Problem solved in %f milliseconds' % solver.wall_time())
+print('Problem solved in %d iterations' % solver.iterations())
 
-# set layout
-pos = nx.spring_layout(G, iterations=200, seed=42)
+# ============================ Drawing ============================
 
 status = []
 for i in range(N):
@@ -160,15 +195,38 @@ for i in range(N):
     else:
         c = "grey"
     status.append(c)
+    G.nodes[i]["color"] = c
 
+# Regular
+# pos = nx.spring_layout(G)
+# dist_params = {
+#     "pos": pos,
+#     "node_color": status,
+#     "with_labels": True,
+# }
+# nx.draw(G, **dist_params)
+# plt.show()
+
+# Large Graphs
+# set layout
+
+# Speed up layout by computing initial pos
+# pos = nx.spring_layout(G, iterations=30, seed=42, k=5/math.sqrt(N))
+
+pos = pkl.load(open(f"{data_dir}/pos.p", "rb"))
 dist_params = {
     "pos": pos,
     "node_color": status,
-    "with_labels": True,
+    "with_labels": False,
+    "node_size": 1,
+    "width": 0.3
 }
-nx.draw(G, **dist_params)
-plt.show()
 
+nx.draw_networkx(G, **dist_params)
+nx.draw_networkx_labels(G, pos, font_size=1)
+
+plt.savefig(f'../output/graph_{data_name}.png', dpi=1000)
+plt.show()
 
 # # Drawing Distances
 # dist_params = {
