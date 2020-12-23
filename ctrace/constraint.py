@@ -241,7 +241,7 @@ def load_auxillary(directory):
     """loads in infected, contour1, contour2, p1, q, k, and costs from directory"""
     pass
 
-def find_coutours(G: nx.Graph, infected):
+def find_contours(G: nx.Graph, infected):
     """Produces contour1 and contour2 from infected"""
     N = G.number_of_nodes()
 
@@ -286,7 +286,7 @@ def generate_absolute(G, infected, k : int = None, costs : list = None):
     if costs is None:
         costs = np.ones(N)
 
-    contour1, contour2 = find_coutours(G, infected)
+    contour1, contour2 = find_contours(G, infected)
 
     # Assume absolute infectivity
     p1 = defaultdict(lambda: 1)
@@ -314,7 +314,6 @@ if __name__ == '__main__':
     cons = ProbMinExposed(**params)
 
     cons.solve_lp()
-    draw(cons)
 
 
 
