@@ -122,8 +122,9 @@ class ProbMinExposed:
 
         numExposed.SetMinimization()
 
-    def setVariable(self, i: int, value: int):
+    def setVariable(self, index: int, value: int):
         """Sets the ith V1 indicator to value int"""
+        i = self.quaran_map[index]
         if i in self.partials:
             raise ValueError(f"Index {i} is already set!")
         if value not in (0, 1):
@@ -132,14 +133,7 @@ class ProbMinExposed:
         self.solver.Add(self.X1[i] == value)
 
     def getVariables(self):
-        u = np.zeros(len(self.X1))
-        for (i, val) in self.quaran_sol.items():
-            u[i] = val
-        return u
-
-    # Deprecated
-    def raw_soln(self):
-        return self.quaran_sol
+        return self.quaran_raw
 
     def solve_lp(self):
         """Solves the LP problem"""
@@ -150,8 +144,11 @@ class ProbMinExposed:
         self.quaran_sol: Dict[int, float] = {}
         self.safe_sol: Dict[int, float] = {}
 
-        for u in self.V1:
-            self.quaran_sol[u] = self.X1[u].solution_value()
+        self.quaran_raw = np.zeros(len(self.X1))
+        self.quaran_map = {}
+        for i, u in enumerate(self.V1):
+            self.quaran_raw[i] = self.quaran_sol[u] = self.X1[u].solution_value()
+            self.quaran_map[i] = u
 
         for v in self.V2:
             self.safe_sol[v] = self.X2[v].solution_value()
