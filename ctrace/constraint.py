@@ -12,7 +12,6 @@ from pathlib import Path
 
 import pandas as pd
 
-
 class ProbMinExposed:
     def __init__(self, graph: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
         """Generates the constraints given a graph. Assumes V1, V2 are 1,2 away from I"""
@@ -102,8 +101,11 @@ class ProbMinExposed:
         numExposed.SetMinimization()
 
     def setVariable(self, i: int, value: int):
+        """Sets the ith V1 indicator to value int"""
         if i in self.partials:
             raise ValueError(f"Index {i} is already set!")
+        if value not in (0, 1):
+            raise ValueError("Value must be 0 or 1")
         self.partials[i] = value
         self.solver.Add(self.X1[i] == value)
 
@@ -318,7 +320,8 @@ def draw_absolute(G: nx.Graph, I, V1, V2, quarantined, safe, name=""):
 
 if __name__ == '__main__':
     G = load_graph("mont100")
-    generate_absolute(G)
+    params = generate_absolute(G)
+
 
 
 
