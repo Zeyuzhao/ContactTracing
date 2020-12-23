@@ -2,6 +2,7 @@ import random
 import numpy as np
 import math
 from .constraint import ProbMinExposed
+
 def simplify(alpha:float, beta:float):
     if (alpha<0) | (alpha>1) | (beta<0) | (beta>1):
         raise ValueError('Invalid alpha or beta')
