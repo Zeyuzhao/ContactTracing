@@ -6,32 +6,15 @@ from collections import defaultdict
 from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Constraint, Solver, Variable, Objective
 
-from typing import Set, Dict
+from typing import Set, Dict, Sequence
 import pickle as pkl
 from pathlib import Path
 
-
-class Constrain:
-    """A constraint object represents the LP formulation of the problem"""
-    def __init__(self):
-        pass
-
-    def __copy__(self):
-        raise NotImplementedError
-
-    def init_lp(self):
-        """Initializes the LP problem from the given graph"""
-        raise NotImplementedError
-
-    def compute_lp(self):
-        "Re-solves LP solutions"
-    def fix_variable(self, index, value):
-        raise NotImplementedError
-
+import pandas as pd
 
 
 class ProbMinExposed:
-    def __init__(self, graph: nx.Graph, infected, contour1, contour2, p1, q, k, costs):
+    def __init__(self, graph: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None):
         """Generates the constraints given a graph. Assumes V1, V2 are 1,2 away from I"""
         self.G = graph
         self.I = infected
@@ -42,8 +25,11 @@ class ProbMinExposed:
         # Dictionary: q[u][v] = conditional probability p(v is infected | u is infected)
         self.q = q
         self.k = k
+
+        # Default costs of uniform
         if costs is None:
             costs = np.ones(len(self.V1))
+
         self.costs = costs
         self.init()
 
@@ -170,6 +156,7 @@ def prep_labelled_graph(data_name, in_path=None, out_dir=None, num_lines=None):
          open(graph_path, "w") as out_file, \
          open(label_path, "w") as label_file:
         for i, line in enumerate(in_file):
+            # Check if we reach max number of lines
             if num_lines and i >= num_lines:
                 break
 
@@ -206,15 +193,73 @@ def human_format(num):
         .format('{:f}'.format(num).rstrip('0').rstrip('.'), ['', 'K', 'M', 'B', 'T'][magnitude])\
         .replace('.', '_')
 
-def prep_dataset(in_path=None, out_dir=None, sizes=(1000, 5000, 10000, None)):
+def prep_dataset(in_path=None, out_dir=None, sizes=(100, 1000, 5000, 10000, None)):
+    """Prepares a variety of sizes of graphs from one input graph"""
     for s in sizes:
-        prep_labelled_graph(data_name=f"mont{human_format(s)}", in_path=in_path, out_dir=out_dir, s=s)
+        name = f"mont{human_format(s)}" if s else "montgomery"
+        prep_labelled_graph(data_name= name, in_path=in_path, out_dir=out_dir, num_lines=s)
 
-def load_graph():
+def load_graph(dataset_name, in_dir):
+    return nx.read_edgelist(f"{in_dir}/{dataset_name}/data.txt", delimiter=",", nodetype=int)
+
+def load_auxillary(directory):
+    """loads in infected, contour1, contour2, p1, q, k, and costs from directory"""
     pass
+
+def find_coutours(G: nx.Graph, infected):
+    """Produces contour1 and contour2 from infected"""
+    N = G.number_of_nodes()
+
+    I_SET = set(infected)
+    print(f"Infected: {I_SET}")
+
+    # COSTS = np.random.randint(1, 20, size=N)
+    COSTS = np.ones(N)
+    print(f"COSTS: {COSTS}")
+    # Compute distances
+    dist_dict = nx.multi_source_dijkstra_path_length(G, I_SET)
+
+    # convert dict vertex -> distance
+    # to distance -> [vertex]
+    level_dists = defaultdict(set)
+    for (i, v) in dist_dict.items():
+        level_dists[v].add(i)
+
+    # Set of vertices distance 1 away from infected I
+    V1: Set[int] = level_dists[1]
+
+    # Set of vertices distance 2 away from infected I
+    V2: Set[int] = level_dists[2]
+
+    return (V1, V2)
+
+def generate_fixed(G, num_infected: int = None, k : int = None, costs : list =None):
+    """Returns a dictionary of parameters for the case of infected, """
+    N = G.number_of_nodes()
+    infected = np.random.choice(N, size=num_infected, replace=False)
+    contour1, contour2 = find_coutours(G, infected)
+
+    # Assume absolute infectivity
+    p1 = np.ones(len(contour1))
+
+    q = defaultdict(lambda: defaultdict(int))
+
+    if k is None:
+        k = 0.8 * len(infected)
+    if costs is None:
+        costs = np.ones(N)
+    return {
+        "G": G,
+        "infected": infected,
+        "contour1": contour1,
+        "contour2": contour2,
+        "p1": p1,
+        "q": q,
+        "costs": costs,
+    }
 
 if __name__ == '__main__':
-    pass
+    prep_dataset()
 
 
 
