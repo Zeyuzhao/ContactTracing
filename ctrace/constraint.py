@@ -131,7 +131,7 @@ class ProbMinExposed:
 
     def getVariables(self):
         u = np.zeros(len(self.X1))
-        for (i, val) in self.quaran_sol:
+        for (i, val) in self.quaran_sol.items():
             u[i] = val
         return val
 
