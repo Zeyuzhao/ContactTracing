@@ -133,7 +133,7 @@ class ProbMinExposed:
         u = np.zeros(len(self.X1))
         for (i, val) in self.quaran_sol.items():
             u[i] = val
-        return val
+        return u
 
     # Deprecated
     def raw_soln(self):
