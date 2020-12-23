@@ -96,8 +96,8 @@ def D(p):
     return sample
 
 def basic_integer_round(problem: ProbMinExposed):
-    problem.solve()
-    probabilities = problem.rawlp()
+    problem.solve_lp()
+    probabilities = problem.getVariables()
     return D(np.array(probabilities))
 
 def D_prime(p):
@@ -108,13 +108,13 @@ def D_prime(p):
     return D(p_prime)[:len(p)]
 
 def basic_non_integer_round(problem: ProbMinExposed):
-    problem.solve()
-    probabilities = problem.rawlp()
+    problem.solve_lp()
+    probabilities = problem.getVariables()
     return D(np.array(probabilities))
 
 def iterated_round(problem: ProbMinExposed, d: int):
-    problem.solve()
-    probabilities = np.array(problem.rawlp())
+    problem.solve_lp()
+    probabilities = np.array(problem.getVariables())
     
     curr = 0
     
@@ -126,8 +126,8 @@ def iterated_round(problem: ProbMinExposed, d: int):
             
             problem.setVariable(curr+i, probabilities[curr+i])
         
-        problem.solve()
-        probabilities = np.array(problem.rawlp())
+        problem.solve_lp()
+        probabilities = np.array(problem.getVariables())
         
         curr += d
     
