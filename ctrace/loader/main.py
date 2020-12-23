@@ -156,22 +156,27 @@ if status == solver.OPTIMAL:
     quarantined: Set[int] = set()
     safe: Set[int] = set()
 
+    border_count = 0
     for u in V1:
         quaran_sol[u] = X1[u].solution_value()
+        if abs(quaran_sol[u] - 0.5) < 0.4:
+            border_count += 1
         if quaran_sol[u] > 0.5:
             quarantined.add(u)
 
     for v in V2:
         safe_sol[v] = X2[v].solution_value()
+        if abs(safe_sol[v] - 0.5) < 0.4:
+            border_count += 1
         if safe_sol[v] > 0.5:
             safe.add(v)
 
     print(f"Quarantined Solution: {quaran_sol}")
     print(f"Safe Solution: {safe_sol}")
-
+    print(f"Border Count: {border_count}")
     print("============================ Basic Rounding ============================")
-    print(f"Quarantined: {quarantined}")
-    print(f"Safe: {safe}")
+    # print(f"Quarantined: {quarantined}")
+    # print(f"Safe: {safe}")
 else:
     if status == solver.FEASIBLE:
         print("A potentially suboptimal solution was found.")
@@ -210,23 +215,30 @@ for i in range(N):
 # Large Graphs
 # set layout
 
-# Speed up layout by computing initial pos
-# pos = nx.spring_layout(G, iterations=30, seed=42, k=5/math.sqrt(N))
+# Must load layout ahead of time from pickled library.
+# pos = pkl.load(open(f"{data_dir}/pos.p", "rb"))
+# dist_params = {
+#     "pos": pos,
+#     "node_color": status,
+#     "with_labels": False,
+#     "node_size": 1,
+#     "width": 0.3
+# }
+#
+# nx.draw_networkx(G, **dist_params)
+# nx.draw_networkx_labels(G, pos, font_size=1)
+#
+# plt.savefig(f'../output/graph_{data_name}.png', dpi=1000)
+# plt.show()
 
-pos = pkl.load(open(f"{data_dir}/pos.p", "rb"))
-dist_params = {
-    "pos": pos,
-    "node_color": status,
-    "with_labels": False,
-    "node_size": 1,
-    "width": 0.3
-}
 
-nx.draw_networkx(G, **dist_params)
-nx.draw_networkx_labels(G, pos, font_size=1)
 
-plt.savefig(f'../output/graph_{data_name}.png', dpi=1000)
-plt.show()
+
+
+
+
+
+
 
 # # Drawing Distances
 # dist_params = {
