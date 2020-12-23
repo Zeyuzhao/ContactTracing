@@ -124,7 +124,7 @@ class ProbMinExposed:
         """Sets the ith V1 indicator to value int"""
         i = self.quaran_map[index]
         if i in self.partials:
-            raise ValueError(f"Index {i} is already set!")
+            raise ValueError(f"in {i} is already set!")
         if value not in (0, 1):
             raise ValueError("Value must be 0 or 1")
         self.partials[i] = value
