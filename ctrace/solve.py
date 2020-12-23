@@ -112,5 +112,25 @@ def basic_non_integer_round(problem: ProbMinExposed):
     probabilities = problem.rawlp()
     return D(np.array(probabilities))
 
-def iterated_round(p):
-    raise NotImplementedError
+def iterated_round(problem: ProbMinExposed, d: int):
+    problem.solve()
+    probabilities = np.array(problem.rawlp())
+    
+    curr = 0
+    
+    while curr + d < len(probabilities):
+        
+        probabilities[curr:curr+d] = D_prime(probabilities[curr:curr+d])
+        
+        for i in range(d):
+            
+            problem.setVariable(curr+i, probabilities[curr+i])
+        
+        problem.solve()
+        probabilities = np.array(problem.rawlp())
+        
+        curr += d
+    
+    probabilities[curr:] = D_prime(probabilities[curr:])
+    
+    return probabilities
