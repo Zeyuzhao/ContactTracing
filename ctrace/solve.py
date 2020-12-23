@@ -95,6 +95,10 @@ def D(p):
        
     return sample
 
+def basic_integer_round(problem: ProbMinExposed):
+    problem.solve()
+    probabilities = problem.rawlp()
+    return D(np.array(probabilities))
 
 def D_prime(p):
     l = np.sum(p)
@@ -103,6 +107,10 @@ def D_prime(p):
     
     return D(p_prime)[:len(p)]
 
+def basic_non_integer_round(problem: ProbMinExposed):
+    problem.solve()
+    probabilities = problem.rawlp()
+    return D(np.array(probabilities))
 
 def iterated_round(p):
     raise NotImplementedError
