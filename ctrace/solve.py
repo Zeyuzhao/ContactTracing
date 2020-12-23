@@ -110,7 +110,7 @@ def D_prime(p):
 def basic_non_integer_round(problem: ProbMinExposed):
     problem.solve_lp()
     probabilities = problem.getVariables()
-    return D(np.array(probabilities))
+    return D_prime(np.array(probabilities))
 
 def iterated_round(problem: ProbMinExposed, d: int):
     problem.solve_lp()
