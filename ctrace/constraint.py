@@ -133,10 +133,6 @@ class ProbMinExposed:
     def getVariables(self):
         return self.quaran_raw
 
-    # Deprecated
-    def raw_soln(self):
-        return self.quaran_sol
-
     def solve_lp(self):
         """Solves the LP problem"""
         status = self.solver.Solve()
