@@ -144,7 +144,7 @@ def prep_labelled_graph(data_name, in_path=None, out_dir=None, num_lines=None):
     out_dir:
         path to the containing directory
     num_lines:
-        number of edges to parse
+        number of edges to parse. If None, parse entire file
     """
 
     # ID to id
@@ -196,6 +196,7 @@ def prep_labelled_graph(data_name, in_path=None, out_dir=None, num_lines=None):
             out_file.write(f"{v1} {v2}\n")
 
 def human_format(num):
+    """Returns a filesize-style number format"""
     num = float('{:.3g}'.format(num))
     magnitude = 0
     while abs(num) >= 1000:
@@ -205,11 +206,9 @@ def human_format(num):
         .format('{:f}'.format(num).rstrip('0').rstrip('.'), ['', 'K', 'M', 'B', 'T'][magnitude])\
         .replace('.', '_')
 
-def prep_dataset(in_path=None, out_dir=None, sizes=[]):
+def prep_dataset(in_path=None, out_dir=None, sizes=(1000, 5000, 10000, None)):
     for s in sizes:
         prep_labelled_graph(data_name=f"mont{human_format(s)}", in_path=in_path, out_dir=out_dir, s=s)
-
-
 
 def load_graph():
     pass
