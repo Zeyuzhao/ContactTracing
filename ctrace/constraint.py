@@ -130,7 +130,10 @@ class ProbMinExposed:
         self.solver.Add(self.X1[i] == value)
 
     def getVariables(self):
-        return self.quaran_sol
+        u = np.zeros(len(self.X1))
+        for (i, val) in self.quaran_sol:
+            u[i] = val
+        return val
 
     # Deprecated
     def raw_soln(self):
