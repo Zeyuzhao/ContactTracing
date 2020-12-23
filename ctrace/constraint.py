@@ -41,8 +41,20 @@ class ProbMinExposed:
         self.initialize()
 
     @classmethod
-    def from_dataframe(cls, **kwargs):
-        pass
+    def from_dataframe(cls, G, I, contour1, contour2,
+                       p1_df: pd.DataFrame, q_df: pd.DataFrame,
+                       k, costs=None, solver=None):
+        # Initialize p1
+        p1 = {}
+        for i, row in p1_df.iterrows():
+            p1[row['v']] = row['p_v']
+
+        # Initialize p2
+        q = defaultdict(lambda: defaultdict(lambda: None))
+        for i, row in q_df.iterrows():
+            q[row['u']][row['v']] = row['q_uv']
+
+        return cls(G, I, contour1, contour2, p1, q, k, costs, solver)
 
     def initialize(self):
         # V1 indicator set
