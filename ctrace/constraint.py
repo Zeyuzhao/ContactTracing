@@ -14,7 +14,7 @@ import pandas as pd
 
 
 class ProbMinExposed:
-    def __init__(self, graph: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None):
+    def __init__(self, graph: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
         """Generates the constraints given a graph. Assumes V1, V2 are 1,2 away from I"""
         self.G = graph
         self.I = infected
@@ -31,10 +31,15 @@ class ProbMinExposed:
             costs = np.ones(len(self.V1))
 
         self.costs = costs
+        if solver is None:
+            solver: Solver = pywraplp.Solver.CreateSolver('GLOP')
+        self.solver = solver
+
+        # Partial Evaluation storage
+        self.partials = {}
         self.init()
 
     def init(self):
-        self.solver: Solver = pywraplp.Solver.CreateSolver('GLOP')
         # V1 indicator set
         self.X1: Dict[int, Variable] = {}
         self.Y1: Dict[int, Variable] = {}
@@ -82,7 +87,8 @@ class ProbMinExposed:
         for u in self.V1:
             for v in self.G.neighbors(u):
                 if v in self.V2:
-                    self.solver.Add(self.Y2[v] >= (self.q[u][v] * self.p1[u]) * self.Y1[u])
+                    coeff = (self.q[u][v] * self.p1[u])
+                    self.solver.Add(self.Y2[v] >= coeff * self.Y1[u])
 
         # Set minimization objective
         # Number of people free in V1 and people exposed in V2
@@ -96,7 +102,17 @@ class ProbMinExposed:
         numExposed.SetMinimization()
 
     def setVariable(self, i: int, value: int):
+        if i in self.partials:
+            raise ValueError(f"Index {i} is already set!")
+        self.partials[i] = value
         self.solver.Add(self.X1[i] == value)
+
+    def getVariables(self):
+        return self.quaran_sol
+
+    # Deprecated
+    def raw_soln(self):
+        return self.quaran_sol
 
     def solve_lp(self):
         """Solves the LP problem"""
@@ -112,9 +128,6 @@ class ProbMinExposed:
 
         for v in self.V2:
             self.safe_sol[v] = self.X2[v].solution_value()
-
-    def raw_soln(self):
-        return self.quaran_sol
 
 
 
@@ -199,7 +212,7 @@ def prep_dataset(in_path=None, out_dir=None, sizes=(100, 1000, 5000, 10000, None
         name = f"mont{human_format(s)}" if s else "montgomery"
         prep_labelled_graph(data_name= name, in_path=in_path, out_dir=out_dir, num_lines=s)
 
-def load_graph(dataset_name, in_dir):
+def load_graph(dataset_name, in_dir="../data/mont/labelled"):
     return nx.read_edgelist(f"{in_dir}/{dataset_name}/data.txt", delimiter=",", nodetype=int)
 
 def load_auxillary(directory):
@@ -233,8 +246,8 @@ def find_coutours(G: nx.Graph, infected):
 
     return (V1, V2)
 
-def generate_fixed(G, num_infected: int = None, k : int = None, costs : list =None):
-    """Returns a dictionary of parameters for the case of infected, """
+def generate_absolute(G, num_infected: int = None, k : int = None, costs : list = None):
+    """Returns a dictionary of parameters for the case of infected, absolute infection"""
     N = G.number_of_nodes()
     infected = np.random.choice(N, size=num_infected, replace=False)
     contour1, contour2 = find_coutours(G, infected)
@@ -258,8 +271,54 @@ def generate_fixed(G, num_infected: int = None, k : int = None, costs : list =No
         "costs": costs,
     }
 
+def draw_absolute(G: nx.Graph, I, V1, V2, quarantined, safe, name=""):
+    status = []
+    N = G.number_of_nodes()
+    for i in range(N):
+        if i in V1:
+            c = "blue" if (i in quarantined) else "orange"
+        elif i in V2:
+            c = "green" if (i in safe) else "yellow"
+        elif i in I:
+            c = "red"
+        else:
+            c = "grey"
+        status.append(c)
+        G.nodes[i]["color"] = c
+
+    # Small
+
+    if N < 20:
+        pos = nx.spring_layout(G)
+        dist_params = {
+            "pos": pos,
+            "node_color": status,
+            "with_labels": True,
+        }
+        nx.draw_networkx(G, **dist_params)
+    else:
+        # large
+        pos = nx.nx_agraph.graphviz_layout(G, prog="sfdp", args="-Goverlap=false")
+
+        dist_params = {
+            "pos": pos,
+            "node_color": status,
+            "with_labels": False,
+            "node_size": 1,
+            "width": 0.3
+        }
+        nx.draw_networkx(G, **dist_params)
+        nx.draw_networkx_labels(G, pos, font_size=1)
+
+    if name is None:
+        name = "graph"
+
+    plt.savefig(f'../output/{name}.png', dpi=1000)
+    plt.show()
+
 if __name__ == '__main__':
-    prep_dataset()
+    G = load_graph("mont100")
+    generate_absolute(G)
 
 
 
