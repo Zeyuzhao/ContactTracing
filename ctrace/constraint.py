@@ -35,6 +35,8 @@ class ProbMinExposed:
             solver: Solver = pywraplp.Solver.CreateSolver('GLOP')
         self.solver = solver
 
+        # Partial Evaluation storage
+        self.partials = {}
         self.init()
 
     def init(self):
@@ -85,7 +87,8 @@ class ProbMinExposed:
         for u in self.V1:
             for v in self.G.neighbors(u):
                 if v in self.V2:
-                    self.solver.Add(self.Y2[v] >= (self.q[u][v] * self.p1[u]) * self.Y1[u])
+                    coeff = (self.q[u][v] * self.p1[u])
+                    self.solver.Add(self.Y2[v] >= coeff * self.Y1[u])
 
         # Set minimization objective
         # Number of people free in V1 and people exposed in V2
@@ -99,7 +102,17 @@ class ProbMinExposed:
         numExposed.SetMinimization()
 
     def setVariable(self, i: int, value: int):
+        if i in self.partials:
+            raise ValueError(f"Index {i} is already set!")
+        self.partials[i] = value
         self.solver.Add(self.X1[i] == value)
+
+    def getVariables(self):
+        return self.quaran_sol
+
+    # Deprecated
+    def raw_soln(self):
+        return self.quaran_sol
 
     def solve_lp(self):
         """Solves the LP problem"""
@@ -115,9 +128,6 @@ class ProbMinExposed:
 
         for v in self.V2:
             self.safe_sol[v] = self.X2[v].solution_value()
-
-    def raw_soln(self):
-        return self.quaran_sol
 
 
 
