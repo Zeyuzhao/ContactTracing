@@ -12,10 +12,12 @@ from pathlib import Path
 
 import pandas as pd
 
+np.random.seed(42)
+
 class ProbMinExposed:
-    def __init__(self, graph: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
+    def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
         """Generates the constraints given a graph. Assumes V1, V2 are 1,2 away from I"""
-        self.G = graph
+        self.G = G
         self.I = infected
         self.V1 = contour1
         self.V2 = contour2
@@ -36,9 +38,13 @@ class ProbMinExposed:
 
         # Partial Evaluation storage
         self.partials = {}
-        self.init()
+        self.initialize()
 
-    def init(self):
+    @classmethod
+    def from_dataframe(cls, **kwargs):
+        pass
+
+    def initialize(self):
         # V1 indicator set
         self.X1: Dict[int, Variable] = {}
         self.Y1: Dict[int, Variable] = {}
@@ -87,12 +93,14 @@ class ProbMinExposed:
             for v in self.G.neighbors(u):
                 if v in self.V2:
                     coeff = (self.q[u][v] * self.p1[u])
+                    print(f"Coeff: {coeff}")
                     self.solver.Add(self.Y2[v] >= coeff * self.Y1[u])
 
         # Set minimization objective
         # Number of people free in V1 and people exposed in V2
         numExposed: Objective = self.solver.Objective()
         for u in self.V1:
+            print(f"p1: {self.p1[u]}")
             numExposed.SetCoefficient(self.Y1[u], self.p1[u])
 
         for v in self.V2:
@@ -215,7 +223,7 @@ def prep_dataset(in_path=None, out_dir=None, sizes=(100, 1000, 5000, 10000, None
         prep_labelled_graph(data_name= name, in_path=in_path, out_dir=out_dir, num_lines=s)
 
 def load_graph(dataset_name, in_dir="../data/mont/labelled"):
-    return nx.read_edgelist(f"{in_dir}/{dataset_name}/data.txt", delimiter=",", nodetype=int)
+    return nx.read_edgelist(f"{in_dir}/{dataset_name}/data.txt", nodetype=int)
 
 def load_auxillary(directory):
     """loads in infected, contour1, contour2, p1, q, k, and costs from directory"""
@@ -226,11 +234,11 @@ def find_coutours(G: nx.Graph, infected):
     N = G.number_of_nodes()
 
     I_SET = set(infected)
-    print(f"Infected: {I_SET}")
+    # print(f"Infected: {I_SET}")
 
     # COSTS = np.random.randint(1, 20, size=N)
     COSTS = np.ones(N)
-    print(f"COSTS: {COSTS}")
+    # print(f"COSTS: {COSTS}")
     # Compute distances
     dist_dict = nx.multi_source_dijkstra_path_length(G, I_SET)
 
@@ -248,21 +256,30 @@ def find_coutours(G: nx.Graph, infected):
 
     return (V1, V2)
 
-def generate_absolute(G, num_infected: int = None, k : int = None, costs : list = None):
+def generate_random_absolute(G, num_infected: int = None, k : int = None, costs : list = None):
+    N = G.number_of_nodes()
+    if num_infected is None:
+        num_infected = int(N * 0.05)
+    rand_infected = np.random.choice(N, num_infected, replace=False)
+    return generate_absolute(G, rand_infected, k, costs)
+
+
+def generate_absolute(G, infected, k : int = None, costs : list = None):
     """Returns a dictionary of parameters for the case of infected, absolute infection"""
     N = G.number_of_nodes()
-    infected = np.random.choice(N, size=num_infected, replace=False)
+
+    if k is None:
+        k = int(0.8 * len(infected))
+
+    if costs is None:
+        costs = np.ones(N)
+
     contour1, contour2 = find_coutours(G, infected)
 
     # Assume absolute infectivity
-    p1 = np.ones(len(contour1))
+    p1 = defaultdict(lambda: 1)
 
-    q = defaultdict(lambda: defaultdict(int))
-
-    if k is None:
-        k = 0.8 * len(infected)
-    if costs is None:
-        costs = np.ones(N)
+    q = defaultdict(lambda: defaultdict(lambda : 1))
     return {
         "G": G,
         "infected": infected,
@@ -271,56 +288,22 @@ def generate_absolute(G, num_infected: int = None, k : int = None, costs : list 
         "p1": p1,
         "q": q,
         "costs": costs,
+        "k": k,
     }
 
-def draw_absolute(G: nx.Graph, I, V1, V2, quarantined, safe, name=""):
-    status = []
-    N = G.number_of_nodes()
-    for i in range(N):
-        if i in V1:
-            c = "blue" if (i in quarantined) else "orange"
-        elif i in V2:
-            c = "green" if (i in safe) else "yellow"
-        elif i in I:
-            c = "red"
-        else:
-            c = "grey"
-        status.append(c)
-        G.nodes[i]["color"] = c
 
-    # Small
 
-    if N < 20:
-        pos = nx.spring_layout(G)
-        dist_params = {
-            "pos": pos,
-            "node_color": status,
-            "with_labels": True,
-        }
-        nx.draw_networkx(G, **dist_params)
-    else:
-        # large
-        pos = nx.nx_agraph.graphviz_layout(G, prog="sfdp", args="-Goverlap=false")
-
-        dist_params = {
-            "pos": pos,
-            "node_color": status,
-            "with_labels": False,
-            "node_size": 1,
-            "width": 0.3
-        }
-        nx.draw_networkx(G, **dist_params)
-        nx.draw_networkx_labels(G, pos, font_size=1)
-
-    if name is None:
-        name = "graph"
-
-    plt.savefig(f'../output/{name}.png', dpi=1000)
-    plt.show()
 
 if __name__ == '__main__':
-    G = load_graph("mont100")
-    params = generate_absolute(G)
+    # G = load_graph("mont1K")
+    G = nx.balanced_tree(4, 3)
+
+    params = generate_absolute(G, {0, 1, 2}, k=2)
+    cons = ProbMinExposed(**params)
+
+    cons.solve_lp()
+    draw(cons)
+
 
 
 
