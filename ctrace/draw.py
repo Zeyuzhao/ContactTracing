@@ -45,9 +45,9 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, odds, p1, transition):
     for i in range(N):
         if i in I:
             c = "blue" if (i in quarantined) else "orange"
-        elif i in V2:
+        elif i in V1:
             c = "green" if (i in safe) else "yellow"
-        elif i in I:
+        elif i in V2:
             c = "red"
         else:
             c = "grey"
