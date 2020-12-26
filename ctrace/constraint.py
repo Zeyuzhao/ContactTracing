@@ -50,7 +50,7 @@ class ProbMinExposed:
             p1[row['v']] = row['p_v']
 
         # Initialize p2
-        q = defaultdict(lambda: defaultdict(lambda: None))
+        q = defaultdict(lambda: defaultdict(lambda: int))
         for i, row in q_df.iterrows():
             q[row['u']][row['v']] = row['q_uv']
 
