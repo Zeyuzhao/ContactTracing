@@ -7,9 +7,9 @@ import random
 
 
 def grab_graph():
-    montgamery = open('montgomery.txt')
+    montgomery = open('../mont/montgomery.csv')
     nodes = {}
-    for line in montgamery:
+    for line in montgomery:
          u,v = (line[:-2].split(','))
          u = int(u)
          v = int(v)
@@ -19,11 +19,11 @@ def grab_graph():
 
     sorted_ids = sorted(nodes.keys())
     node_maps = {str(sorted_ids[i]):i for i in range(len(sorted_ids))}
-    montgamery = open('montgomery.txt')
+    montgomery = open('../mont/montgomery.csv')
     G = nx.Graph()
     nodes = {}
 
-    for line in montgamery:
+    for line in montgomery:
          u,v = (line[:-2].split(','))
          u = node_maps[u]
          v = node_maps[v]
