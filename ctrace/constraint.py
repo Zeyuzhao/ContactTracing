@@ -50,7 +50,7 @@ class ProbMinExposed:
             p1[row['v']] = row['p_v']
 
         # Initialize p2
-        q = defaultdict(lambda: defaultdict(lambda: int))
+        q = defaultdict(lambda: defaultdict(lambda: 0))
         for i, row in q_df.iterrows():
             q[row['u']][row['v']] = row['q_uv']
 
@@ -104,17 +104,13 @@ class ProbMinExposed:
         for u in self.V1:
             for v in self.G.neighbors(u):
                 if v in self.V2:
-                    print(u)
-                    print(v)
                     coeff = (self.q[u][v] * self.p1[u])
-                    #print(f"Coeff: {coeff}")
                     self.solver.Add(self.Y2[v] >= coeff * self.Y1[u])
 
         # Set minimization objective
         # Number of people free in V1 and people exposed in V2
         numExposed: Objective = self.solver.Objective()
         for u in self.V1:
-            print(f"p1: {self.p1[u]}")
             numExposed.SetCoefficient(self.Y1[u], self.p1[u])
 
         for v in self.V2:
@@ -246,13 +242,8 @@ def load_auxillary(directory):
 def find_contours(G: nx.Graph, infected):
     """Produces contour1 and contour2 from infected"""
     N = G.number_of_nodes()
-
     I_SET = set(infected)
-    # print(f"Infected: {I_SET}")
 
-    # COSTS = np.random.randint(1, 20, size=N)
-    COSTS = np.ones(N)
-    # print(f"COSTS: {COSTS}")
     # Compute distances
     dist_dict = nx.multi_source_dijkstra_path_length(G, I_SET)
 

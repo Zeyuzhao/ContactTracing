@@ -52,7 +52,7 @@ def D(p):
         
         new_leaves = []
         
-        for i in range(0,t,2):            
+        for i in range(0,t-1,2):            
             
             a = prob[leaves[i]]
             b = prob[leaves[i+1]]
