@@ -135,6 +135,11 @@ class ProbMinExposed:
     def getVariables(self):
         return self.quaran_raw
 
+    def filled(self):
+        """Returns true if every variable is solved"""
+        return self.partials == self.V1
+
+
     def solve_lp(self):
         """Solves the LP problem"""
         status = self.solver.Solve()
@@ -146,12 +151,19 @@ class ProbMinExposed:
 
         self.quaran_raw = np.zeros(len(self.X1))
         self.quaran_map = {}
+
+        self.objectiveVal = 0
         for i, u in enumerate(self.V1):
-            self.quaran_raw[i] = self.quaran_sol[u] = self.X1[u].solution_value()
+            val = self.quaran_raw[i] = self.quaran_sol[u] = self.X1[u].solution_value()
             self.quaran_map[i] = u
+            self.objectiveVal += (self.p1[u] * val)
 
         for v in self.V2:
             self.safe_sol[v] = self.X2[v].solution_value()
+            self.objectiveVal += self.safe_sol[v]
+
+
+
 
 
 
