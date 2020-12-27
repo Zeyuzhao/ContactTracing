@@ -111,14 +111,21 @@ def D_prime(p):
 def basic_non_integer_round(problem: ProbMinExposed):
     problem.solve_lp()
     probabilities = problem.getVariables()
-    return D_prime(np.array(probabilities))
-
+    to_return = D_prime(np.array(probabilities))
+    
+    #sets variables so objective function value is correct
+    for i in range(len(to_return)):
+        problem.setVariable(i,to_return[i])
+        
+    return to_return
+    
 def iterated_round(problem: ProbMinExposed, d: int):
     problem.solve_lp()
     probabilities = np.array(problem.getVariables())
     
     curr = 0
     
+    #rounds d values at the time, and then resolves the LP each time
     while curr + d < len(probabilities):
         
         probabilities[curr:curr+d] = D_prime(probabilities[curr:curr+d])
@@ -132,7 +139,11 @@ def iterated_round(problem: ProbMinExposed, d: int):
         
         curr += d
     
+    #rounds remaining values and updates LP
     probabilities[curr:] = D_prime(probabilities[curr:])
+    
+    for i in range(curr,len(probabilities)):
+        problem.setVariable(i,probabilities[i])
     
     return probabilities
 
@@ -140,6 +151,7 @@ def optimized_iterated_round(problem: ProbMinExposed, d: int):
     problem.solve_lp()
     probabilities = np.array(problem.getVariables())
     
+    #creates mapping to avoid re-ordering of the array
     mapping = []
     
     for (i,value) in enumerate(probabilities):
@@ -184,6 +196,7 @@ def optimized_iterated_round(problem: ProbMinExposed, d: int):
     rounded = D_prime(np.array(to_round))
     
     for i in range(len(rounded)):
+        problem.setVariable(mapping[i][1],rounded[i])
         probabilities[mapping[i][1]] = rounded[i]
     
     return probabilities 
