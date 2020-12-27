@@ -50,7 +50,7 @@ class ProbMinExposed:
             p1[row['v']] = row['p_v']
 
         # Initialize p2
-        q = defaultdict(lambda: defaultdict(int))
+        q = defaultdict(lambda: defaultdict(lambda: 0))
         for i, row in q_df.iterrows():
             q[row['u']][row['v']] = row['q_uv']
 
@@ -104,7 +104,7 @@ class ProbMinExposed:
         for u in self.V1:
             for v in self.G.neighbors(u):
                 if v in self.V2:
-                    coeff = (self.q[u][v] * self.p1[u])
+                    coeff = (self.q[u][v])
                     self.solver.Add(self.Y2[v] >= coeff * self.Y1[u])
 
         # Set minimization objective
