@@ -29,7 +29,7 @@ class ProbMinExposed:
 
         # Default costs of uniform
         if costs is None:
-            costs = np.ones(len(self.V1))
+            costs = defaultdict(lambda: 1)
 
         self.costs = costs
         if solver is None:
@@ -38,7 +38,8 @@ class ProbMinExposed:
 
         # Partial Evaluation storage
         self.partials = {}
-        self.initialize()
+        self.init_variables()
+        self.init_constraints()
 
     @classmethod
     def from_dataframe(cls, G, I, contour1, contour2,
@@ -56,7 +57,7 @@ class ProbMinExposed:
 
         return cls(G, I, contour1, contour2, p1, q, k, costs, solver)
 
-    def initialize(self):
+    def init_variables(self):
         # V1 indicator set
         self.X1: Dict[int, Variable] = {}
         self.Y1: Dict[int, Variable] = {}
@@ -73,6 +74,8 @@ class ProbMinExposed:
         for v in self.V2:
             self.X2[v] = self.solver.NumVar(0, 1, f"V2_x{v}")
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
+
+    def init_constraints(self):
 
         # First set of constraints X + Y = 1
         # By definition, X and Y sum to 1
@@ -104,10 +107,7 @@ class ProbMinExposed:
         for u in self.V1:
             for v in self.G.neighbors(u):
                 if v in self.V2:
-                    print(u)
-                    print(v)
                     coeff = (self.q[u][v] * self.p1[u])
-                    #print(f"Coeff: {coeff}")
                     self.solver.Add(self.Y2[v] >= coeff * self.Y1[u])
 
         # Set minimization objective
@@ -139,7 +139,6 @@ class ProbMinExposed:
         """Returns true if every variable is solved"""
         return self.partials == self.V1
 
-
     def solve_lp(self):
         """Solves the LP problem"""
         status = self.solver.Solve()
@@ -156,16 +155,35 @@ class ProbMinExposed:
         for i, u in enumerate(self.V1):
             val = self.quaran_raw[i] = self.quaran_sol[u] = self.X1[u].solution_value()
             self.quaran_map[i] = u
-            self.objectiveVal += (self.p1[u] * val)
+            self.objectiveVal += (self.p1[u] * (1 - val))
 
         for v in self.V2:
             self.safe_sol[v] = self.X2[v].solution_value()
-            self.objectiveVal += self.safe_sol[v]
+            self.objectiveVal += (1 - self.safe_sol[v])
 
+class ProbMinExposedMIP(ProbMinExposed):
+    def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
+        if solver is None:
+            solver = pywraplp.Solver.CreateSolver('SCIP')
+        super().__init__(G, infected, contour1, contour2, p1, q, k, costs, solver)
 
+    def init_variables(self):
+        # V1 indicator set
+        self.X1: Dict[int, Variable] = {}
+        self.Y1: Dict[int, Variable] = {}
 
+        # V2 indicator set
+        self.X2: Dict[int, Variable] = {}
+        self.Y2: Dict[int, Variable] = {}
 
+        # Declare Variables (With Integer Constraints)
+        for u in self.V1:
+            self.X1[u] = self.solver.IntVar(0, 1, f"V1_x{u}")
+            self.Y1[u] = self.solver.IntVar(0, 1, f"V1_y{u}")
 
+        for v in self.V2:
+            self.X2[v] = self.solver.NumVar(0, 1, f"V2_x{v}")
+            self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
 
 def prep_labelled_graph(data_name, in_path=None, out_dir=None, num_lines=None):
     """Generates a labelled graph. Converts IDs to ids from 0 to N vertices
