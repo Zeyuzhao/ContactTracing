@@ -1,3 +1,5 @@
+from typing import Union, List, Tuple
+
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -30,7 +32,7 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, odds, p1, transition):
     quarantined
         V1 x indicators (blue x = 1, none x = 0)
     odds
-        V2 y colormap (yellow higher chance, green lower chance)
+        V2 y colormap (yellow => higher chance of infection, green => lower chance of infection)
     p1
         V1 original odds
     transition
@@ -40,23 +42,63 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, odds, p1, transition):
     -------
     None
     """
-    status = []
+    color = Tuple[float, float, float, float]
+    optional_color = List[Union[color, None]]
+
+    RED: color = (1, 0, 0, 1)
+    BLUE: color = (0, 0, 1, 1)
+    GREY: color = (1, 1, 1, 0.5)
+    BLACK: color = (0, 0, 0, 1)
+
+    oranges = plt.get_cmap("Oranges")
+    blues = plt.get_cmap("Blues")
+    reds = plt.get_cmap("Reds")
+    yellow = plt.get_cmap("summer")
+
     N = G.number_of_nodes()
+
+    # color the node filling and border
+    fill: optional_color = [GREY] * N
+    border: optional_color = [BLACK] * N
+
     for i in range(N):
         if i in I:
-            c = "blue" if (i in quarantined) else "orange"
+            fill[i] = RED
         elif i in V1:
-            c = "green" if (i in safe) else "yellow"
+            fill[i] = oranges(p1[i])
+            if i in quarantined:
+                border[i] = BLUE
         elif i in V2:
-            c = "red"
+            fill[i] = yellow(odds[i])
         else:
-            c = "grey"
-        status.append(c)
-        G.nodes[i]["color"] = c
-    pass
+            c = GREY
+
+    # color the edges
+    M = len(G.edges)
+    edge_color: optional_color = [BLACK] * M
+    widths = [0] * M
+    for i, (a, b) in enumerate(G.edges()):
+        if a in V1 and b in V2:
+            edge_color[i] = reds(transition[a][b])
+            widths[i] = 1
+
+    pos = nx.spring_layout(G)
+    dist_params = {
+        "pos": pos,
+        "node_color": fill,
+        "edgecolors": border,
+        "linewidth": widths
+    }
+    edge_params = {
+        "pos": pos,
+        "edge_color": edge_color,
+    }
+
+    nx.draw_networkx_nodes(G, **dist_params)
+    nx.draw_networkx_edges(G, **edge_params)
+    nx.draw_networkx_labels(G, pos=pos)
 
 
-draw_prob()
 
 
 def draw_absolute(G: nx.Graph, I, V1, V2, quarantined, safe, name=None):
