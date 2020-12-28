@@ -107,7 +107,7 @@ class ProbMinExposed:
         for u in self.V1:
             for v in self.G.neighbors(u):
                 if v in self.V2:
-                    coeff = (self.q[u][v] * self.p1[u])
+                    coeff = self.q[u][v]
                     self.solver.Add(self.Y2[v] >= coeff * self.Y1[u])
 
         # Set minimization objective
