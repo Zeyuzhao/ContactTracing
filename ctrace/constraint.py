@@ -145,21 +145,23 @@ class ProbMinExposed:
         if status == self.solver.INFEASIBLE:
             raise ValueError("Infeasible solution")
         # Indicators
-        self.quaran_sol: Dict[int, float] = {}
-        self.safe_sol: Dict[int, float] = {}
+        self.quarantined_solution: Dict[int, float] = {}
+        self.saved_solution: Dict[int, float] = {}
+        self.infected_v1: Dict[int, float] = {}
+        self.infected_v2: Dict[int, float] = {}
 
         self.quaran_raw = np.zeros(len(self.X1))
         self.quaran_map = {}
 
         self.objectiveVal = 0
         for i, u in enumerate(self.V1):
-            val = self.quaran_raw[i] = self.quaran_sol[u] = self.X1[u].solution_value()
+            val = self.quaran_raw[i] = self.quarantined_solution[u] = self.X1[u].solution_value()
             self.quaran_map[i] = u
             self.objectiveVal += (self.p1[u] * (1 - val))
 
         for v in self.V2:
-            self.safe_sol[v] = self.X2[v].solution_value()
-            self.objectiveVal += (1 - self.safe_sol[v])
+            self.saved_solution[v] = self.X2[v].solution_value()
+            self.objectiveVal += (1 - self.saved_solution[v])
 
 class ProbMinExposedMIP(ProbMinExposed):
     def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
