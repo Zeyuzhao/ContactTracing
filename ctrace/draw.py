@@ -16,7 +16,7 @@ newcolors = np.vstack((top(np.linspace(0, 1, 128)),
 newcmp = ListedColormap(newcolors, name='OrangeBlue')
 
 
-def draw_prob(G: nx.Graph, I, V1, V2, quarantined, odds, p1, transition):
+def draw_prob(G: nx.Graph, I, V1, V2, quarantined, saved, p1, transition):
     """Generates graph visualization of the probabilistic p < 1 case
 
     Parameters
@@ -31,8 +31,8 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, odds, p1, transition):
         2nd infected contour
     quarantined
         V1 x indicators (blue x = 1, none x = 0)
-    odds
-        V2 y colormap (yellow => higher chance of infection, green => lower chance of infection)
+    saved
+        V2 x colormap (yellow => higher chance of infection, green => lower chance of infection)
     p1
         V1 original odds
     transition
@@ -53,7 +53,7 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, odds, p1, transition):
     oranges = plt.get_cmap("Oranges")
     blues = plt.get_cmap("Blues")
     reds = plt.get_cmap("Reds")
-    yellow = plt.get_cmap("summer")
+    yellow = plt.get_cmap("YlGn")
 
     N = G.number_of_nodes()
 
@@ -69,7 +69,7 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, odds, p1, transition):
             if i in quarantined:
                 border[i] = BLUE
         elif i in V2:
-            fill[i] = yellow(odds[i])
+            fill[i] = yellow(saved[i])
         else:
             c = GREY
 
@@ -87,7 +87,7 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, odds, p1, transition):
         "pos": pos,
         "node_color": fill,
         "edgecolors": border,
-        "linewidth": widths
+        "linewidths": widths
     }
     edge_params = {
         "pos": pos,
@@ -152,11 +152,11 @@ def draw(constraint: ProbMinExposed):
     quarantined: Set[int] = set()
     safe: Set[int] = set()
 
-    for u, value in constraint.quaran_sol.items():
+    for u, value in constraint.quarantined_solution.items():
         if value > 0.5:
             quarantined.add(u)
 
-    for v, value in constraint.safe_sol.items():
+    for v, value in constraint.saved_solution.items():
         if value > 0.5:
             safe.add(v)
     draw_absolute(constraint.G, constraint.I, constraint.V1, constraint.V2, quarantined, safe)
