@@ -114,7 +114,7 @@ class ProbMinExposed:
         # Number of people free in V1 and people exposed in V2
         numExposed: Objective = self.solver.Objective()
         for u in self.V1:
-            print(f"p1: {self.p1[u]}")
+            #print(f"p1: {self.p1[u]}")
             numExposed.SetCoefficient(self.Y1[u], self.p1[u])
 
         for v in self.V2:
