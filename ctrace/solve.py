@@ -1,7 +1,8 @@
 import random
 import numpy as np
 import math
-from constraint import ProbMinExposed
+from constraint import *
+from contact_tracing import *
 
 def simplify(alpha:float, beta:float):
     if (alpha<0) | (alpha>1) | (beta<0) | (beta>1):
@@ -96,11 +97,6 @@ def D(p):
        
     return sample
 
-def basic_integer_round(problem: ProbMinExposed):
-    problem.solve_lp()
-    probabilities = problem.getVariables()
-    return D(np.array(probabilities))
-
 def D_prime(p):
     l = np.sum(p)
     
@@ -108,6 +104,7 @@ def D_prime(p):
     
     return D(p_prime)[:len(p)]
 
+#returns rounded bits and objective value of those bits
 def basic_non_integer_round(problem: ProbMinExposed):
     problem.solve_lp()
     probabilities = problem.getVariables()
@@ -116,9 +113,12 @@ def basic_non_integer_round(problem: ProbMinExposed):
     #sets variables so objective function value is correct
     for i in range(len(to_return)):
         problem.setVariable(i,to_return[i])
-        
-    return to_return
     
+    problem.solve_lp()
+    
+    return (problem.objectiveVal, to_return)
+
+#returns rounded bits and objective value of those bits
 def iterated_round(problem: ProbMinExposed, d: int):
     problem.solve_lp()
     probabilities = np.array(problem.getVariables())
@@ -145,8 +145,11 @@ def iterated_round(problem: ProbMinExposed, d: int):
     for i in range(curr,len(probabilities)):
         problem.setVariable(i,probabilities[i])
     
-    return probabilities
+    problem.solve_lp()
+    
+    return (problem.objectiveVal, probabilities)
 
+#returns rounded bits and objective value of those bits
 def optimized_iterated_round(problem: ProbMinExposed, d: int):
     problem.solve_lp()
     probabilities = np.array(problem.getVariables())
@@ -199,4 +202,27 @@ def optimized_iterated_round(problem: ProbMinExposed, d: int):
         problem.setVariable(mapping[i][1],rounded[i])
         probabilities[mapping[i][1]] = rounded[i]
     
-    return probabilities 
+    problem.solve_lp()
+    
+    return (problem.objectiveVal, probabilities)
+
+def to_quarantine(G: nx.graph, I0, cost_constraint, method = "dependent"):
+    costs = np.ones(len(G.nodes))
+    V_1, V_2 = find_contours(G, I0)
+    P, Q = PQ(G, I0, runs = 100)
+    
+    prob = ProbMinExposed.from_dataframe(G, I0, V_1, V_2, P, Q, cost_constraint, COSTS)
+    
+    val = -1
+    rounded = []
+    
+    if method == "dependent":
+        (val, rounded) = basic_non_integer_round(prob)
+    elif method == "iterated":
+        (val, rounded) = iterated_round(prob, len(V_1)/20)
+    elif method == "optimized":
+        (val, rounded) = optimized_iterated_round(prob, len(V_1)/20)
+    else:
+        raise Exception("invalid method for optimization")
+    
+    return (val, rounded)
