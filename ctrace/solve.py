@@ -213,7 +213,7 @@ def to_quarantine(G: nx.graph, I0, cost_constraint, runs = 20, p = .5, P = None,
     if (P is None) | (Q is None):
         P, Q = PQ(G, I0, p = p, runs = runs)
 
-    prob = ProbMinExposed.from_dataframe(G, I0, V_1, V_2, P, Q, cost_constraint, COSTS)
+    prob = ProbMinExposed.from_dataframe(G, I0, V_1, V_2, P, Q, cost_constraint, costs)
     
     val = -1
     rounded = []
@@ -224,6 +224,10 @@ def to_quarantine(G: nx.graph, I0, cost_constraint, runs = 20, p = .5, P = None,
         (val, rounded) = iterated_round(prob, len(V_1)/20)
     elif method == "optimized":
         (val, rounded) = optimized_iterated_round(prob, len(V_1)/20)
+    elif method == "greedy":
+        pass
+    elif method == "random":
+        pass
     else:
         raise Exception("invalid method for optimization")
     
