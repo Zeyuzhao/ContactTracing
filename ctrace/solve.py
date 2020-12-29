@@ -206,12 +206,12 @@ def optimized_iterated_round(problem: ProbMinExposed, d: int):
     
     return (problem.objectiveVal, probabilities)
 
-def to_quarantine(G: nx.graph, I0, cost_constraint, P = None, Q = None, method = "dependent"):
+def to_quarantine(G: nx.graph, I0, cost_constraint, runs = 20, p = .5, P = None, Q = None, method = "dependent"):
     costs = np.ones(len(G.nodes))
     V_1, V_2 = find_contours(G, I0)
 
     if (P is None) | (Q is None):
-        P, Q = PQ(G, I0, runs = 100)
+        P, Q = PQ(G, I0, p = p, runs = runs)
 
     prob = ProbMinExposed.from_dataframe(G, I0, V_1, V_2, P, Q, cost_constraint, COSTS)
     
