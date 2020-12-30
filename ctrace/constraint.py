@@ -309,8 +309,8 @@ def union_neighbors(G: nx.Graph, initial: Set, excluded: Set):
 
 def find_excluded_contours(G: nx.Graph, infected: Set, excluded: Set):
     """Finds V1 and V2 from a graph that does not consider the excluded set"""
-    v1 = union_neighbors(G, infected, infected | excluded)
-    v2 = union_neighbors(G, v1, v1 | infected | excluded)
+    v1 = union_neighbors(G, infected, set(infected) | set(excluded))
+    v2 = union_neighbors(G, v1, set(v1) | set(infected) | set(excluded))
     return (v1, v2)
 
 def generate_random_absolute(G, num_infected: int = None, k : int = None, costs : list = None):
