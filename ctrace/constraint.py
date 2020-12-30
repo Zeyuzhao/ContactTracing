@@ -107,7 +107,7 @@ class ProbMinExposed:
         for u in self.V1:
             for v in self.G.neighbors(u):
                 if v in self.V2:
-                    coeff = (self.q[u][v] * self.p1[u])
+                    coeff = self.q[u][v]
                     self.solver.Add(self.Y2[v] >= coeff * self.Y1[u])
 
         # Set minimization objective
@@ -314,9 +314,6 @@ def find_excluded_contours(G: nx.Graph, infected, excluded):
     v1 = union_neighbors(G, infected, infected)
     v2 = union_neighbors(G, v1, infected | excluded)
     return (v1, v2)
-
-
-
 
 def generate_random_absolute(G, num_infected: int = None, k : int = None, costs : list = None):
     N = G.number_of_nodes()
