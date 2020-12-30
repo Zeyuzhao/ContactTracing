@@ -47,7 +47,7 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, saved, p1, transition):
 
     RED: color = (1, 0, 0, 1)
     BLUE: color = (0, 0, 1, 1)
-    GREY: color = (1, 1, 1, 0.5)
+    GREY: color = (0.5, 0.5, 0.5, 1)
     BLACK: color = (0, 0, 0, 1)
 
     oranges = plt.get_cmap("Oranges")
