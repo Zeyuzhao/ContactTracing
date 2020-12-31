@@ -262,8 +262,8 @@ def to_quarantine(G: nx.graph, I0, safe, cost_constraint, runs = 20, p = .5, P =
     if method == "dependent":
         return basic_non_integer_round(prob)
     elif method == "iterated":
-        return iterated_round(prob, len(V_1)/20)
+        return iterated_round(prob, int(len(V_1)/20))
     elif method == "optimized":
-        return optimized_iterated_round(prob, len(V_1)/20)
+        return optimized_iterated_round(prob, int(len(V_1)/20))
     else:
         raise Exception("invalid method for optimization")
