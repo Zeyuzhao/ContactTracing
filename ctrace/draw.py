@@ -99,6 +99,38 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, saved, p1, transition):
     nx.draw_networkx_labels(G, pos=pos)
 
 
+def draw_contours(G: nx.Graph, I, V1, V2, name=None):
+    status = []
+    N = G.number_of_nodes()
+    for i in range(N):
+        if i in V1:
+            c = "blue"
+        elif i in V2:
+            c = "green"
+        elif i in I:
+            c = "red"
+        else:
+            c = "grey"
+        status.append(c)
+        G.nodes[i]["color"] = c
+
+    pos = nx.nx_agraph.graphviz_layout(G, prog="sfdp", args="-Goverlap=false")
+
+    dist_params = {
+        "pos": pos,
+        "node_color": status,
+        "with_labels": False,
+        "node_size": 1,
+        "width": 0.3
+    }
+    nx.draw_networkx(G, **dist_params)
+    nx.draw_networkx_labels(G, pos, font_size=1)
+
+    if name is None:
+        name = "graph"
+
+    plt.savefig(f'../output/{name}.png', dpi=1000)
+    plt.show()
 
 
 def draw_absolute(G: nx.Graph, I, V1, V2, quarantined, safe, name=None):
