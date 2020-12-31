@@ -108,15 +108,15 @@ def D_prime(p):
 def basic_non_integer_round(problem: ProbMinExposed):
     problem.solve_lp()
     probabilities = problem.getVariables()
-    to_return = D_prime(np.array(probabilities))
+    rounded = D_prime(np.array(probabilities))
     
     #sets variables so objective function value is correct
-    for i in range(len(to_return)):
-        problem.setVariable(i,to_return[i])
+    for i in range(len(rounded)):
+        problem.setVariable(i,rounded[i])
     
     problem.solve_lp()
     
-    return (problem.objectiveVal, to_return)
+    return (problem.objectiveVal, problem.quarantined_solution)
 
 #returns rounded bits and objective value of those bits
 def iterated_round(problem: ProbMinExposed, d: int):
@@ -147,7 +147,7 @@ def iterated_round(problem: ProbMinExposed, d: int):
     
     problem.solve_lp()
     
-    return (problem.objectiveVal, probabilities)
+    return (problem.objectiveVal, problem.quarantined_solution)
 
 #returns rounded bits and objective value of those bits
 def optimized_iterated_round(problem: ProbMinExposed, d: int):
@@ -204,31 +204,66 @@ def optimized_iterated_round(problem: ProbMinExposed, d: int):
     
     problem.solve_lp()
     
-    return (problem.objectiveVal, probabilities)
+    return (problem.objectiveVal, problem.quarantined_solution)
 
-def to_quarantine(G: nx.graph, I0, cost_constraint, runs = 20, p = .5, P = None, Q = None, method = "dependent"):
+#returns a map for which nodes to quarantine
+def to_quarantine(G: nx.graph, I0, safe, cost_constraint, runs = 20, p = .5, P = None, Q = None, method = "dependent"):
     costs = np.ones(len(G.nodes))
-    V_1, V_2 = find_contours(G, I0)
+    V_1, V_2 = find_excluded_contours(G, I0, safe)
+    
+    #put here to save run time
+    if method == "none":
+        sol = {u:0 for u in V_1}    
+        return (-1, sol)
+    elif method == "degree":
+        #calculate degree of each vertex in V_1
+        degrees = []
 
+        for u in V_1:
+            count = 0
+            for v in G.neighbors(u):
+                if v in V_2:
+                    count+=1
+
+            degrees.append((count,u))
+        
+        degrees.sort()
+        degrees.reverse()
+        
+        sol = {}
+        
+        for i in range(len(V_1)):
+            if i < cost_constraint:
+                sol[degrees[i][1]] = 1
+            else:
+                sol[degrees[i][1]] = 0
+                
+        return (-1, sol)
+    elif method == "random":
+        sample = random.sample(V_1, min(cost_constraint,len(V_1)))
+        
+        sol = {}
+        
+        for v in V_1:
+            if v in sample:
+                sol[v] = 1
+            else:
+                sol[v] = 0
+        
+        return (-1, sol)
+    
+    
+    #need to solve LP for the rest of the solutions
     if (P is None) | (Q is None):
         P, Q = PQ(G, I0, p = p, runs = runs)
 
     prob = ProbMinExposed.from_dataframe(G, I0, V_1, V_2, P, Q, cost_constraint, costs)
     
-    val = -1
-    rounded = []
-    
     if method == "dependent":
-        (val, rounded) = basic_non_integer_round(prob)
+        return basic_non_integer_round(prob)
     elif method == "iterated":
-        (val, rounded) = iterated_round(prob, len(V_1)/20)
+        return iterated_round(prob, len(V_1)/20)
     elif method == "optimized":
-        (val, rounded) = optimized_iterated_round(prob, len(V_1)/20)
-    elif method == "greedy":
-        pass
-    elif method == "random":
-        pass
+        return optimized_iterated_round(prob, len(V_1)/20)
     else:
         raise Exception("invalid method for optimization")
-    
-    return (val, rounded)
