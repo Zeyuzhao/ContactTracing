@@ -33,7 +33,38 @@ def MDP_step(G, S, I_t, R, Q1, Q2, p):
     return (S, I, R)
 
 def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent", visualization=False, verbose=False):
-    
+    """
+    Simulates a discrete step SIR model on graph G. Infected patients recover within one time period.
+
+    Parameters
+    ----------
+    G
+        The graph G of disease spread
+    budget
+        The "k" value to quarantine per time step
+    S
+        The initial susceptible set of nodes
+    I_t
+        The initial infected set of nodes
+    R
+        The initial recovered set of nodes
+    p
+        The probability of transmission (parameter for EoN)
+    iterations
+        The number of initial iterations to run before quarantine begins
+    method
+        The type of method to run: none, degree, random, dependent, iterated, optimized
+    visualization
+        Whether to display matplotlib plots or not
+    verbose
+        Debugging information
+    Returns
+    -------
+    (recovered, peak)
+        recovered - the total number of patients that recovered
+        peak - the maximum number of patients infected at one time period
+
+    """
     peak = 0
 
     Q_infected = []
