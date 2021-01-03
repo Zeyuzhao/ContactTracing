@@ -16,7 +16,7 @@ newcolors = np.vstack((top(np.linspace(0, 1, 128)),
 newcmp = ListedColormap(newcolors, name='OrangeBlue')
 
 
-def draw_prob(G: nx.Graph, I, V1, V2, quarantined, saved, p1, transition):
+def draw_prob(G: nx.Graph, I, V1, V2, quarantined, saved, p1, transition, name= None, node_size=20, edge_width = 1):
     """Generates graph visualization of the probabilistic p < 1 case
 
     Parameters
@@ -34,7 +34,7 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, saved, p1, transition):
     saved
         V2 x colormap (yellow => higher chance of infection, green => lower chance of infection)
     p1
-        V1 original odds
+        V1 original odds of infection
     transition
         conditional probability of infection from V1 to V2
 
@@ -53,21 +53,23 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, saved, p1, transition):
     oranges = plt.get_cmap("Oranges")
     blues = plt.get_cmap("Blues")
     reds = plt.get_cmap("Reds")
-    yellow = plt.get_cmap("YlGn")
+    yellow = plt.get_cmap("PiYG")
 
     N = G.number_of_nodes()
 
     # color the node filling and border
     fill: optional_color = [GREY] * N
     border: optional_color = [BLACK] * N
+    border_width = [0] * N
 
     for i in range(N):
         if i in I:
             fill[i] = RED
         elif i in V1:
             fill[i] = oranges(p1[i])
-            if i in quarantined:
+            if i in quarantined and quarantined[i] == 1:
                 border[i] = BLUE
+                border_width[i] = 1
         elif i in V2:
             fill[i] = yellow(saved[i])
         else:
@@ -76,30 +78,61 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, saved, p1, transition):
     # color the edges
     M = len(G.edges)
     edge_color: optional_color = [BLACK] * M
-    widths = [0] * M
+    widths = [edge_width/2] * M
     for i, (a, b) in enumerate(G.edges()):
+        if a in I and b in V1:
+            edge_color[i] = RED
         if a in V1 and b in V2:
             edge_color[i] = reds(transition[a][b])
-            widths[i] = 1
+            widths[i] = edge_width
 
-    pos = nx.spring_layout(G)
-    dist_params = {
+    pos = nx.nx_agraph.graphviz_layout(G, prog="sfdp", args="-Goverlap=false")
+    node_params = {
         "pos": pos,
         "node_color": fill,
+        # "node_size": node_size,
         "edgecolors": border,
-        "linewidths": widths
+        "linewidths": border_width,
     }
     edge_params = {
         "pos": pos,
         "edge_color": edge_color,
+        "width": widths,
     }
 
-    nx.draw_networkx_nodes(G, **dist_params)
+    nx.draw_networkx_nodes(G, **node_params)
     nx.draw_networkx_edges(G, **edge_params)
-    nx.draw_networkx_labels(G, pos=pos)
+    nx.draw_networkx_labels(G, pos=pos) # font_size=2
+
+    if name is None:
+        name = "graph"
+
+    plt.savefig(f'../output/{name}.png', dpi=1000)
+    plt.show()
+
 
 
 def draw_contours(G: nx.Graph, I, V1, V2, name=None):
+    """
+    Draws graph and colors in the nodes of initial, and contours of distance 1 and 2
+    Parameters
+    ----------
+    G
+        The graph to visualize
+    I
+        Initial set
+    V1
+        Contour of distance 1
+    V2
+        Contour of distance 2
+    name
+        Optional name of graph
+
+    Returns
+    -------
+    None
+
+    """
     status = []
     N = G.number_of_nodes()
     for i in range(N):
@@ -118,13 +151,12 @@ def draw_contours(G: nx.Graph, I, V1, V2, name=None):
 
     dist_params = {
         "pos": pos,
-        "node_color": status,
         "with_labels": False,
-        "node_size": 1,
-        "width": 0.3
+        "node_color": status,
+        "node_size": 3,
     }
     nx.draw_networkx(G, **dist_params)
-    nx.draw_networkx_labels(G, pos, font_size=1)
+    nx.draw_networkx_labels(G, pos, font_size=3)
 
     if name is None:
         name = "graph"
@@ -134,6 +166,22 @@ def draw_contours(G: nx.Graph, I, V1, V2, name=None):
 
 
 def draw_absolute(G: nx.Graph, I, V1, V2, quarantined, safe, name=None):
+    """
+    Draws MinExposed graph
+    Parameters
+    ----------
+    G
+    I
+    V1
+    V2
+    quarantined
+    safe
+    name
+
+    Returns
+    -------
+
+    """
     status = []
     N = G.number_of_nodes()
     for i in range(N):
