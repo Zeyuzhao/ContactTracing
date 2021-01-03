@@ -32,7 +32,9 @@ def MDP_step(G, S, I_t, R, Q1, Q2, p):
     
     return (S, I, R)
 
-def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent", visualization=False):
+def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent", visualization=False, verbose=False):
+    
+    peak = 0
 
     Q_infected = []
     Q_susceptible = []
@@ -49,8 +51,9 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
         y3.append(len(S))
     
     for t in range(iterations):
-
-        print(str(len(I_t)) + " " + str(len(S)) + " " + str(len(R)))
+        
+        if verbose:
+            print(str(len(I_t)) + " " + str(len(S)) + " " + str(len(R)))
 
         (val, recommendation) = to_quarantine(G, I_t, R, budget, method=method, p=p)
 
@@ -74,7 +77,9 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
             y1.append(len(R))
             y2.append(len(I_t))
             y3.append(len(S))
-    
+        
+        if len(I_t) > peak:
+            peak = len(I_t)
         
         #people are quarantined (removed from graph temporarily after the timestep)
         for (k,v) in recommendation.items():
@@ -97,3 +102,5 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
         ax.set_xlabel("Timestep")
         ax.set_ylabel("Number of People")
         plt.show()
+           
+    return (len(R), peak)
