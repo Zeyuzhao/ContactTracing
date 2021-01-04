@@ -251,12 +251,7 @@ def to_quarantine(G: nx.graph, I0, safe, cost_constraint, runs = 20, p = .5, P =
                 sol[v] = 0
         
         return (-1, sol)
-    
-    
-    #need to solve LP for the rest of the solutions
-    if (P is None) | (Q is None):
-        # P, Q = PQ(G, I0, p = p, runs = runs)
-        P, Q = PQ_deterministic(G, I0, V1, p)
+    P, Q = PQ_deterministic(G, I0, V_1, p)
 
     prob = ProbMinExposed(G, I0, V_1, V_2, P, Q, cost_constraint, costs)
     
