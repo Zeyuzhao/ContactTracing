@@ -1,14 +1,16 @@
 import concurrent.futures
 import time
-from simulation import *
+from .simulation import *
 import itertools
 import pandas as pd
+
 
 def runner(args):
     """Example parallel function (only accepts one argument)"""
     a, b = args
     print(f'Doing {a} and {b}')
     return a + b
+
 
 def parallel(func, args, logging=True):
     """Takes """
@@ -20,9 +22,11 @@ def parallel(func, args, logging=True):
         print(f'Finished in {round(finish - start, 2)} seconds')
     return results
 
+
 def dict_product(dicts):
     """Expands an dictionary of lists into a cartesian product of dictionaries"""
     return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values()))
+
 
 # <========================================== Main ==========================================>
 # Generate arguments
@@ -43,6 +47,7 @@ compact_params = {
 }
 
 params = list(dict_product(compact_params))
+
 
 def simulate(param):
     (infected, peak) = MDP(**param)
@@ -66,7 +71,3 @@ for param, (num, peak) in zip(params, results):
 
 df = pd.DataFrame(rows)
 df.to_csv("../output/plots/output.csv")
-
-
-
-
