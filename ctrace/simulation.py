@@ -14,7 +14,7 @@ from .solve import *
 # returns the nodes in S, I, R after timesteps
 
 
-def initial(G: nx.graph = None, timesteps=5, p=0.1, cache=None, from_cache=None):
+def initial(G: nx.graph = None, timesteps=5, p=0.1, cache=None, from_cache=None, root="."):
     """
     Loads initial SIR set. Either generate set from parameters, or load from cache
 
@@ -39,7 +39,7 @@ def initial(G: nx.graph = None, timesteps=5, p=0.1, cache=None, from_cache=None)
         and R is the list of recovered nodes
     """
     if from_cache:
-        with open(f'../data/SIR_Cache/{from_cache}', 'r') as infile:
+        with open(f'{root}/data/SIR_Cache/{from_cache}', 'r') as infile:
             j = json.load(infile)
             return (j["S"], j["I"], j["R"])
 
@@ -61,7 +61,7 @@ def initial(G: nx.graph = None, timesteps=5, p=0.1, cache=None, from_cache=None)
             "I": I,
             "R": R,
         }
-        with open(f'../data/SIR_Cache/{cache}', 'w') as outfile:
+        with open(f'{root}/data/SIR_Cache/{cache}', 'w') as outfile:
             json.dump(save, outfile)
 
     return (S, I, R)
@@ -70,7 +70,7 @@ def initial(G: nx.graph = None, timesteps=5, p=0.1, cache=None, from_cache=None)
 def MDP_step(G, S, I_t, R, Q1, Q2, p):
 
     full_data = EoN.basic_discrete_SIR(
-        G=G, p=p, initial_infecteds=I_t, initial_recovereds=R+Q1+Q2, tmin=0, tmax=1, return_full_data=True)
+        G=G, p=p, initial_infecteds=I_t, initial_recovereds=R + Q1 + Q2, tmin=0, tmax=1, return_full_data=True)
 
     S = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'S']
     I = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'I']
@@ -79,7 +79,7 @@ def MDP_step(G, S, I_t, R, Q1, Q2, p):
     return (S, I, R)
 
 
-def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent", visualization=False, verbose=False):
+def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent", visualization=False, verbose=False, **kwargs):
     """
     Simulates a discrete step SIR model on graph G. Infected patients recover within one time period.
 
@@ -152,7 +152,7 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
         Q_susceptible = []
 
         if visualization:
-            x.append(t+1)
+            x.append(t + 1)
             y1.append(len(R))
             y2.append(len(I_t))
             y3.append(len(S))

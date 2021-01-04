@@ -14,6 +14,7 @@ import pandas as pd
 
 np.random.seed(42)
 
+
 class ProbMinExposed:
     def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
         """Generates the constraints given a graph. Assumes V1, V2 are 1,2 away from I"""
@@ -155,13 +156,15 @@ class ProbMinExposed:
 
         self.objectiveVal = 0
         for i, u in enumerate(self.V1):
-            val = self.quaran_raw[i] = self.quarantined_solution[u] = self.X1[u].solution_value()
+            val = self.quaran_raw[i] = self.quarantined_solution[u] = self.X1[u].solution_value(
+            )
             self.quaran_map[i] = u
             self.objectiveVal += (self.p1[u] * (1 - val))
 
         for v in self.V2:
             self.saved_solution[v] = self.X2[v].solution_value()
             self.objectiveVal += (1 - self.saved_solution[v])
+
 
 class ProbMinExposedMIP(ProbMinExposed):
     def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
@@ -187,7 +190,9 @@ class ProbMinExposedMIP(ProbMinExposed):
             self.X2[v] = self.solver.NumVar(0, 1, f"V2_x{v}")
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
 
-def prep_labelled_graph(data_name, in_path=None, out_dir=None, num_lines=None):
+
+# TODO: Handle root paths
+def prep_labelled_graph(data_name, in_path=None, out_dir=None, num_lines=None, root="."):
     """Generates a labelled graph. Converts IDs to ids from 0 to N vertices
 
     Parameters
@@ -210,11 +215,11 @@ def prep_labelled_graph(data_name, in_path=None, out_dir=None, num_lines=None):
 
     # Input file
     if in_path is None:
-        in_path = "../data/mont/montgomery.csv"
+        in_path = f"{root}/data/mont/montgomery.csv"
 
     # Output path and files
     if out_dir is None:
-        out_dir = f"../data/mont/labelled/{data_name}"
+        out_dir = f"{root}/data/mont/labelled/{data_name}"
     Path(out_dir).mkdir(parents=True, exist_ok=True)
 
     graph_path = f"{out_dir}/data.txt"
@@ -222,8 +227,8 @@ def prep_labelled_graph(data_name, in_path=None, out_dir=None, num_lines=None):
 
     delimiter = ","
     with open(in_path, "r") as in_file, \
-         open(graph_path, "w") as out_file, \
-         open(label_path, "w") as label_file:
+            open(graph_path, "w") as out_file, \
+            open(label_path, "w") as label_file:
         for i, line in enumerate(in_file):
             # Check if we reach max number of lines
             if num_lines and i >= num_lines:
@@ -251,6 +256,7 @@ def prep_labelled_graph(data_name, in_path=None, out_dir=None, num_lines=None):
                 v2 = ID[id2]
             out_file.write(f"{v1} {v2}\n")
 
+
 def human_format(num):
     """Returns a filesize-style number format"""
     num = float('{:.3g}'.format(num))
@@ -262,20 +268,30 @@ def human_format(num):
         .format('{:f}'.format(num).rstrip('0').rstrip('.'), ['', 'K', 'M', 'B', 'T'][magnitude])\
         .replace('.', '_')
 
+# TODO: Handle root paths
+
+
 def prep_dataset(in_path=None, out_dir=None, sizes=(100, 1000, 5000, 10000, None)):
     """Prepares a variety of sizes of graphs from one input graph"""
     for s in sizes:
         name = f"mont{human_format(s)}" if s else "montgomery"
-        prep_labelled_graph(data_name= name, in_path=in_path, out_dir=out_dir, num_lines=s)
+        prep_labelled_graph(data_name=name, in_path=in_path,
+                            out_dir=out_dir, num_lines=s)
 
-def load_graph(dataset_name, in_dir="../data/mont/labelled"):
-    G = nx.read_edgelist(f"{in_dir}/{dataset_name}/data.txt", nodetype=int)
+# TODO: Handle root paths
+
+
+def load_graph(dataset_name, in_dir="data/mont/labelled", root="."):
+    G = nx.read_edgelist(
+        f"{root}/{in_dir}/{dataset_name}/data.txt", nodetype=int)
     G.NAME = dataset_name
     return G
+
 
 def load_auxillary(directory):
     """loads in infected, contour1, contour2, p1, q, k, and costs from directory"""
     pass
+
 
 def find_contours(G: nx.Graph, infected):
     """Produces contour1 and contour2 from infected"""
@@ -304,18 +320,22 @@ def find_contours(G: nx.Graph, infected):
 
     return (V1, V2)
 
+
 def union_neighbors(G: nx.Graph, initial: Set[int], excluded: Set[int]):
     """Finds the union of neighbors of an initial set and remove excluded"""
     total = set().union(*[G.neighbors(v) for v in initial])
     return total - excluded
 
+
 def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int]):
     """Finds V1 and V2 from a graph that does not consider the excluded set"""
-    v1 = union_neighbors(G, set(infected) - set(excluded), set(infected) | set(excluded))
+    v1 = union_neighbors(G, set(infected) - set(excluded),
+                         set(infected) | set(excluded))
     v2 = union_neighbors(G, v1, set(v1) | set(infected) | set(excluded))
     return (v1, v2)
 
-def generate_random_absolute(G, num_infected: int = None, k : int = None, costs : list = None):
+
+def generate_random_absolute(G, num_infected: int = None, k: int = None, costs: list = None):
     N = G.number_of_nodes()
     if num_infected is None:
         num_infected = int(N * 0.05)
@@ -323,7 +343,7 @@ def generate_random_absolute(G, num_infected: int = None, k : int = None, costs 
     return generate_absolute(G, rand_infected, k, costs)
 
 
-def generate_absolute(G, infected, k : int = None, costs : list = None):
+def generate_absolute(G, infected, k: int = None, costs: list = None):
     """Returns a dictionary of parameters for the case of infected, absolute infection"""
     N = G.number_of_nodes()
 
@@ -338,7 +358,7 @@ def generate_absolute(G, infected, k : int = None, costs : list = None):
     # Assume absolute infectivity
     p1 = defaultdict(lambda: 1)
 
-    q = defaultdict(lambda: defaultdict(lambda : 1))
+    q = defaultdict(lambda: defaultdict(lambda: 1))
     return {
         "G": G,
         "infected": infected,
@@ -351,8 +371,6 @@ def generate_absolute(G, infected, k : int = None, costs : list = None):
     }
 
 
-
-
 if __name__ == '__main__':
     # G = load_graph("mont1K")
     G = nx.balanced_tree(4, 3)
@@ -361,15 +379,3 @@ if __name__ == '__main__':
     cons = ProbMinExposed(**params)
 
     cons.solve_lp()
-
-
-
-
-
-
-
-
-
-
-
-
