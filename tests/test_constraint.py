@@ -1,4 +1,4 @@
-from ctrace.constraint import union_neighbors, find_contours, find_excluded_contours
+from ctrace.constraint import find_contours, find_excluded_contours
 import networkx as nx
 import numpy as np
 
@@ -22,6 +22,7 @@ def test_find_excluded_contours():
     assert find_excluded_contours(G, I, excluded) == ({8,}, {33, 34, 35, 36})
 
 def test_find_excluded_contours_randomized():
+    """Randomly generates graphs and tests by removing the actual nodes from the graph"""
     np.random.seed(42)
 
     for i in range(10):

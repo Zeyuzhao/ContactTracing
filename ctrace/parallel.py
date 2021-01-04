@@ -31,7 +31,7 @@ G = load_graph("montgomery")
 # Cartesian Product the parameters
 compact_params = {
     "G": [G],
-    "budget": [x for x in range(100, 1000, 1000)],
+    "budget": [x for x in range(100, 1000, 100)],
     "S": [S],
     "I_t": [I],
     "R": [R],
