@@ -1,8 +1,17 @@
-import concurrent.futures
-import time
-from .simulation import *
-import itertools
+import sys
+import os
+
+# Set path to ContactTracing/
+os.chdir('..')
+sys.path.insert(0, '.')
+print(f"Current working directory: {os.getcwd()}")
+print(f"Current path {sys.path}")
+
 import pandas as pd
+import itertools
+import time
+import concurrent.futures
+from ctrace.simulation import *
 
 
 def runner(args):
@@ -30,25 +39,29 @@ def dict_product(dicts):
 
 # <========================================== Main ==========================================>
 # Generate arguments
+print(os.getcwd())
 G = load_graph("montgomery")
 (S, I, R) = initial(G)
 
 # Cartesian Product the parameters
+trials = 10
 compact_params = {
     "G": [G],
-    "budget": [x for x in range(100, 1000, 500)],
+    "budget": [x for x in np.linspace(1500, 2000, 10)],  # k
     "S": [S],
     "I_t": [I],
     "R": [R],
     "iterations": [3],
-    "method": ["dependent", "random"],
+    "method": ["dependent", "random", "degree"],
     "visualization": [False],
     "verbose": [False],
+    "trial_id": [x for x in range(trials)],
 }
 
 params = list(dict_product(compact_params))
 
 
+# Runs multiple trials
 def simulate(param):
     (infected, peak) = MDP(**param)
     return (infected, peak)
@@ -70,4 +83,4 @@ for param, (num, peak) in zip(params, results):
     })
 
 df = pd.DataFrame(rows)
-df.to_csv("../output/plots/output.csv")
+df.to_csv("output/plots/output.csv")
