@@ -104,8 +104,8 @@ compact_params = {
     "R": [R],
     "SIR_file": [SIR_file],
     "iterations": [-1],
-    "method": ["dependent", "random", "degree"],
-    "p": [x * 0.01 for x in range(1, 16)],
+    "method": ["dependent", "random"],
+    "p": [x * 0.01 for x in range(1, 15)],
     "visualization": [False],
     "verbose": [False],
 }

@@ -72,6 +72,6 @@ def PQ(G, I, p=0.5, runs=20):
 def PQ_deterministic(G: nx.Graph, I: List[int], V1: List[int], p: float):
     # Returns dictionary P, Q
     # Calculate P, (1-P) ^ [number of neighbors in I]
-    P = {v: math.pow((1 - p), len(set(G.neighbors(v)) & set(I))) for v in V1}
+    P = {v: 1 - math.pow((1 - p), len(set(G.neighbors(v)) & set(I))) for v in V1}
     Q = defaultdict(lambda: defaultdict(lambda: p))
     return P, Q
