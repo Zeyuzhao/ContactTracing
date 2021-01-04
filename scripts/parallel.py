@@ -94,18 +94,18 @@ logging.info("Loaded!")
 # <========================================== Important Parameters ==========================================>
 
 # Cartesian Product the parameters
-TRIALS = 5
+TRIALS = 10
 compact_params = {
     "trial_id": [x for x in range(TRIALS)],
     "G": [G],
-    "budget": [x for x in range(100, 201, 100)],  # k
+    "budget": [1300],  # k
     "S": [S],
     "I_t": [I],
     "R": [R],
     "SIR_file": [SIR_file],
     "iterations": [-1],
-    "method": ["random"],
-    "p": [0.05, 0.1, .15],
+    "method": ["dependent", "random", "degree"],
+    "p": [x * 0.01 for x in range(1, 16)],
     "visualization": [False],
     "verbose": [False],
 }
