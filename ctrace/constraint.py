@@ -269,7 +269,9 @@ def prep_dataset(in_path=None, out_dir=None, sizes=(100, 1000, 5000, 10000, None
         prep_labelled_graph(data_name= name, in_path=in_path, out_dir=out_dir, num_lines=s)
 
 def load_graph(dataset_name, in_dir="../data/mont/labelled"):
-    return nx.read_edgelist(f"{in_dir}/{dataset_name}/data.txt", nodetype=int)
+    G = nx.read_edgelist(f"{in_dir}/{dataset_name}/data.txt", nodetype=int)
+    G.NAME = dataset_name
+    return G
 
 def load_auxillary(directory):
     """loads in infected, contour1, contour2, p1, q, k, and costs from directory"""
