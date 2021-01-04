@@ -1,0 +1,17 @@
+name: tracing
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - numpy
+  - networkx
+  - matplotlib
+  - pandas
+  - pytest
+  - scipy
+  - seaborn
+  - requests
+  - pip
+  - pip:
+    - EoN
+    - ortools
