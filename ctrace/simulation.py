@@ -1,3 +1,4 @@
+import itertools
 import json
 
 import networkx as nx
@@ -118,9 +119,16 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
         y1.append(len(R))
         y2.append(len(I_t))
         y3.append(len(S))
-    
-    for t in range(iterations):
-        
+
+    if iterations == -1:
+        iterator = itertools.count(start=0, step=1)
+    else:
+        iterator = range(iterations)
+
+    for t in iterator:
+        if (len(I_t) == 0):
+            break
+
         if verbose:
             print(str(len(I_t)) + " " + str(len(S)) + " " + str(len(R)))
 
