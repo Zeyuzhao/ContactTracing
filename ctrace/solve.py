@@ -252,8 +252,6 @@ def to_quarantine(G: nx.graph, I0, safe, cost_constraint, runs = 20, p = .5, P =
         
         return (-1, sol)
     P, Q = PQ_deterministic(G, I0, V_1, p)
-    # print(P)
-    # print(Q)
     prob = ProbMinExposed(G, I0, V_1, V_2, P, Q, cost_constraint, costs)
     
     if method == "dependent":
