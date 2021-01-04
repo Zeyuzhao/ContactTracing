@@ -1,3 +1,5 @@
+import json
+
 import networkx as nx
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -10,7 +12,10 @@ from constraint import *
 from solve import *
 
 #returns the nodes in S, I, R after timesteps 
-def initial(G: nx.graph, timesteps=5, p=0.1):
+def initial(G: nx.graph= None, timesteps=5, p=0.1, cache=None, from_cache=None):
+    if from_cache:
+        with open(f'../data/SIR_Cache/{from_cache}', 'r') as infile:
+            return json.load(infile)
 
     full_data = EoN.basic_discrete_SIR(G=G, p=p, rho=.0001, tmin=0, tmax=timesteps, return_full_data=True) 
     
@@ -19,7 +24,16 @@ def initial(G: nx.graph, timesteps=5, p=0.1):
     R = [k for (k,v) in full_data.get_statuses(time=timesteps).items() if v == 'R']
     
     print(full_data.I())
-    
+
+    if cache:
+        save = {
+            "S": S,
+            "I": I,
+            "R": R,
+        }
+        with open(f'../data/SIR_Cache/{cache}', 'w') as outfile:
+            json.dump(save, outfile)
+
     return (S, I, R)
 
 def MDP_step(G, S, I_t, R, Q1, Q2, p):
