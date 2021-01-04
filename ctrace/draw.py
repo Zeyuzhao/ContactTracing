@@ -16,7 +16,7 @@ newcolors = np.vstack((top(np.linspace(0, 1, 128)),
 newcmp = ListedColormap(newcolors, name='OrangeBlue')
 
 
-def draw_prob(G: nx.Graph, I, V1, V2, quarantined, saved, p1, transition, name= None, node_size=20, edge_width = 1):
+def draw_prob(G: nx.Graph, I, V1, V2, quarantined, saved, p1, transition, name=None, node_size=20, edge_width=1):
     """Generates graph visualization of the probabilistic p < 1 case
 
     Parameters
@@ -102,14 +102,13 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, saved, p1, transition, name= 
 
     nx.draw_networkx_nodes(G, **node_params)
     nx.draw_networkx_edges(G, **edge_params)
-    nx.draw_networkx_labels(G, pos=pos) # font_size=2
+    nx.draw_networkx_labels(G, pos=pos)  # font_size=2
 
     if name is None:
         name = "graph"
 
-    plt.savefig(f'../output/{name}.png', dpi=1000)
+    plt.savefig(f'output/{name}.png', dpi=1000)
     plt.show()
-
 
 
 def draw_contours(G: nx.Graph, I, V1, V2, name=None):
@@ -161,7 +160,7 @@ def draw_contours(G: nx.Graph, I, V1, V2, name=None):
     if name is None:
         name = "graph"
 
-    plt.savefig(f'../output/{name}.png', dpi=1000)
+    plt.savefig(f'output/{name}.png', dpi=1000)
     plt.show()
 
 
@@ -208,7 +207,8 @@ def draw_absolute(G: nx.Graph, I, V1, V2, quarantined, safe, name=None):
         nx.draw_networkx(G, **dist_params)
     else:
         # large
-        pos = nx.nx_agraph.graphviz_layout(G, prog="sfdp", args="-Goverlap=false")
+        pos = nx.nx_agraph.graphviz_layout(
+            G, prog="sfdp", args="-Goverlap=false")
 
         dist_params = {
             "pos": pos,
@@ -223,7 +223,7 @@ def draw_absolute(G: nx.Graph, I, V1, V2, quarantined, safe, name=None):
     if name is None:
         name = "graph"
 
-    plt.savefig(f'../output/{name}.png', dpi=1000)
+    plt.savefig(f'output/{name}.png', dpi=1000)
     plt.show()
 
 
@@ -239,4 +239,5 @@ def draw(constraint: ProbMinExposed):
     for v, value in constraint.saved_solution.items():
         if value > 0.5:
             safe.add(v)
-    draw_absolute(constraint.G, constraint.I, constraint.V1, constraint.V2, quarantined, safe)
+    draw_absolute(constraint.G, constraint.I, constraint.V1,
+                  constraint.V2, quarantined, safe)
