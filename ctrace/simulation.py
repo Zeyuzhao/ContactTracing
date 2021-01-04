@@ -13,9 +13,33 @@ from solve import *
 
 #returns the nodes in S, I, R after timesteps 
 def initial(G: nx.graph= None, timesteps=5, p=0.1, cache=None, from_cache=None):
+    """
+    Loads initial SIR set. Either generate set from parameters, or load from cache
+
+    Parameters
+    ----------
+    G
+        The contact tracing graph
+    timesteps
+        Number of iterations to run for EON
+    p
+        The transition infection probability
+    cache
+        The file to save to cache
+    from_cache
+        Load S, I, R data from cache
+
+    Returns
+    -------
+    (S: List[int], I: List[int], R: List[int])
+        Where S is the list of susceptible nodes,
+        I is the list of infected nodes,
+        and R is the list of recovered nodes
+    """
     if from_cache:
         with open(f'../data/SIR_Cache/{from_cache}', 'r') as infile:
-            return json.load(infile)
+            j = json.load(infile)
+            return (j["S"], j["I"], j["R"])
 
     full_data = EoN.basic_discrete_SIR(G=G, p=p, rho=.0001, tmin=0, tmax=timesteps, return_full_data=True) 
     
