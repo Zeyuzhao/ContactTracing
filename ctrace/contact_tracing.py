@@ -48,7 +48,7 @@ def V1(G,I):
     return V1
 
 
-      
+
                     
 def single_run_PQ(G,I,v1,p=0.5,runs=20):
     Q = pd.DataFrame()
