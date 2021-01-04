@@ -8,7 +8,6 @@ import pandas as pd
 import numpy as np
 import random
 import concurrent.futures as cf
-from ctrace.constraint import find_excluded_contours
 
 
 def grab_graph():
@@ -98,7 +97,7 @@ def PQ(G,I,p=0.5,runs = 20):
 def PQ_deterministic(G, I, V1, p):
     # Returns dictionary P, Q
     # Calculate P, (1-P) ^ [number of neighbors in I]
-    P = {v: math.pow((1-p), len(set(G.neighbors(v)) & I)) for v in V1}
+    P = {v: math.pow((1-p), len(set(G.neighbors(v)) & set(I))) for v in V1}
     Q = defaultdict(lambda: defaultdict(lambda : p))
     return P, Q
 

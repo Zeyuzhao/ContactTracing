@@ -11,6 +11,7 @@ def runner(args):
     return a + b
 
 def parallel(func, args, logging=True):
+    """Takes """
     with concurrent.futures.ProcessPoolExecutor() as executor:
         start = time.perf_counter()
         results = executor.map(func, args)
@@ -50,7 +51,7 @@ def simulate(param):
 
 results = list(parallel(simulate, params))
 
-# Save results into CSV
+# <=========================== Save results into CSV ===========================>
 rows = []
 # Save only the graph name and append results
 for param, (num, peak) in zip(params, results):
@@ -63,7 +64,6 @@ for param, (num, peak) in zip(params, results):
         "peak": peak,
     })
 
-print(rows)
 df = pd.DataFrame(rows)
 df.to_csv("../output/plots/output.csv")
 
