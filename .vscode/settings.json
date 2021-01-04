@@ -1,0 +1,4 @@
+{
+    "jupyter.jupyterServerType": "remote",
+    "python.pythonPath": "/home/ubuntu/anaconda3/envs/tracing/bin/python"
+}

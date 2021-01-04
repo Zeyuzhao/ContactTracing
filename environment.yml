@@ -1,6 +1,5 @@
 name: tracing
 channels:
-  - conda-forge
   - defaults
 dependencies:
   - numpy
