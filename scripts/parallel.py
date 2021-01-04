@@ -22,7 +22,7 @@ def runner(args):
 
 
 def parallel(func, args, logging=True):
-    """Parallize the simulate function"""
+    """Parallelize the simulate function"""
     # TODO: Make this function generic
     entries = []
     with concurrent.futures.ProcessPoolExecutor() as executor:
@@ -84,7 +84,7 @@ compact_params = {
     "S": [S],
     "I_t": [I],
     "R": [R],
-    "SIR_file": SIR_file,
+    "SIR_file": [SIR_file],
     "iterations": [3],
     "method": ["random", "degree"],
     "visualization": [False],
@@ -94,7 +94,7 @@ compact_params = {
 
 params = list(dict_product(compact_params))
 
-
+# print(params)
 # Runs multiple trials
 def simulate(param):
     print(
