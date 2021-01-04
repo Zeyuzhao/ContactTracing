@@ -1,3 +1,6 @@
+import math
+from collections import defaultdict
+
 import networkx as nx
 import EoN
 import matplotlib.pyplot as plt
@@ -5,6 +8,8 @@ import pandas as pd
 import numpy as np
 import random
 import concurrent.futures as cf
+from ctrace.constraint import find_excluded_contours
+
 
 def grab_graph():
     montgomery = open('../data/mont/montgomery.csv')
@@ -66,6 +71,7 @@ def single_run_PQ(G,I,v1,p=0.5,runs=20):
 
 
 def PQ(G,I,p=0.5,runs = 20):
+    """Returns dataframe P, Q"""
     v1 = V1(G,I)
     Q = pd.DataFrame()
     P = pd.DataFrame()
@@ -88,3 +94,13 @@ def PQ(G,I,p=0.5,runs = 20):
     Q = Q.loc[Q['v1-v2']][['u','v','q_uv']]
     P = P.groupby('v')['p_v'].sum().reset_index() 
     return [P,Q]
+
+def PQ_deterministic(G, I, V1, p):
+    # Returns dictionary P, Q
+    # Calculate P, (1-P) ^ [number of neighbors in I]
+    P = {v: math.pow((1-p), len(set(G.neighbors(v)) & I)) for v in V1}
+    Q = defaultdict(lambda: defaultdict(lambda : p))
+    return P, Q
+
+
+
