@@ -46,7 +46,7 @@ def parallel(func, args, logging=True):
                 ((infected, peak), param) = f.result()
                 entry = {
                     "G": param["G"].NAME,
-                    "SIR_file": SIR_file,
+                    "SIR_file": param["SIR_file"],
                     "budget": param["budget"],
                     "iterations": param["iterations"],
                     "method": param["method"],
@@ -63,11 +63,9 @@ def parallel(func, args, logging=True):
         print(f'Finished in {round(finish - start, 2)} seconds')
     return entries
 
-
 def dict_product(dicts):
     """Expands an dictionary of lists into a cartesian product of dictionaries"""
     return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values()))
-
 
 # <========================================== Main ==========================================>
 # Generate arguments
@@ -76,21 +74,25 @@ G = load_graph("montgomery")
 SIR_file = "Q4data.json"
 (S, I, R) = initial(from_cache=SIR_file)
 print("Loaded!")
+
+# <========================================== Important Parameters ==========================================>
 # Cartesian Product the parameters
-trials = 2
+TRIALS = 2
 compact_params = {
     "G": [G],
-    "budget": [x for x in range(1000, 2000, 1000)],  # k
+    "budget": [x for x in range(100, 1000, 100)],  # k
     "S": [S],
     "I_t": [I],
     "R": [R],
     "SIR_file": [SIR_file],
-    "iterations": [3],
-    "method": ["random", "degree"],
+    "iterations": [-1],
+    "method": ["random"],
     "visualization": [False],
     "verbose": [False],
-    "trial_id": [x for x in range(trials)],
+    "trial_id": [x for x in range(TRIALS)],
 }
+
+# <========================================== End of Parameters ==========================================>
 
 params = list(dict_product(compact_params))
 
@@ -101,7 +103,6 @@ def simulate(param):
         f"Launching => budget: { param['budget'] }, method: {param['method']}, trial: {param['trial_id']}")
     (infected, peak) = MDP(**param)
     return ((infected, peak), param)
-
 
 results = list(parallel(simulate, params))
 
