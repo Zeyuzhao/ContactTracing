@@ -1,6 +1,5 @@
 name: tracing
 channels:
-  - conda-forge
   - defaults
 dependencies:
   - numpy
@@ -12,6 +11,8 @@ dependencies:
   - seaborn
   - requests
   - pip
+  - jupyter
+  - jupyterlab
   - pip:
     - EoN
     - ortools
