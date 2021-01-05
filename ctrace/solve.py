@@ -1,8 +1,8 @@
 import random
 import numpy as np
 import math
-from constraint import *
-from contact_tracing import *
+from .constraint import *
+from .contact_tracing import *
 
 def simplify(alpha:float, beta:float):
     if (alpha<0) | (alpha>1) | (beta<0) | (beta>1):
@@ -262,3 +262,4 @@ def to_quarantine(G: nx.graph, I0, safe, cost_constraint, runs = 20, p = .5, P =
         return optimized_iterated_round(prob, int(len(V_1)/20))
     else:
         raise Exception("invalid method for optimization")
+
