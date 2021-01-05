@@ -11,7 +11,7 @@ git clone https://github.com/Zeyuzhao/ContactTracing.git
 
 # Enter correct branch
 cd ContactTracing
-git checkout awsserver
+git checkout main
 
 # Setup environment
 conda env create -f environment.yml
