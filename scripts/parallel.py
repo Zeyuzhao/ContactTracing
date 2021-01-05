@@ -71,7 +71,7 @@ def parallel(func, args, output_file=None):
                     **param_view,
                     "num_infected": infected,
                     "peak": peak,
-                    "iterations": iterations,
+                    # "iterations": iterations,
                 }
                 writer.writerow(entry)
                 entries.append(entry)
@@ -91,7 +91,7 @@ def dict_product(dicts):
 G = load_graph("montgomery")
 SIR_file = "Q4data.json"
 (S, I, R) = initial(from_cache=SIR_file)
-logging.info("Loaded!")
+logging.info("Graph Loaded!")
 
 # <========================================== Important Parameters ==========================================>
 
