@@ -106,8 +106,8 @@ compact_params = {
     "R": [R],
     "SIR_file": [SIR_file],
     "iterations": [-1],
-    "method": ["dependent", "random"],
     "p": [x * 0.01 for x in range(1, 15)],
+    "method": ["dependent", "degree", "random"],
     "visualization": [False],
     "verbose": [False],
 }
@@ -125,4 +125,4 @@ def simulate(param):
     (infected, peak, iterations) = MDP(**param)
     return ((infected, peak, iterations), param)
 
-results = list(parallel(simulate, params, output_file))
+parallel(simulate, params, output_file)
