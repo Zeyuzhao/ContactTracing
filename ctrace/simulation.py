@@ -11,6 +11,7 @@ import EoN
 from .contact_tracing import *
 from .constraint import *
 from .solve import *
+from . import *
 
 
 def initial_shock(G: nx.graph, timesteps=5, p=0.1, num_shocks=7):
@@ -74,7 +75,7 @@ def initial(G: nx.graph = None, timesteps=5, p=0.1, cache=None, from_cache=None)
         and R is the list of recovered nodes
     """
     if from_cache:
-        with open(f'{root}/data/SIR_Cache/{from_cache}', 'r') as infile:
+        with open(PROJECT_ROOT / "data" / "SIR_Cache" / from_cache, 'r') as infile:
             j = json.load(infile)
             return (j["S"], j["I"], j["R"])
 
@@ -96,7 +97,7 @@ def initial(G: nx.graph = None, timesteps=5, p=0.1, cache=None, from_cache=None)
             "I": I,
             "R": R,
         }
-        with open(f'{root}/data/SIR_Cache/{cache}', 'w') as outfile:
+        with open(PROJECT_ROOT / "data" / "SIR_Cache" / cache, 'w') as outfile:
             json.dump(save, outfile)
 
     return (S, I, R)
