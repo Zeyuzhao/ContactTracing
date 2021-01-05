@@ -8,40 +8,49 @@ import numpy as np
 import random
 import EoN
 
-from contact_tracing import *
-from constraint import *
-from solve import *
+from .contact_tracing import *
+from .constraint import *
+from .solve import *
+from . import *
+
 
 def initial_shock(G: nx.graph, timesteps=5, p=0.1, num_shocks=7):
-    
-    full_data = EoN.basic_discrete_SIR(G=G, p=0.5, rho=.0001, tmin=0, tmax=1, return_full_data=True)
-    
+
+    full_data = EoN.basic_discrete_SIR(
+        G=G, p=0.5, rho=.0001, tmin=0, tmax=1, return_full_data=True)
+
     for t in range(timesteps):
         #shock_I =  set([i for i in range(n) if random.random() < 0.001])
-        
+
         #S = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'S']).difference(shock_I)
-        S = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'S'])
-        I = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'I'])
-        R = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'R'])
-        
+        S = set([k for (k, v) in full_data.get_statuses(
+            time=1).items() if v == 'S'])
+        I = set([k for (k, v) in full_data.get_statuses(
+            time=1).items() if v == 'I'])
+        R = set([k for (k, v) in full_data.get_statuses(
+            time=1).items() if v == 'R'])
+
         shock_I = random.sample(S, num_shocks)
-        
-        #update S, I to account for shocks
+
+        # update S, I to account for shocks
         S = S.difference(shock_I)
         I = I.union(shock_I)
-        
-        full_data = EoN.basic_discrete_SIR(G=G, p=p, initial_infecteds=I, initial_recovereds=R,tmin=0, tmax=1, return_full_data=True)
-        print(len(S),len(R),len(I),len(shock_I), len(S)+len(I)+len(R))
-       
+
+        full_data = EoN.basic_discrete_SIR(
+            G=G, p=p, initial_infecteds=I, initial_recovereds=R, tmin=0, tmax=1, return_full_data=True)
+        print(len(S), len(R), len(I), len(shock_I), len(S) + len(I) + len(R))
+
     print(full_data.I())
-    S = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'S'])
-    I = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'I'])
-    R = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'R'])
-       
+    S = set([k for (k, v) in full_data.get_statuses(time=1).items() if v == 'S'])
+    I = set([k for (k, v) in full_data.get_statuses(time=1).items() if v == 'I'])
+    R = set([k for (k, v) in full_data.get_statuses(time=1).items() if v == 'R'])
+
     return (list(S), list(I), list(R))
 
-#returns the nodes in S, I, R after timesteps 
-def initial(G: nx.graph= None, timesteps=5, p=0.1, cache=None, from_cache=None):
+# returns the nodes in S, I, R after timesteps
+
+
+def initial(G: nx.graph = None, timesteps=5, p=0.1, cache=None, from_cache=None):
     """
     Loads initial SIR set. Either generate set from parameters, or load from cache
 
@@ -66,16 +75,20 @@ def initial(G: nx.graph= None, timesteps=5, p=0.1, cache=None, from_cache=None):
         and R is the list of recovered nodes
     """
     if from_cache:
-        with open(f'../data/SIR_Cache/{from_cache}', 'r') as infile:
+        with open(PROJECT_ROOT / "data" / "SIR_Cache" / from_cache, 'r') as infile:
             j = json.load(infile)
             return (j["S"], j["I"], j["R"])
 
-    full_data = EoN.basic_discrete_SIR(G=G, p=p, rho=.0001, tmin=0, tmax=timesteps, return_full_data=True) 
-    
-    S = [k for (k,v) in full_data.get_statuses(time=timesteps).items() if v == 'S']
-    I = [k for (k,v) in full_data.get_statuses(time=timesteps).items() if v == 'I']
-    R = [k for (k,v) in full_data.get_statuses(time=timesteps).items() if v == 'R']
-    
+    full_data = EoN.basic_discrete_SIR(
+        G=G, p=p, rho=.0001, tmin=0, tmax=timesteps, return_full_data=True)
+
+    S = [k for (k, v) in full_data.get_statuses(
+        time=timesteps).items() if v == 'S']
+    I = [k for (k, v) in full_data.get_statuses(
+        time=timesteps).items() if v == 'I']
+    R = [k for (k, v) in full_data.get_statuses(
+        time=timesteps).items() if v == 'R']
+
     print(full_data.I())
 
     if cache:
@@ -84,22 +97,25 @@ def initial(G: nx.graph= None, timesteps=5, p=0.1, cache=None, from_cache=None):
             "I": I,
             "R": R,
         }
-        with open(f'../data/SIR_Cache/{cache}', 'w') as outfile:
+        with open(PROJECT_ROOT / "data" / "SIR_Cache" / cache, 'w') as outfile:
             json.dump(save, outfile)
 
     return (S, I, R)
 
+
 def MDP_step(G, S, I_t, R, Q1, Q2, p):
-    
-    full_data = EoN.basic_discrete_SIR(G=G, p=p, initial_infecteds=I_t, initial_recovereds=R+Q1+Q2, tmin=0, tmax=1, return_full_data=True)
-    
-    S = [k for (k,v) in full_data.get_statuses(time=1).items() if v == 'S']
-    I = [k for (k,v) in full_data.get_statuses(time=1).items() if v == 'I']
-    R = [k for (k,v) in full_data.get_statuses(time=1).items() if v == 'R']
-    
+
+    full_data = EoN.basic_discrete_SIR(
+        G=G, p=p, initial_infecteds=I_t, initial_recovereds=R + Q1 + Q2, tmin=0, tmax=1, return_full_data=True)
+
+    S = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'S']
+    I = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'I']
+    R = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'R']
+
     return (S, I, R)
 
-def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent", visualization=False, verbose=False):
+
+def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent", visualization=False, verbose=False, **kwargs):
     """
     Simulates a discrete step SIR model on graph G. Infected patients recover within one time period.
 
@@ -130,19 +146,19 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
     (recovered, peak, iterations)
         recovered - the total number of patients that recovered
         peak - the maximum number of patients infected at one time period
-        iterations - the number of iterations the algorithm ran
+        iterations - the number of iterations the simulation ran
+
     """
     peak = 0
-    iterations_till_empty = iterations
-
+    total_iterated = 0
     Q_infected = []
     Q_susceptible = []
-    
-    x=[]
-    y1=[]
-    y2=[]
-    y3=[]
-    
+
+    x = []
+    y1 = []
+    y2 = []
+    y3 = []
+
     if visualization:
         x.append(0)
         y1.append(len(R))
@@ -155,41 +171,44 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
         iterator = range(iterations)
 
     for t in iterator:
-        if (len(I_t) == 0):
-            iterations_till_empty = t
+        # Loop until no infected left.
+        if len(I_t) == 0:
+            total_iterated = t
             break
 
         if verbose:
-            print(str(t) + " " + str(len(I_t)) + " " + str(len(S)) + " " + str(len(R)))
+            print(str(t) + " " + str(len(I_t)) + " " +
+                  str(len(S)) + " " + str(len(R)))
 
-        (val, recommendation) = to_quarantine(G, I_t, R, budget, method=method, p=p)
+        (val, recommendation) = to_quarantine(
+            G, I_t, R, budget, method=method, p=p)
 
         (S, I_t, R) = MDP_step(G, S, I_t, R, Q_infected, Q_susceptible, p=p)
-        #after this, R will contain Q_infected and Q_susceptible
+        # after this, R will contain Q_infected and Q_susceptible
 
-        #people from previous timestep get unquarantined (some of these people remain in R because they were infected before quarantine)
-        #for node in Q_infected:
+        # people from previous timestep get unquarantined (some of these people remain in R because they were infected before quarantine)
+        # for node in Q_infected:
         #    R.append(node)
 
         for node in Q_susceptible:
             R.remove(node)
             S.append(node)
 
-        #reset quarantined lists
+        # reset quarantined lists
         Q_infected = []
         Q_susceptible = []
-        
+
         if visualization:
-            x.append(t+1)
+            x.append(t + 1)
             y1.append(len(R))
             y2.append(len(I_t))
             y3.append(len(S))
-        
+
         if len(I_t) > peak:
             peak = len(I_t)
-        
-        #people are quarantined (removed from graph temporarily after the timestep)
-        for (k,v) in recommendation.items():
+
+        # people are quarantined (removed from graph temporarily after the timestep)
+        for (k, v) in recommendation.items():
             if v == 1:
                 if k in S:
                     S.remove(k)
@@ -197,7 +216,7 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
                 elif k in I_t:
                     I_t.remove(k)
                     Q_infected.append(k)
-        
+
     if visualization:
         colors = ["red", "limegreen", "deepskyblue"]
         labels = ["Infected", "Recovered", "Susceptible"]
@@ -209,5 +228,5 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
         ax.set_xlabel("Timestep")
         ax.set_ylabel("Number of People")
         plt.show()
-           
-    return (len(R), peak, iterations_till_empty)
+
+    return (len(R), peak, total_iterated)
