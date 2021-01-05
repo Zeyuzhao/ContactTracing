@@ -105,6 +105,7 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
 
     """
     peak = 0
+    iterations_till_empty = iterations
 
     Q_infected = []
     Q_susceptible = []
@@ -127,10 +128,11 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
 
     for t in iterator:
         if (len(I_t) == 0):
+            iterations_till_empty = t
             break
 
         if verbose:
-            print(str(len(I_t)) + " " + str(len(S)) + " " + str(len(R)))
+            print(str(t) + " " + str(len(I_t)) + " " + str(len(S)) + " " + str(len(R)))
 
         (val, recommendation) = to_quarantine(G, I_t, R, budget, method=method, p=p)
 
@@ -180,4 +182,4 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
         ax.set_ylabel("Number of People")
         plt.show()
            
-    return (len(R), peak)
+    return (len(R), peak, iterations_till_empty)
