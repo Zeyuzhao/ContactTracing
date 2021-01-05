@@ -177,11 +177,9 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
             break
 
         if verbose:
-            print(str(t) + " " + str(len(I_t)) + " " +
-                  str(len(S)) + " " + str(len(R)))
+            print(str(t) + " " + str(len(I_t)) + " " + str(len(S)) + " " + str(len(R)))
 
-        (val, recommendation) = to_quarantine(
-            G, I_t, R, budget, method=method, p=p)
+        (val, recommendation) = to_quarantine(G, I_t, R, budget, method=method, p=p)
 
         (S, I_t, R) = MDP_step(G, S, I_t, R, Q_infected, Q_susceptible, p=p)
         # after this, R will contain Q_infected and Q_susceptible
