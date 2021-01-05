@@ -1,19 +1,19 @@
 name: tracing
 channels:
-  - defaults
+    - defaults
 dependencies:
-  - numpy
-  - networkx
-  - matplotlib
-  - pandas
-  - pytest
-  - scipy
-  - seaborn
-  - requests
-  - pip
-  - jupyter
-  - jupyterlab
-  - tqdm
-  - pip:
-    - EoN
-    - ortools
+    - numpy
+    - networkx
+    - matplotlib
+    - pandas
+    - pytest
+    - scipy
+    - seaborn
+    - requests
+    - pip
+    - jupyter
+    - jupyterlab
+    - tqdm
+    - pip:
+          - EoN
+          - ortools
