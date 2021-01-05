@@ -107,7 +107,7 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, saved, p1, transition, name=N
     if name is None:
         name = "graph"
 
-    plt.savefig(f'output/{name}.png', dpi=1000)
+    plt.savefig(PROJECT_ROOT / 'output' / f'{name}.png', dpi=1000)
     plt.show()
 
 
@@ -160,7 +160,7 @@ def draw_contours(G: nx.Graph, I, V1, V2, name=None):
     if name is None:
         name = "graph"
 
-    plt.savefig(f'output/{name}.png', dpi=1000)
+    plt.savefig(PROJECT_ROOT / 'output' / f'{name}.png', dpi=1000)
     plt.show()
 
 
@@ -223,7 +223,7 @@ def draw_absolute(G: nx.Graph, I, V1, V2, quarantined, safe, name=None):
     if name is None:
         name = "graph"
 
-    plt.savefig(f'output/{name}.png', dpi=1000)
+    plt.savefig(PROJECT_ROOT / 'output' / f'{name}.png', dpi=1000)
     plt.show()
 
 
