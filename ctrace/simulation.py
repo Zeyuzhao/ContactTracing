@@ -12,6 +12,35 @@ from contact_tracing import *
 from constraint import *
 from solve import *
 
+def initial_shock(G: nx.graph, timesteps=5, p=0.1):
+    
+    full_data = EoN.basic_discrete_SIR(G=G, p=0.5, rho=.0001, tmin=0, tmax=1, return_full_data=True)
+    
+    for t in range(timesteps):
+        #shock_I =  set([i for i in range(n) if random.random() < 0.001])
+        
+        #S = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'S']).difference(shock_I)
+        S = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'S'])
+        I = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'I'])
+        R = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'R'])
+        
+        num_shocks = len(G.nodes)//10000
+        shock_I = random.sample(S, num_shocks)
+        
+        #update S, I to account for shocks
+        S = S.difference(I)
+        I = I.union(I)
+        
+        full_data = EoN.basic_discrete_SIR(G=G, p=p, initial_infecteds=I, initial_recovereds=R,tmin=0, tmax=1, return_full_data=True)
+        print(len(S),len(R),len(I),len(shock_I), len(S)+len(I)+len(R))
+       
+    print(full_data.I())
+    S = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'S'])
+    I = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'I'])
+    R = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'R'])
+       
+    return (list(S), list(I), list(R))
+
 #returns the nodes in S, I, R after timesteps 
 def initial(G: nx.graph= None, timesteps=5, p=0.1, cache=None, from_cache=None):
     """
