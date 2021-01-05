@@ -12,8 +12,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from . import PROJECT_ROOT
 np.random.seed(42)
-
 
 class ProbMinExposed:
     def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
@@ -192,19 +192,22 @@ class ProbMinExposedMIP(ProbMinExposed):
 
 
 # TODO: Handle root paths
-def prep_labelled_graph(data_name, in_path=None, out_dir=None, num_lines=None, root="."):
+def prep_labelled_graph(in_path, out_dir, num_lines=None):
     """Generates a labelled graph. Converts IDs to ids from 0 to N vertices
 
     Parameters
     ----------
-    data_name:
-        name of the dataset and directory
     in_path:
         filename of graph edge-list
     out_dir:
-        path to the containing directory
+        path to the directory that will contain the outputs files
     num_lines:
         number of edges to parse. If None, parse entire file
+
+    Returns
+    -------
+    None
+        Will produce two files within out_dir, data.txt and label.txt
     """
 
     # ID to id
@@ -215,15 +218,18 @@ def prep_labelled_graph(data_name, in_path=None, out_dir=None, num_lines=None, r
 
     # Input file
     if in_path is None:
-        in_path = f"{root}/data/mont/montgomery.csv"
+        raise ValueError("in_path is needed")
 
     # Output path and files
     if out_dir is None:
-        out_dir = f"{root}/data/mont/labelled/{data_name}"
-    Path(out_dir).mkdir(parents=True, exist_ok=True)
+        raise ValueError("out_dir is needed")
 
-    graph_path = f"{out_dir}/data.txt"
-    label_path = f"{out_dir}/label.txt"
+    # Create directory if needed
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    graph_path = out_dir / "data.txt"
+    label_path = out_dir / "label.txt"
 
     delimiter = ","
     with open(in_path, "r") as in_file, \
@@ -268,30 +274,28 @@ def human_format(num):
         .format('{:f}'.format(num).rstrip('0').rstrip('.'), ['', 'K', 'M', 'B', 'T'][magnitude])\
         .replace('.', '_')
 
-# TODO: Handle root paths
 
-
-def prep_dataset(in_path=None, out_dir=None, sizes=(100, 1000, 5000, 10000, None)):
+def prep_dataset(name, data_dir: Path=None, sizes=(None,)):
     """Prepares a variety of sizes of graphs from one input graph"""
+    if data_dir is None:
+        data_dir = PROJECT_ROOT / "data"
+    group_path = data_dir / name
     for s in sizes:
-        name = f"mont{human_format(s)}" if s else "montgomery"
-        prep_labelled_graph(data_name=name, in_path=in_path,
-                            out_dir=out_dir, num_lines=s)
+        instance_folder = f"partial{human_format(s)}" if s else "complete"
+        prep_labelled_graph(in_path=group_path / f"{name}.csv", out_dir=group_path / instance_folder, num_lines=s)
 
 # TODO: Handle root paths
 
 
-def load_graph(dataset_name, in_dir="data/mont/labelled", root="."):
-    G = nx.read_edgelist(
-        f"{root}/{in_dir}/{dataset_name}/data.txt", nodetype=int)
+def load_graph(dataset_name, graph_folder=None):
+    """Will load the complete folder by default, and set the NAME attribute to dataset_name"""
+    if graph_folder is None:
+        graph_folder = PROJECT_ROOT / "data" / dataset_name / "complete"
+    G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int)
+
+    # Set name of graph
     G.NAME = dataset_name
     return G
-
-
-def load_auxillary(directory):
-    """loads in infected, contour1, contour2, p1, q, k, and costs from directory"""
-    pass
-
 
 def find_contours(G: nx.Graph, infected):
     """Produces contour1 and contour2 from infected"""
@@ -369,13 +373,3 @@ def generate_absolute(G, infected, k: int = None, costs: list = None):
         "costs": costs,
         "k": k,
     }
-
-
-if __name__ == '__main__':
-    # G = load_graph("mont1K")
-    G = nx.balanced_tree(4, 3)
-
-    params = generate_absolute(G, {0, 1, 2}, k=2)
-    cons = ProbMinExposed(**params)
-
-    cons.solve_lp()
