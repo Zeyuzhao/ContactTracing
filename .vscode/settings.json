@@ -1,9 +1,0 @@
-{
-    "jupyter.jupyterServerType": "local",
-    "python.pythonPath": "/home/zach/anaconda3/envs/tracing/bin/python",
-    "python.formatting.provider": "autopep8",
-    "python.formatting.autopep8Args": [
-        "--ignore",
-        "E402"
-    ],
-}
