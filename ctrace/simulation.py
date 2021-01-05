@@ -99,10 +99,10 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
         Debugging information
     Returns
     -------
-    (recovered, peak)
+    (recovered, peak, iterations)
         recovered - the total number of patients that recovered
         peak - the maximum number of patients infected at one time period
-
+        iterations - the number of iterations the algorithm ran
     """
     peak = 0
     iterations_till_empty = iterations
