@@ -3,126 +3,149 @@ import os
 import csv
 from tqdm import tqdm
 import logging
+from collections import namedtuple
 
 import pandas as pd
 import itertools
 import time
 import concurrent.futures
+import shortuuid
 
 # Set path to ContactTracing/
 os.chdir('..')
 sys.path.insert(0, '.')
 
-output_file = f'output/plots/results[{time.strftime("%H-%M-%S")}].csv'
-logging_file = f'output/plots/results[{time.strftime("%H-%M-%S")}].log'
-
-logging.basicConfig(filename=logging_file, level=logging.DEBUG)
-
-logging.info(f"Current working directory: {os.getcwd()}")
-logging.info(f"Current path {sys.path}")
-
 from ctrace.simulation import *
+from ctrace import PROJECT_ROOT
 
+# <======================================== Output Configurations ========================================>
+# Configure Logging Files => First 5 digits
+RUN_LABEL = shortuuid.uuid()[:5]
 
-def minimize_params(p):
-    p = p.copy()
-    # Reduce graph to graph name only
-    p["G"] = p["G"].NAME
+# Setup output directories
+output_path = PROJECT_ROOT / "output" / f'run[{RUN_LABEL}]'
+output_path.mkdir(parents=True, exist_ok=True)
 
-    # Remove unnecessary parameters not needed for logging
-    del p["S"]
-    del p["I_t"]
-    del p["R"]
-    del p["visualization"]
-    del p["verbose"]
-    return p
+OUTPUT_FILE = output_path / 'results.csv'
+LOGGING_FILE = output_path / 'run.log'
 
-def parallel(func, args, output_file=None):
-    """Parallelize the simulate function"""
-    # TODO: Make this function generic
-    entries = []
-    with concurrent.futures.ProcessPoolExecutor() as executor:
-        start = time.perf_counter()
-        results = [executor.submit(func, arg) for arg in args]
+# <================================================== Logging Setup ==================================================>
+# Setup up Parallel Log Channel
+logger = logging.getLogger("Parallel")
+logger.setLevel(logging.DEBUG)
 
-        if not output_file:
-            output_file = f'output/plots/results.csv'
-        with open(output_file, "w") as logging_file:
-            # Attributes to log to files
-            attr = [
-                "G",            # The parameters of the experiment
-                "SIR_file",
-                "budget",
-                "iterations",
-                "method",
-                "p",
-                "trial_id",     # The trial number
-                "num_infected", # Output Parameters
-                "peak",
-                "iterations",
-            ]
-            writer = csv.DictWriter(logging_file, fieldnames=attr)
-            writer.writeheader()
-            for f in tqdm(concurrent.futures.as_completed(results), total=len(args)):
-                ((infected, peak, iterations), param) = f.result()
-                # Reduce parameters to viewable ones only
-                param_view = minimize_params(param)
-                entry = {
-                    **param_view,
-                    "num_infected": infected,
-                    "peak": peak,
-                    # "iterations": iterations,
-                }
-                writer.writerow(entry)
-                entries.append(entry)
-                logging_file.flush()
-                logging.info(f"Finished => {entry}")
+# Set LOGGING_FILE as output
+fh = logging.FileHandler(LOGGING_FILE)
+fh.setLevel(logging.DEBUG)
+logger.addHandler(fh)
 
-        finish = time.perf_counter()
-        logging.info(f'Finished in {round(finish - start, 2)} seconds')
-    return entries
+# Info current path
+logger.info(f"Current working directory: {os.getcwd()}")
+logger.info(f"Current path {sys.path}")
 
-def dict_product(dicts):
-    """Expands an dictionary of lists into a cartesian product of dictionaries"""
-    return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values()))
+# <================================================== Loaded Data ==================================================>
+# Create the SIR datatype
+SIR = namedtuple("SIR", ["S", "I", "R", "label"])
 
-# <========================================== Main ==========================================>
-# Generate arguments
+# Load montgomery graph
 G = load_graph("montgomery")
+
+# Load precomputed SIR file
 SIR_file = "Q4data.json"
-(S, I, R) = initial(from_cache=SIR_file)
-logging.info("Graph Loaded!")
+sir_set = SIR(*initial(from_cache=SIR_file), SIR_file)
 
-# <========================================== Important Parameters ==========================================>
+# <================================================== Configurations ==================================================>
 
-# Cartesian Product the parameters
-TRIALS = 10
-compact_params = {
-    "trial_id": [x for x in range(TRIALS)],
+# Attributes need to partition configuration! Do NOT have duplicate attributes
+COMPLEX = ["G", "SIR"]
+PRIMITIVE = ["budget", "iterations", "p", "method", "trial_id"]
+HIDDEN = ["visualization", "verbose", "trials"]
+RESULTS = ["infected", "peak", "iterations_completed"]
+# Configurations
+COMPACT_CONFIG = {
+    # Complex Attributes => Needs toString representation
     "G": [G],
-    "budget": [1300],  # k
-    "S": [S],
-    "I_t": [I],
-    "R": [R],
-    "SIR_file": [SIR_file],
+    "SIR": [sir_set], # Named Tuple S, I, R, label=name
+    # Primitive Attributes
+    "budget": [1300],
     "iterations": [-1],
-    "p": [x * 0.01 for x in range(1, 15)],
+    "p": [x * 0.01 for x in range(1, 5)],
     "method": ["dependent", "degree", "random"],
+    # Hidden attributes => Will not be displayed
     "visualization": [False],
     "verbose": [False],
+    "trials": 10, # Generates trial_id from trials
 }
+# Utilities
+def dict_product(dicts):
+    """Expands an dictionary of lists into a list of dictionaries through a cartesian product"""
+    return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values()))
 
-# <========================================== End of Parameters ==========================================>
+def expand_configurations(compact_config: Dict):
+    """Expands compact configuration into many runnable configs through a cartesian product"""
+    compact_config = compact_config.copy()
 
-params = list(dict_product(compact_params))
+    # Handle multiple trials
+    compact_config["trial_id"] = [i for i in range(compact_config["trials"])]
+    del compact_config["trials"]
 
-# print(params)
-# Runs multiple trials
-def simulate(param):
-    logging.info(
-        f"Launching => {minimize_params(param)}"
-    )
+    # Expand configuration
+    return list(dict_product(compact_config))
+
+def readable_configuration(config: Dict):
+    """Takes in a instance of an expanded configuration and returns a readable object"""
+
+    output = {}
+
+    # Handle COMPLEX attributes
+    output["G"] = config["G"].NAME
+    output["SIR"] = config["SIR"].label
+
+    # Paste in PRIMITIVE attributes
+    for p in PRIMITIVE:
+        output[p] = config[p]
+
+    # Ignore HIDDEN attributes
+
+    return output
+
+def MDP_runner(param):
+    """Takes in runnable parameter and returns a (Result tuple, Readable Params)"""
+    readable_params = readable_configuration(param)
+    logger.info(f"Launching => {readable_params}")
+
+    # Expand SIR into S, I, R
+    param["S"] = param["SIR"].S
+    param["I_t"] = param["SIR"].I
+    param["R"] = param["SIR"].R
+
     (infected, peak, iterations) = MDP(**param)
-    return ((infected, peak, iterations), param)
+    return (infected, peak, iterations), readable_params
 
-parallel(simulate, params, output_file)
+def parallel_MDP(args: List[Dict]):
+    with concurrent.futures.ProcessPoolExecutor() as executor, open(OUTPUT_FILE, "w") as output_file:
+        results = [executor.submit(MDP_runner, arg) for arg in args]
+        writer = csv.DictWriter(output_file, fieldnames=COMPLEX + PRIMITIVE + RESULTS)
+        writer.writeheader()
+        for f in tqdm(concurrent.futures.as_completed(results), total=len(args)):
+            ((infected, peak, iterations), readable) = f.result()
+
+            # Merge the two dictionaries, with results taking precedence
+            entry = readable
+            result_dict = {
+                "infected": infected,
+                "peak": peak,
+                "iterations_completed": iterations,
+            }
+            entry.update(result_dict)
+
+            # Write and flush results
+            writer.writerow(entry)
+            output_file.flush()
+            logger.info(f"Finished => {entry}")
+
+# Main
+print(f'Logging Directory: {LOGGING_FILE}')
+expanded_configs = expand_configurations(COMPACT_CONFIG)
+parallel_MDP(expanded_configs)
+print('done')
