@@ -12,7 +12,7 @@ from contact_tracing import *
 from constraint import *
 from solve import *
 
-def initial_shock(G: nx.graph, timesteps=5, p=0.1):
+def initial_shock(G: nx.graph, timesteps=5, p=0.1, num_shocks=7):
     
     full_data = EoN.basic_discrete_SIR(G=G, p=0.5, rho=.0001, tmin=0, tmax=1, return_full_data=True)
     
@@ -24,12 +24,11 @@ def initial_shock(G: nx.graph, timesteps=5, p=0.1):
         I = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'I'])
         R = set([k for (k,v) in full_data.get_statuses(time=1).items() if v == 'R'])
         
-        num_shocks = len(G.nodes)//10000
         shock_I = random.sample(S, num_shocks)
         
         #update S, I to account for shocks
-        S = S.difference(I)
-        I = I.union(I)
+        S = S.difference(shock_I)
+        I = I.union(shock_I)
         
         full_data = EoN.basic_discrete_SIR(G=G, p=p, initial_infecteds=I, initial_recovereds=R,tmin=0, tmax=1, return_full_data=True)
         print(len(S),len(R),len(I),len(shock_I), len(S)+len(I)+len(R))
