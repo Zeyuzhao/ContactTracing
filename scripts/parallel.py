@@ -59,17 +59,19 @@ def parallel(func, args, output_file=None):
                 "trial_id",     # The trial number
                 "num_infected", # Output Parameters
                 "peak",
+                "iterations",
             ]
             writer = csv.DictWriter(logging_file, fieldnames=attr)
             writer.writeheader()
             for f in tqdm(concurrent.futures.as_completed(results), total=len(args)):
-                ((infected, peak), param) = f.result()
+                ((infected, peak, iterations), param) = f.result()
                 # Reduce parameters to viewable ones only
                 param_view = minimize_params(param)
                 entry = {
                     **param_view,
                     "num_infected": infected,
                     "peak": peak,
+                    "iterations": iterations,
                 }
                 writer.writerow(entry)
                 entries.append(entry)
@@ -120,7 +122,7 @@ def simulate(param):
     logging.info(
         f"Launching => {minimize_params(param)}"
     )
-    (infected, peak) = MDP(**param)
-    return ((infected, peak), param)
+    (infected, peak, iterations) = MDP(**param)
+    return ((infected, peak, iterations), param)
 
 results = list(parallel(simulate, params, output_file))
