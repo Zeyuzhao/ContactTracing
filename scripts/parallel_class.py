@@ -40,8 +40,8 @@ fh.setLevel(logging.DEBUG)
 logger.addHandler(fh)
 
 # Info current path
-logging.info(f"Current working directory: {os.getcwd()}")
-logging.info(f"Current path {sys.path}")
+logger.info(f"Current working directory: {os.getcwd()}")
+logger.info(f"Current path {sys.path}")
 
 # <================================================== Loaded Data ==================================================>
 # Create the SIR datatype
@@ -55,11 +55,12 @@ SIR_file = "Q4data.json"
 sir_set = SIR(*initial(from_cache=SIR_file), SIR_file)
 
 # <================================================== Configurations ==================================================>
-# Attributes need to partition configuration!
+
+# Attributes need to partition configuration! Do NOT have duplicate attributes
 COMPLEX = ["G", "SIR"]
 PRIMITIVE = ["budget", "iterations", "p", "method", "trial_id"]
 HIDDEN = ["visualization", "verbose", "trials"]
-
+RESULTS = ["infected", "peak", "iterations_completed"]
 # Configurations
 COMPACT_CONFIG = {
     # Complex Attributes => Needs toString representation
@@ -100,23 +101,31 @@ def readable_configuration(config: Dict):
     output["G"] = config["G"].NAME
     output["SIR"] = config["SIR"].label
 
-    # Paste in PRIMITIVE variables
+    # Paste in PRIMITIVE attributes
     for p in PRIMITIVE:
         output[p] = config[p]
+
+    # Ignore HIDDEN attributes
 
     return output
 
 def MDP_runner(param):
     """Takes in runnable parameter and returns a (Result tuple, Readable Params)"""
     readable_params = readable_configuration(param)
-    logging.info(f"Launching => {readable_params}")
+    logger.info(f"Launching => {readable_params}")
+
+    # Expand SIR into S, I, R
+    param["S"] = param["SIR"].S
+    param["I_t"] = param["SIR"].I
+    param["R"] = param["SIR"].R
+
     (infected, peak, iterations) = MDP(**param)
     return (infected, peak, iterations), readable_params
 
 def parallel_MDP(args: List[Dict]):
     with concurrent.futures.ProcessPoolExecutor() as executor, open(OUTPUT_FILE, "w") as output_file:
         results = [executor.submit(MDP_runner, arg) for arg in args]
-        writer = csv.DictWriter(output_file, fieldnames=COMPLEX + PRIMITIVE)
+        writer = csv.DictWriter(output_file, fieldnames=COMPLEX + PRIMITIVE + RESULTS)
         writer.writeheader()
         for f in tqdm(concurrent.futures.as_completed(results), total=len(args)):
             ((infected, peak, iterations), readable) = f.result()
@@ -126,16 +135,17 @@ def parallel_MDP(args: List[Dict]):
             result_dict = {
                 "infected": infected,
                 "peak": peak,
-                "iterations": iterations,
+                "iterations_completed": iterations,
             }
             entry.update(result_dict)
 
             # Write and flush results
             writer.writerow(entry)
             output_file.flush()
-            logging.info(f"Finished => {entry}")
+            logger.info(f"Finished => {entry}")
 
 # Main
+print(f'Logging Directory: {LOGGING_FILE}')
 expanded_configs = expand_configurations(COMPACT_CONFIG)
-readable = [readable_configuration(cfg) for cfg in expanded_configs]
+parallel_MDP(expanded_configs)
 print('done')
