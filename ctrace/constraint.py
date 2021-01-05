@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from . import PROJECT_ROOT
 np.random.seed(42)
 
 class ProbMinExposed:
@@ -155,13 +156,15 @@ class ProbMinExposed:
 
         self.objectiveVal = 0
         for i, u in enumerate(self.V1):
-            val = self.quaran_raw[i] = self.quarantined_solution[u] = self.X1[u].solution_value()
+            val = self.quaran_raw[i] = self.quarantined_solution[u] = self.X1[u].solution_value(
+            )
             self.quaran_map[i] = u
             self.objectiveVal += (self.p1[u] * (1 - val))
 
         for v in self.V2:
             self.saved_solution[v] = self.X2[v].solution_value()
             self.objectiveVal += (1 - self.saved_solution[v])
+
 
 class ProbMinExposedMIP(ProbMinExposed):
     def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
@@ -187,19 +190,24 @@ class ProbMinExposedMIP(ProbMinExposed):
             self.X2[v] = self.solver.NumVar(0, 1, f"V2_x{v}")
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
 
-def prep_labelled_graph(data_name, in_path=None, out_dir=None, num_lines=None):
+
+# TODO: Handle root paths
+def prep_labelled_graph(in_path, out_dir, num_lines=None):
     """Generates a labelled graph. Converts IDs to ids from 0 to N vertices
 
     Parameters
     ----------
-    data_name:
-        name of the dataset and directory
     in_path:
         filename of graph edge-list
     out_dir:
-        path to the containing directory
+        path to the directory that will contain the outputs files
     num_lines:
         number of edges to parse. If None, parse entire file
+
+    Returns
+    -------
+    None
+        Will produce two files within out_dir, data.txt and label.txt
     """
 
     # ID to id
@@ -210,20 +218,23 @@ def prep_labelled_graph(data_name, in_path=None, out_dir=None, num_lines=None):
 
     # Input file
     if in_path is None:
-        in_path = "../data/mont/montgomery.csv"
+        raise ValueError("in_path is needed")
 
     # Output path and files
     if out_dir is None:
-        out_dir = f"../data/mont/labelled/{data_name}"
-    Path(out_dir).mkdir(parents=True, exist_ok=True)
+        raise ValueError("out_dir is needed")
 
-    graph_path = f"{out_dir}/data.txt"
-    label_path = f"{out_dir}/label.txt"
+    # Create directory if needed
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    graph_path = out_dir / "data.txt"
+    label_path = out_dir / "label.txt"
 
     delimiter = ","
     with open(in_path, "r") as in_file, \
-         open(graph_path, "w") as out_file, \
-         open(label_path, "w") as label_file:
+            open(graph_path, "w") as out_file, \
+            open(label_path, "w") as label_file:
         for i, line in enumerate(in_file):
             # Check if we reach max number of lines
             if num_lines and i >= num_lines:
@@ -251,6 +262,7 @@ def prep_labelled_graph(data_name, in_path=None, out_dir=None, num_lines=None):
                 v2 = ID[id2]
             out_file.write(f"{v1} {v2}\n")
 
+
 def human_format(num):
     """Returns a filesize-style number format"""
     num = float('{:.3g}'.format(num))
@@ -262,20 +274,28 @@ def human_format(num):
         .format('{:f}'.format(num).rstrip('0').rstrip('.'), ['', 'K', 'M', 'B', 'T'][magnitude])\
         .replace('.', '_')
 
-def prep_dataset(in_path=None, out_dir=None, sizes=(100, 1000, 5000, 10000, None)):
-    """Prepares a variety of sizes of graphs from one input graph"""
-    for s in sizes:
-        name = f"mont{human_format(s)}" if s else "montgomery"
-        prep_labelled_graph(data_name= name, in_path=in_path, out_dir=out_dir, num_lines=s)
 
-def load_graph(dataset_name, in_dir="../data/mont/labelled"):
-    G = nx.read_edgelist(f"{in_dir}/{dataset_name}/data.txt", nodetype=int)
+def prep_dataset(name, data_dir: Path=None, sizes=(None,)):
+    """Prepares a variety of sizes of graphs from one input graph"""
+    if data_dir is None:
+        data_dir = PROJECT_ROOT / "data"
+    group_path = data_dir / name
+    for s in sizes:
+        instance_folder = f"partial{human_format(s)}" if s else "complete"
+        prep_labelled_graph(in_path=group_path / f"{name}.csv", out_dir=group_path / instance_folder, num_lines=s)
+
+# TODO: Handle root paths
+
+
+def load_graph(dataset_name, graph_folder=None):
+    """Will load the complete folder by default, and set the NAME attribute to dataset_name"""
+    if graph_folder is None:
+        graph_folder = PROJECT_ROOT / "data" / dataset_name / "complete"
+    G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int)
+
+    # Set name of graph
     G.NAME = dataset_name
     return G
-
-def load_auxillary(directory):
-    """loads in infected, contour1, contour2, p1, q, k, and costs from directory"""
-    pass
 
 def find_contours(G: nx.Graph, infected):
     """Produces contour1 and contour2 from infected"""
@@ -304,18 +324,22 @@ def find_contours(G: nx.Graph, infected):
 
     return (V1, V2)
 
+
 def union_neighbors(G: nx.Graph, initial: Set[int], excluded: Set[int]):
     """Finds the union of neighbors of an initial set and remove excluded"""
     total = set().union(*[G.neighbors(v) for v in initial])
     return total - excluded
 
+
 def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int]):
     """Finds V1 and V2 from a graph that does not consider the excluded set"""
-    v1 = union_neighbors(G, set(infected) - set(excluded), set(infected) | set(excluded))
+    v1 = union_neighbors(G, set(infected) - set(excluded),
+                         set(infected) | set(excluded))
     v2 = union_neighbors(G, v1, set(v1) | set(infected) | set(excluded))
     return (v1, v2)
 
-def generate_random_absolute(G, num_infected: int = None, k : int = None, costs : list = None):
+
+def generate_random_absolute(G, num_infected: int = None, k: int = None, costs: list = None):
     N = G.number_of_nodes()
     if num_infected is None:
         num_infected = int(N * 0.05)
@@ -323,7 +347,7 @@ def generate_random_absolute(G, num_infected: int = None, k : int = None, costs 
     return generate_absolute(G, rand_infected, k, costs)
 
 
-def generate_absolute(G, infected, k : int = None, costs : list = None):
+def generate_absolute(G, infected, k: int = None, costs: list = None):
     """Returns a dictionary of parameters for the case of infected, absolute infection"""
     N = G.number_of_nodes()
 
@@ -338,7 +362,7 @@ def generate_absolute(G, infected, k : int = None, costs : list = None):
     # Assume absolute infectivity
     p1 = defaultdict(lambda: 1)
 
-    q = defaultdict(lambda: defaultdict(lambda : 1))
+    q = defaultdict(lambda: defaultdict(lambda: 1))
     return {
         "G": G,
         "infected": infected,
@@ -349,27 +373,3 @@ def generate_absolute(G, infected, k : int = None, costs : list = None):
         "costs": costs,
         "k": k,
     }
-
-
-
-
-if __name__ == '__main__':
-    # G = load_graph("mont1K")
-    G = nx.balanced_tree(4, 3)
-
-    params = generate_absolute(G, {0, 1, 2}, k=2)
-    cons = ProbMinExposed(**params)
-
-    cons.solve_lp()
-
-
-
-
-
-
-
-
-
-
-
-
