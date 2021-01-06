@@ -375,6 +375,9 @@ def Generalized_MDP(G: nx.graph,
         if verbose:
             print(len(S), len(I), len(R))
 
+        if len(I) > peak:
+            peak = len(I)
+
         # people are quarantined (removed from graph temporarily after the timestep)
         for (k, v) in recommendation.items():
             if v == 1:
@@ -384,4 +387,5 @@ def Generalized_MDP(G: nx.graph,
                 elif k in I:  # I_t is undefined
                     I.remove(k)
                     Q_infected.append(k)
-    # TODO: Return peak, recovered and iterations
+    # TODO: Check return statement
+    return (len(R), peak, total_iterated)
