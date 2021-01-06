@@ -69,11 +69,11 @@ COMPACT_CONFIG = {
 }
 
 # Attributes need to partition configuration! Do NOT have duplicate attributes
-COMPLEX = ["G"]
-HIDDEN = ["visualization", "verbose", "trials"]
+COMPLEX = ["G"] # Attributes that need to be processed before printing
+HIDDEN = ["visualization", "verbose", "trials"] # These attributes will NOT be logged at all
 
 # Anything not in PRIMITIVE or HIDDEN
-PRIMITIVE = list(COMPACT_CONFIG.keys() - set(COMPLEX) - set(HIDDEN))
+PRIMITIVE = list(COMPACT_CONFIG.keys() - set(COMPLEX) - set(HIDDEN)) # Attributes that will be printed as is
 RESULTS = ["infected", "peak", "iterations_completed"]
 
 # Utilities
@@ -116,7 +116,7 @@ def MDP_runner(param):
     readable_params = readable_configuration(param)
     logger.info(f"Launching => {readable_params}")
 
-    (infected, peak, iterations) = Generalized_MDP(**param)
+    (infected, peak, iterations) = generalized_mdp(**param)
     return (infected, peak, iterations), readable_params
 
 
