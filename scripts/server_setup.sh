@@ -17,6 +17,8 @@ git checkout main
 conda env create -f environment.yml
 conda activate tracing
 
+# Install ctrace as package within tracing
+pip install -e .
 # Execute scripts
-cd scripts
-python parallel.py
+# cd scripts
+# python parallel.py
