@@ -265,6 +265,11 @@ def generalized_mdp(G: nx.graph,
     R = set()
     infected_queue = []
 
+    x = []
+    y1 = []
+    y2 = []
+    y3 = []
+    
     # Data set up
     if from_cache:
         with open(PROJECT_ROOT / "data" / "SIR_Cache" / from_cache, 'r') as infile:
@@ -289,7 +294,13 @@ def generalized_mdp(G: nx.graph,
         infected_queue = [set() for _ in range(iterations_to_recover)]
         infected_queue.pop(0)
         infected_queue.append(I)
-
+        
+        if visualization:
+            x.append(0)
+            y1.append(len(R))
+            y2.append(len(I))
+            y3.append(len(S))
+    
         if verbose:
             print(len(S), len(I), len(R))
 
@@ -312,9 +323,15 @@ def generalized_mdp(G: nx.graph,
             I = I.difference(to_recover)
             I = I.union(new_I)
             R = R.union(to_recover)
-
+            
+            if visualization:
+                x.append(t+1)
+                y1.append(len(R))
+                y2.append(len(I))
+                y3.append(len(S))
+        
             if verbose:
-                print(len(S), len(I), len(R))
+                print(len(S), len(I), len(R), len(new_I))
 
     if cache:
         save = {
@@ -372,9 +389,15 @@ def generalized_mdp(G: nx.graph,
         I = I.union(new_I)
         R = R.union(to_recover)
 
+        if visualization:
+            x.append(len(x)+1)
+            y1.append(len(R))
+            y2.append(len(I))
+            y3.append(len(S))
+        
         if verbose:
-            print(len(S), len(I), len(R))
-
+            print(len(S), len(I), len(R), len(new_I))
+        
         if len(I) > peak:
             peak = len(I)
 
@@ -387,5 +410,18 @@ def generalized_mdp(G: nx.graph,
                 elif k in I:  # I_t is undefined
                     I.remove(k)
                     Q_infected.append(k)
+
+    if visualization:
+        colors = ["red", "limegreen", "deepskyblue"]
+        labels = ["Infected", "Recovered", "Susceptible"]
+
+        fig, ax = plt.subplots()
+        ax.stackplot(x, y2, y1, y3, labels=labels, colors=colors)
+        ax.legend(loc='upper left')
+        ax.set_title("Epidemic Simulation; Quarantine Method: " + method)
+        ax.set_xlabel("Timestep")
+        ax.set_ylabel("Number of People")
+        plt.show()
+        
     # TODO: Check return statement
     return (len(R), peak, total_iterated)
