@@ -44,42 +44,43 @@ logger.info(f"Current working directory: {os.getcwd()}")
 logger.info(f"Current path {sys.path}")
 
 # <================================================== Loaded Data ==================================================>
-# Create the SIR datatype
-SIR = namedtuple("SIR", ["S", "I", "R", "label"])
+# Create the SIR datatype (QUEUE version)
+SIR = namedtuple("SIR", ["S", "I_QUEUE", "R", "label"])
 
 # Load montgomery graph
 G = load_graph("montgomery")
 
-# Load precomputed SIR file
-SIR_file = "Q4data.json"
-sir_set = SIR(*initial(from_cache=SIR_file), SIR_file)
-
 # <================================================== Configurations ==================================================>
 
-# Attributes need to partition configuration! Do NOT have duplicate attributes
-COMPLEX = ["G", "SIR"]
-PRIMITIVE = ["budget", "iterations", "p", "method", "trial_id"]
-HIDDEN = ["visualization", "verbose", "trials"]
-RESULTS = ["infected", "peak", "iterations_completed"]
 # Configurations
 COMPACT_CONFIG = {
-    # Complex Attributes => Needs toString representation
     "G": [G],
-    "SIR": [sir_set], # Named Tuple S, I, R, label=name
-    # Primitive Attributes
-    "budget": [1300],
-    "iterations": [-1],
-    "p": [x * 0.01 for x in range(1, 5)],
-    "method": ["dependent", "degree", "random"],
-    # Hidden attributes => Will not be displayed
-    "visualization": [False],
+    "p": [0.1],
+    "budget": [100],
+    "method": ["degree"],
+    "num_initial_infections": [10],
+    "num_shocks": [5],
+    "initial_iterations": [5],
+    "MDP_iterations": [10],
+    "iterations_to_recover": [1],
+    "from_cache": ["generalized.json"], # If cache is specified, some arguments are ignored
     "verbose": [False],
-    "trials": 10, # Generates trial_id from trials
+    "trials": 10,
 }
+
+# Attributes need to partition configuration! Do NOT have duplicate attributes
+COMPLEX = ["G"]
+HIDDEN = ["visualization", "verbose", "trials"]
+
+# Anything not in PRIMITIVE or HIDDEN
+PRIMITIVE = list(COMPACT_CONFIG.keys() - set(COMPLEX) - set(HIDDEN))
+RESULTS = ["infected", "peak", "iterations_completed"]
+
 # Utilities
 def dict_product(dicts):
     """Expands an dictionary of lists into a list of dictionaries through a cartesian product"""
     return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values()))
+
 
 def expand_configurations(compact_config: Dict):
     """Expands compact configuration into many runnable configs through a cartesian product"""
@@ -92,6 +93,7 @@ def expand_configurations(compact_config: Dict):
     # Expand configuration
     return list(dict_product(compact_config))
 
+
 def readable_configuration(config: Dict):
     """Takes in a instance of an expanded configuration and returns a readable object"""
 
@@ -99,7 +101,6 @@ def readable_configuration(config: Dict):
 
     # Handle COMPLEX attributes
     output["G"] = config["G"].NAME
-    output["SIR"] = config["SIR"].label
 
     # Paste in PRIMITIVE attributes
     for p in PRIMITIVE:
@@ -109,18 +110,15 @@ def readable_configuration(config: Dict):
 
     return output
 
+
 def MDP_runner(param):
     """Takes in runnable parameter and returns a (Result tuple, Readable Params)"""
     readable_params = readable_configuration(param)
     logger.info(f"Launching => {readable_params}")
 
-    # Expand SIR into S, I, R
-    param["S"] = param["SIR"].S
-    param["I_t"] = param["SIR"].I
-    param["R"] = param["SIR"].R
-
-    (infected, peak, iterations) = MDP(**param)
+    (infected, peak, iterations) = Generalized_MDP(**param)
     return (infected, peak, iterations), readable_params
+
 
 def parallel_MDP(args: List[Dict]):
     with concurrent.futures.ProcessPoolExecutor() as executor, open(OUTPUT_FILE, "w") as output_file:
@@ -143,6 +141,7 @@ def parallel_MDP(args: List[Dict]):
             writer.writerow(entry)
             output_file.flush()
             logger.info(f"Finished => {entry}")
+
 
 # Main
 print(f'Logging Directory: {LOGGING_FILE}')
