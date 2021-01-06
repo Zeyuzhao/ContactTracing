@@ -1,5 +1,2 @@
-import sys
-sys.path.insert(0,'..')
-
 from ctrace.constraint import *
-prep_dataset("montgomery", sizes = (1000, 2000, None))
+prep_dataset("portland", sizes = (10000, 20000, 100000, None))
