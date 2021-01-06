@@ -14,10 +14,10 @@ from .constraint import *
 from .solve import *
 from . import *
 
-
 SIR_TYPE = namedtuple("SIR_TYPE", ["S", "I_QUEUE", "R", "label"])
 
-def initial_shock(G: nx.graph, timesteps=5, p=0.1, num_shocks=7):
+
+def initial_shock(G: nx.graph, timesteps=5, p=0.1, num_shocks=7, verbose=False):
     full_data = EoN.basic_discrete_SIR(
         G=G, p=0.5, rho=.0001, tmin=0, tmax=1, return_full_data=True)
 
@@ -42,7 +42,8 @@ def initial_shock(G: nx.graph, timesteps=5, p=0.1, num_shocks=7):
             G=G, p=p, initial_infecteds=I, initial_recovereds=R, tmin=0, tmax=1, return_full_data=True)
         print(len(S), len(R), len(I), len(shock_I), len(S) + len(I) + len(R))
 
-    print(full_data.I())
+    if verbose:
+        print(full_data.I())
     S = set([k for (k, v) in full_data.get_statuses(time=1).items() if v == 'S'])
     I = set([k for (k, v) in full_data.get_statuses(time=1).items() if v == 'I'])
     R = set([k for (k, v) in full_data.get_statuses(time=1).items() if v == 'R'])
@@ -92,7 +93,7 @@ def initial(G: nx.graph = None, timesteps=5, p=0.1, cache=None, from_cache=None)
     R = [k for (k, v) in full_data.get_statuses(
         time=timesteps).items() if v == 'R']
 
-    print(full_data.I())
+    # print(full_data.I())
 
     if cache:
         save = {
@@ -245,19 +246,20 @@ def shock(S, I, num_shocks):
 
 
 def Generalized_MDP(G: nx.graph,
-                    p: float, # Required
-                    budget: int, # Required
-                    method: str, # Required
+                    p: float,  # Required
+                    budget: int,  # Required
+                    method: str,  # Required
                     MDP_iterations: int,
-                    num_shocks: int, # Required
+                    num_shocks: int,  # Required
                     num_initial_infections: int,
-                    initial_iterations: int, # Data
-                    iterations_to_recover: int = 1, # Required
-                    cache: str = None, # Data
+                    initial_iterations: int,  # Data
+                    iterations_to_recover: int = 1,  # Required
+                    cache: str = None,  # Data
                     from_cache: str = None,
-                    shock_MDP: bool = False, # Required
-                    visualization: bool = False, # Required
-                    verbose: bool = False): # Required
+                    shock_MDP: bool = False,  # Required
+                    visualization: bool = False,  # Required
+                    verbose: bool = False,
+                    **kwargs):  # Required
     S = set()
     I = set()
     R = set()
@@ -335,7 +337,8 @@ def Generalized_MDP(G: nx.graph,
     else:
         iterator = range(MDP_iterations)
 
-    print()
+    if verbose:
+        print("<======= SIR Initialization Complete =======>")
 
     for t in iterator:
 
@@ -369,7 +372,8 @@ def Generalized_MDP(G: nx.graph,
         I = I.union(new_I)
         R = R.union(to_recover)
 
-        print(len(S), len(I), len(R))
+        if verbose:
+            print(len(S), len(I), len(R))
 
         # people are quarantined (removed from graph temporarily after the timestep)
         for (k, v) in recommendation.items():
@@ -380,3 +384,4 @@ def Generalized_MDP(G: nx.graph,
                 elif k in I:  # I_t is undefined
                     I.remove(k)
                     Q_infected.append(k)
+    # TODO: Return peak, recovered and iterations
