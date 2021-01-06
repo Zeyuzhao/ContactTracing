@@ -245,7 +245,7 @@ def shock(S, I, num_shocks):
     return (S, I)
 
 
-def Generalized_MDP(G: nx.graph,
+def generalized_mdp(G: nx.graph,
                     p: float,  # Required
                     budget: int,  # Required
                     method: str,  # Required
