@@ -361,8 +361,6 @@ def generalized_mdp(G: nx.graph,
 
     for t in iterator:
 
-
-
         # get recommended quarantine
         (val, recommendation) = to_quarantine(
             G, I, R, budget, method=method, p=p)
