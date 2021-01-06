@@ -53,17 +53,18 @@ G = load_graph("montgomery")
 # <================================================== Configurations ==================================================>
 
 # Configurations
+# Experiment 1
 COMPACT_CONFIG = {
     "G": [G],
-    "p": [0.1],
-    "budget": [100],
-    "method": ["degree"],
-    "num_initial_infections": [10],
-    "num_shocks": [5],
-    "initial_iterations": [5],
-    "MDP_iterations": [10],
+    "p": [0.078],
+    "budget": [i for i in range(60, 1001, 4)], # the k value
+    "method": ["random", "degree", "dependent"],
+    "num_initial_infections": [5],
+    "num_shocks": [8],
+    "initial_iterations": [7],
+    "MDP_iterations": [-1],
     "iterations_to_recover": [1],
-    "from_cache": ["generalized.json"], # If cache is specified, some arguments are ignored
+    "from_cache": ['t7.json'], # If cache is specified, some arguments are ignored
     "verbose": [False],
     "trials": 10,
 }
