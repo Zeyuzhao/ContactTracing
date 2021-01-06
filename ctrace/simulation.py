@@ -302,7 +302,7 @@ def generalized_mdp(G: nx.graph,
             y3.append(len(S))
     
         if verbose:
-            print(len(S), len(I), len(R))
+            print(0, len(S), len(I), len(R))
 
         for t in range(initial_iterations):
 
@@ -331,7 +331,7 @@ def generalized_mdp(G: nx.graph,
                 y3.append(len(S))
         
             if verbose:
-                print(len(S), len(I), len(R), len(new_I))
+                print(t+1, len(S), len(I), len(R), len(new_I))
 
     if cache:
         save = {
@@ -359,10 +359,7 @@ def generalized_mdp(G: nx.graph,
 
     for t in iterator:
 
-        # Loop until no infected left.
-        if (MDP_iterations == -1) & (len(I) == 0):
-            total_iterated = t + initial_iterations
-            break
+
 
         # get recommended quarantine
         (val, recommendation) = to_quarantine(
@@ -396,11 +393,16 @@ def generalized_mdp(G: nx.graph,
             y3.append(len(S))
         
         if verbose:
-            print(len(S), len(I), len(R), len(new_I))
+            print(t+initial_iterations+1,len(S), len(I), len(R), len(new_I))
         
         if len(I) > peak:
             peak = len(I)
-
+        
+        # Loop until no infected left.
+        if (MDP_iterations == -1) & (len(I) == 0):
+            total_iterated = t + initial_iterations + 1
+            break
+        
         # people are quarantined (removed from graph temporarily after the timestep)
         for (k, v) in recommendation.items():
             if v == 1:
@@ -410,7 +412,9 @@ def generalized_mdp(G: nx.graph,
                 elif k in I:  # I_t is undefined
                     I.remove(k)
                     Q_infected.append(k)
-
+    
+    #while 
+    
     if visualization:
         colors = ["red", "limegreen", "deepskyblue"]
         labels = ["Infected", "Recovered", "Susceptible"]
