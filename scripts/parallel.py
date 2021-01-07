@@ -55,18 +55,18 @@ G = load_graph("montgomery")
 # Configurations
 # Experiment 1
 COMPACT_CONFIG = {
-    "G": [G],
-    "p": [0.078],
-    "budget": [i for i in range(60, 1001, 4)], # the k value
+    "G": [G], # Graph
+    "p": [0.078], # Probability of infection
+    "budget": [i for i in range(60, 1001, 4)], # The k value
     "method": ["random", "degree", "dependent"],
-    "num_initial_infections": [5],
-    "num_shocks": [8],
-    "initial_iterations": [7],
-    "MDP_iterations": [-1],
-    "iterations_to_recover": [1],
+    "num_initial_infections": [5], # Initial Initial (DATA)
+    "num_shocks": [8], # Size of shocks in initial (DATA)
+    "initial_iterations": [7], # Number of iterations before intervention
+    "MDP_iterations": [-1], # Number of iterations of intervention
+    "iterations_to_recover": [1], # Number of iterations it takes for a infected node to recover (set to 1)
     "from_cache": ['t7.json'], # If cache is specified, some arguments are ignored
-    "verbose": [False],
-    "trials": 10,
+    "verbose": [False], # Prints stuff
+    "trials": 10, # Number of trials to run for each config
 }
 
 # Attributes need to partition configuration! Do NOT have duplicate attributes
