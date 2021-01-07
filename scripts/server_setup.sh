@@ -7,6 +7,7 @@ sudo apt-get install git-lfs
 git lfs install
 
 # Clone repository
+git config --global credential.helper store
 git clone https://github.com/Zeyuzhao/ContactTracing.git
 
 # Enter correct branch
