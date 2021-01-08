@@ -1,6 +1,7 @@
-from ctrace.constraint import find_contours, find_excluded_contours
+from ctrace.constraint import find_contours, find_excluded_contours, ProbMinExposedRestricted
 import networkx as nx
 import numpy as np
+
 
 def test_find_excluded_contours():
     np.random.seed(42)
@@ -19,7 +20,8 @@ def test_find_excluded_contours():
     # Exclude V1 entirely except for one element
     I = {0, 1}
     excluded = {2, 3, 4, 5, 6, 7}
-    assert find_excluded_contours(G, I, excluded) == ({8,}, {33, 34, 35, 36})
+    assert find_excluded_contours(G, I, excluded) == ({8, }, {33, 34, 35, 36})
+
 
 def test_find_excluded_contours_randomized():
     """Randomly generates graphs and tests by removing the actual nodes from the graph"""
@@ -39,3 +41,6 @@ def test_find_excluded_contours_randomized():
 
         assert expected == computed
 
+
+def test_ProbMinExposedRestricted():
+    ProbMinExposedRestricted(G, infected, contour1, contour2, p1, q, k, labels, label_limits, costs=None, solver=None)
