@@ -165,6 +165,57 @@ class ProbMinExposed:
             self.saved_solution[v] = self.X2[v].solution_value()
             self.objectiveVal += (1 - self.saved_solution[v])
 
+class ProbMinExposedRestricted(ProbMinExposed):
+    def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, labels, label_limits, costs=None, solver=None):
+        """
+        Parameters
+        ----------
+        G
+        infected
+        contour1
+        contour2
+        p1
+        q
+        k
+        labels
+            A len(G.node) sized array with labels 0..L-1 for each node
+        limits
+            A L sized array restricting the number of people in each category.
+            Must sum to less than to <= k (these constraints should be more strict than k)
+        costs
+        solver
+        """
+        self.L = len(label_limits)
+        if (len(labels) != len(G.nodes)):
+            raise ValueError("labels must match graph nodes")
+
+        if (any(map(lambda x: x >= self.L or x < 0, labels))):
+            raise ValueError("labels must correspond to label limits")
+
+        if (sum(label_limits) > k):
+            raise ValueError("sum of label_limits must be less than or equal to k to respect the k constraint")
+        self.labels = labels
+        self.label_limits = label_limits
+
+        super().__init__(G, infected, contour1, contour2, p1, q, k, costs, solver)
+
+
+    def init_constraints(self):
+        super().init_constraints()
+
+        # Add label constraints
+        for (label, limit) in enumerate(self.label_limits):
+            label_constraint: Constraint = self.solver.Constraint(0, limit)
+
+            # Get all nodes in V1 who are label
+            members = filter(lambda x: self.labels[x] == label, self.V1)
+            for m in members:
+                label_constraint.SetCoefficient(self.X1[m], 1)
+
+
+
+
+
 
 class ProbMinExposedMIP(ProbMinExposed):
     def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
