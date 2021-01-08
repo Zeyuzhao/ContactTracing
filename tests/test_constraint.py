@@ -2,6 +2,7 @@ from ctrace.constraint import find_contours, find_excluded_contours, ProbMinExpo
 import networkx as nx
 import numpy as np
 
+from ctrace.contact_tracing import PQ_deterministic
 
 def test_find_excluded_contours():
     np.random.seed(42)
@@ -42,5 +43,47 @@ def test_find_excluded_contours_randomized():
         assert expected == computed
 
 
-def test_ProbMinExposedRestricted():
-    ProbMinExposedRestricted(G, infected, contour1, contour2, p1, q, k, labels, label_limits, costs=None, solver=None)
+def test_restricted_respect_limits():
+    np.random.seed(42)
+
+    # Setup contact tracing graph
+    G = nx.balanced_tree(3, 3)
+    I = {0, 1}
+
+    # Set K value
+    K = 5
+
+    # Find contours
+    contour1, contour2 = find_contours(G, I)
+
+    # Find the infected probabilities
+    p1, q = PQ_deterministic(G, list(I), contour1, 0.1)
+
+    # Generate labels and limits for group restriction
+    L = 3
+    labels = list(np.random.randint(L, size=len(G.nodes))) # maps node id -> label id
+    label_limits = (2, 2, 1)
+
+    # List of nodes by their label
+    # maps label id -> list of nodes
+    label_list = {i: list(filter(lambda x: labels[x] == i, contour1)) for i in range(len(label_limits))}
+
+    result = ProbMinExposedRestricted(G, I, contour1, contour2, p1, q, K, labels, label_limits, costs=None, solver=None)
+    result.solve_lp()
+
+    # Assert that output respects label constraints
+    label_counts = [0] * L
+    for (node, value) in result.quarantined_solution.items():
+        label_counts[labels[node]] += value
+
+    for (i, (limit, count)) in enumerate(zip(label_limits, label_counts)):
+        assert count <= limit
+
+
+
+
+
+
+
+
+
