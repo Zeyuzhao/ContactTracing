@@ -349,16 +349,15 @@ def load_graph(dataset_name, graph_folder=None):
 def load_able_graph(fp = "undirected_albe_1.90.txt"):
     graph_file = PROJECT_ROOT / "data" / fp
     df = pd.read_csv(graph_file, delim_whitespace=True)
-    col1 = 'Node1'
-    col2 = 'Node2'
+    col1, col2 = 'Node1', 'Node2'
 
     # Factorize to ids from 0..len(nodes)
     factored = pd.factorize(sorted(list(df[col1]) + list(df[col2])))
+    # maps from old number to new id
     num2id = dict(zip(factored[1], factored[0]))
     df[col1] = df[col1].map(lambda x: num2id[x])
     df[col2] = df[col2].map(lambda x: num2id[x])
 
-    print(df.head())
     G = nx.from_pandas_edgelist(df, col1, col2)
     G.NAME = "albe"
     return G
