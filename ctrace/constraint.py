@@ -335,8 +335,6 @@ def prep_dataset(name, data_dir: Path=None, sizes=(None,)):
         instance_folder = f"partial{human_format(s)}" if s else "complete"
         prep_labelled_graph(in_path=group_path / f"{name}.csv", out_dir=group_path / instance_folder, num_lines=s)
 
-# TODO: Handle root paths
-
 
 def load_graph(dataset_name, graph_folder=None):
     """Will load the complete folder by default, and set the NAME attribute to dataset_name"""
@@ -347,6 +345,27 @@ def load_graph(dataset_name, graph_folder=None):
     # Set name of graph
     G.NAME = dataset_name
     return G
+
+def load_able_graph(fp = "undirected_albe_1.90.txt"):
+    graph_file = PROJECT_ROOT / "data" / fp
+    df = pd.read_csv(graph_file, delim_whitespace=True)
+    col1, col2 = 'Node1', 'Node2'
+
+    # Factorize to ids from 0..len(nodes)
+    factored = pd.factorize(sorted(list(df[col1]) + list(df[col2])))
+    # maps from old number to new id
+    num2id = dict(zip(factored[1], factored[0]))
+    df[col1] = df[col1].map(lambda x: num2id[x])
+    df[col2] = df[col2].map(lambda x: num2id[x])
+
+    G = nx.from_pandas_edgelist(df, col1, col2)
+    G.NAME = "albe"
+    return G
+
+
+
+
+
 
 def find_contours(G: nx.Graph, infected):
     """Produces contour1 and contour2 from infected"""
