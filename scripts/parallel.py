@@ -58,7 +58,7 @@ COMPACT_CONFIG = {
     "G": [G], # Graph
     "p": [0.078], # Probability of infection
     "budget": [i for i in range(60, 1001, 4)], # The k value
-    "method": ["random", "degree", "dependent"],
+    "method": ["random", "degree", "dependent", "weighted"],
     "num_initial_infections": [5], # Initial Initial (DATA)
     "num_shocks": [8], # Size of shocks in initial (DATA)
     "initial_iterations": [7], # Number of iterations before intervention
