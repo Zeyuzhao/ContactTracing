@@ -2,10 +2,11 @@ import random
 import numpy as np
 import math
 
-from typing import Dict
+from typing import Dict, Tuple
 
 from .constraint import *
 from .contact_tracing import *
+import time
 
 def simplify(alpha:float, beta:float):
     if (alpha<0) | (alpha>1) | (beta<0) | (beta>1):
@@ -284,11 +285,32 @@ def to_quarantine(G: nx.graph, I0, safe, cost_constraint, runs = 20, p = .5, P =
     _P, _Q = PQ_deterministic(G, I0, V_1, p)
 
     # If either P or Q is specified, use the default
-    P = P if P else _P
-    Q = Q if Q else _Q
+    P = _P
+    Q = _Q
 
     if method == "weighted":
-        weights: Dict[int, int] = {u: P[u] * sum(Q[u][v] for v in (set(G.neighbors(u)) & set(V_2))) for u in V_1}
+
+        weights: List[Tuple[int, int]] = []
+        for u in V_1:
+            w_sum = 0
+            for v in set(G.neighbors(u)):
+                if v in V_2:
+                    w_sum += Q[u][v]
+            weights.append((u, P[u] * w_sum))
+        # Get the top k (cost_constraint) V1s ranked by w_u = p_u * sum(q_uv for v in v2)
+        weights.sort()
+        topK = weights[:cost_constraint]
+        topK = {i[0] for i in topK}
+        sol = {}
+        for u in V_1:
+            if u in topK:
+                sol[u] = 1
+            else:
+                sol[u] = 0
+        return (-1, sol)
+
+    if method == "weighted_expr":
+        weights: Dict[int, int] = {u: P[u] * sum(Q[u][v] for v in (set(G.neighbors(u)) & V_2)) for u in V_1}
         # Get the top k (cost_constraint) V1s ranked by w_u = p_u * sum(q_uv for v in v2)
         topK = sorted(weights.keys(), key=lambda x: weights[x], reverse=True)[:cost_constraint]
         sol = {}
