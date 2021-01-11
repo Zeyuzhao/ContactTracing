@@ -1,6 +1,9 @@
 import random
 import numpy as np
 import math
+
+from typing import Dict
+
 from .constraint import *
 from .contact_tracing import *
 
@@ -208,6 +211,30 @@ def optimized_iterated_round(problem: ProbMinExposed, d: int):
 
 #returns a map for which nodes to quarantine
 def to_quarantine(G: nx.graph, I0, safe, cost_constraint, runs = 20, p = .5, P = None, Q = None, method = "dependent"):
+    """
+
+    Parameters
+    ----------
+    G
+        Contact Tracing Graph
+    I0
+        Initial infected
+    safe
+        Recovered nodes that will not be infected
+    cost_constraint
+        The k value - the number of people to quarantine
+    runs
+        Unused
+    p
+
+    P
+    Q
+    method
+
+    Returns
+    -------
+
+    """
     costs = np.ones(len(G.nodes))
     V_1, V_2 = find_excluded_contours(G, I0, safe)
     
@@ -215,13 +242,14 @@ def to_quarantine(G: nx.graph, I0, safe, cost_constraint, runs = 20, p = .5, P =
     if method == "none":
         sol = {u:0 for u in V_1}    
         return (-1, sol)
+    # TODO: Add weighted degree
     elif method == "degree":
         #calculate degree of each vertex in V_1
         degrees = []
 
         for u in V_1:
             count = 0
-            for v in G.neighbors(u):
+            for v in set(G.neighbors(u)):
                 if v in V_2:
                     count+=1
 
@@ -239,6 +267,7 @@ def to_quarantine(G: nx.graph, I0, safe, cost_constraint, runs = 20, p = .5, P =
                 sol[degrees[i][1]] = 0
                 
         return (-1, sol)
+
     elif method == "random":
         sample = random.sample(V_1, min(cost_constraint,len(V_1)))
         
@@ -251,7 +280,25 @@ def to_quarantine(G: nx.graph, I0, safe, cost_constraint, runs = 20, p = .5, P =
                 sol[v] = 0
         
         return (-1, sol)
-    P, Q = PQ_deterministic(G, I0, V_1, p)
+
+    _P, _Q = PQ_deterministic(G, I0, V_1, p)
+
+    # If either P or Q is specified, use the default
+    P = P if P else _P
+    Q = Q if Q else _Q
+
+    if method == "weighted":
+        weights: Dict[int, int] = {u: P[u] * sum(Q[u][v] for v in (set(G.neighbors(u)) & set(V_2))) for u in V_1}
+        # Get the top k (cost_constraint) V1s ranked by w_u = p_u * sum(q_uv for v in v2)
+        topK = sorted(weights.keys(), key=lambda x: weights[x], reverse=True)[:cost_constraint]
+        sol = {}
+        for u in V_1:
+            if u in topK:
+                sol[u] = 1
+            else:
+                sol[u] = 0
+        return (-1, sol)
+
     prob = ProbMinExposed(G, I0, V_1, V_2, P, Q, cost_constraint, costs)
     
     if method == "dependent":

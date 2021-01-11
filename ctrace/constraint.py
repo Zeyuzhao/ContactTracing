@@ -213,10 +213,6 @@ class ProbMinExposedRestricted(ProbMinExposed):
                 label_constraint.SetCoefficient(self.X1[m], 1)
 
 
-
-
-
-
 class ProbMinExposedMIP(ProbMinExposed):
     def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
         if solver is None:
@@ -243,7 +239,7 @@ class ProbMinExposedMIP(ProbMinExposed):
 
 
 # TODO: Handle root paths
-def prep_labelled_graph(in_path, out_dir, num_lines=None):
+def prep_labelled_graph(in_path, out_dir, num_lines=None, delimiter=","):
     """Generates a labelled graph. Converts IDs to ids from 0 to N vertices
 
     Parameters
@@ -282,7 +278,6 @@ def prep_labelled_graph(in_path, out_dir, num_lines=None):
     graph_path = out_dir / "data.txt"
     label_path = out_dir / "label.txt"
 
-    delimiter = ","
     with open(in_path, "r") as in_file, \
             open(graph_path, "w") as out_file, \
             open(label_path, "w") as label_file:
@@ -353,6 +348,7 @@ def load_able_graph(fp = "undirected_albe_1.90.txt"):
 
     # Factorize to ids from 0..len(nodes)
     factored = pd.factorize(sorted(list(df[col1]) + list(df[col2])))
+
     # maps from old number to new id
     num2id = dict(zip(factored[1], factored[0]))
     df[col1] = df[col1].map(lambda x: num2id[x])
