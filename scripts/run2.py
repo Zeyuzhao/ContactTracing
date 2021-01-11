@@ -57,14 +57,14 @@ G = load_graph("montgomery")
 COMPACT_CONFIG = {
     "G": [G], # Graph
     "p": [0.078], # Probability of infection
-    "budget": [i for i in range(60, 1001, 4)], # The k value
+    "budget": [250,500,750,1000,1250,1500,1750,2000], # The k value
     "method": ["weighted"],
     "num_initial_infections": [5], # Initial Initial (DATA)
     "num_shocks": [8], # Size of shocks in initial (DATA)
     "initial_iterations": [7], # Number of iterations before intervention
     "MDP_iterations": [-1], # Number of iterations of intervention
     "iterations_to_recover": [1], # Number of iterations it takes for a infected node to recover (set to 1)
-    "from_cache": ['t7.json'], # If cache is specified, some arguments are ignored
+    "from_cache": ['t' + str(i) + ".json" for i in range(7,15,1)], # If cache is specified, some arguments are ignored
     "verbose": [False], # Prints stuff
     "trials": 10, # Number of trials to run for each config
 }
