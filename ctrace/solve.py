@@ -1,12 +1,9 @@
-import random
-import numpy as np
 import math
-
-from typing import Dict, Tuple
+import random
+from typing import Tuple, Set, List
 
 from .constraint import *
-from .contact_tracing import *
-import time
+from .utils import find_excluded_contours, PQ_deterministic
 
 def simplify(alpha:float, beta:float):
     if (alpha<0) | (alpha>1) | (beta<0) | (beta>1):
@@ -234,7 +231,9 @@ def to_quarantine(G: nx.graph, I0, safe, cost_constraint, runs = 20, p = .5, P =
 
     Returns
     -------
-
+    (LP_SCORE, QUARANTINE_MAP)
+        LP_SCORE - the nuumber of people exposed
+        QUARANTINE_MAP - a dict[int, int] of a map of V1 IDs to 0-1 indicator variables
     """
     costs = np.ones(len(G.nodes))
     V_1, V_2 = find_excluded_contours(G, I0, safe)
