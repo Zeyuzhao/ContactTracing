@@ -8,7 +8,7 @@ import time
 def test_degree_weighted_tree():
     np.random.seed(42)
 
-    # Setup contact tracing graph
+    # Setup contact tracing graphs
     G = nx.balanced_tree(5, 5)
     I = {0, 1}
 
@@ -24,7 +24,7 @@ def test_degree_weighted_tree():
     assert len(diffs) < 0.05 * len(degreeSol)
 
 def test_degree_weighted_montgomery():
-    # Setup montgomery graph
+    # Setup montgomery graphs
     G = load_graph("montgomery")
     n = len(G.nodes)
     I = [i for i in range(n) if random.random() > 0.99]

@@ -1,18 +1,12 @@
 import itertools
 import json
-
-import networkx as nx
-import matplotlib.pyplot as plt
-import pandas as pd
-import numpy as np
-import random
-import EoN
 from collections import namedtuple
 
-from .contact_tracing import *
-from .constraint import *
-from .solve import *
+import EoN
+import matplotlib.pyplot as plt
+
 from . import *
+from .solve import *
 
 SIR_TYPE = namedtuple("SIR_TYPE", ["S", "I_QUEUE", "R", "label"])
 
@@ -63,7 +57,7 @@ def initial(G: nx.graph = None, timesteps=5, p=0.1, cache=None, from_cache=None)
     Parameters
     ----------
     G
-        The contact tracing graph
+        The contact tracing graphs
     timesteps
         Number of iterations to run for EON
     p
@@ -123,12 +117,12 @@ def MDP_step(G, S, I_t, R, Q1, Q2, p):
 def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent", visualization=False, verbose=False,
         **kwargs):
     """
-    Simulates a discrete step SIR model on graph G. Infected patients recover within one time period.
+    Simulates a discrete step SIR model on graphs G. Infected patients recover within one time period.
 
     Parameters
     ----------
     G
-        The graph G of disease spread
+        The graphs G of disease spread
     budget
         The "k" value to quarantine per time step
     S
@@ -213,7 +207,7 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
         if len(I_t) > peak:
             peak = len(I_t)
 
-        # people are quarantined (removed from graph temporarily after the timestep)
+        # people are quarantined (removed from graphs temporarily after the timestep)
         for (k, v) in recommendation.items():
             if v == 1:
                 if k in S:
@@ -403,7 +397,7 @@ def generalized_mdp(G: nx.graph,
             total_iterated = t + initial_iterations + 1
             break
         
-        # people are quarantined (removed from graph temporarily after the timestep)
+        # people are quarantined (removed from graphs temporarily after the timestep)
         for (k, v) in recommendation.items():
             if v == 1:
                 if k in S:

@@ -1,11 +1,11 @@
 from typing import Union, List, Tuple
 
-import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
-from matplotlib.colors import ListedColormap, LinearSegmentedColormap
-import networkx as nx
+from matplotlib.colors import ListedColormap
 from .constraint import *
+from . import PROJECT_ROOT
+from typing import Set
 
 # custom colormap
 top = cm.get_cmap('Oranges_r', 128)
@@ -17,7 +17,7 @@ newcmp = ListedColormap(newcolors, name='OrangeBlue')
 
 
 def draw_prob(G: nx.Graph, I, V1, V2, quarantined, saved, p1, transition, name=None, node_size=20, edge_width=1):
-    """Generates graph visualization of the probabilistic p < 1 case
+    """Generates graphs visualization of the probabilistic p < 1 case
 
     Parameters
     ----------
@@ -105,7 +105,7 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, saved, p1, transition, name=N
     nx.draw_networkx_labels(G, pos=pos)  # font_size=2
 
     if name is None:
-        name = "graph"
+        name = "graphs"
 
     plt.savefig(PROJECT_ROOT / 'output' / f'{name}.png', dpi=1000)
     plt.show()
@@ -113,11 +113,11 @@ def draw_prob(G: nx.Graph, I, V1, V2, quarantined, saved, p1, transition, name=N
 
 def draw_contours(G: nx.Graph, I, V1, V2, name=None):
     """
-    Draws graph and colors in the nodes of initial, and contours of distance 1 and 2
+    Draws graphs and colors in the nodes of initial, and contours of distance 1 and 2
     Parameters
     ----------
     G
-        The graph to visualize
+        The graphs to visualize
     I
         Initial set
     V1
@@ -125,7 +125,7 @@ def draw_contours(G: nx.Graph, I, V1, V2, name=None):
     V2
         Contour of distance 2
     name
-        Optional name of graph
+        Optional name of graphs
 
     Returns
     -------
@@ -158,7 +158,7 @@ def draw_contours(G: nx.Graph, I, V1, V2, name=None):
     nx.draw_networkx_labels(G, pos, font_size=3)
 
     if name is None:
-        name = "graph"
+        name = "graphs"
 
     plt.savefig(PROJECT_ROOT / 'output' / f'{name}.png', dpi=1000)
     plt.show()
@@ -166,7 +166,7 @@ def draw_contours(G: nx.Graph, I, V1, V2, name=None):
 
 def draw_absolute(G: nx.Graph, I, V1, V2, quarantined, safe, name=None):
     """
-    Draws MinExposed graph
+    Draws MinExposed graphs
     Parameters
     ----------
     G
@@ -221,7 +221,7 @@ def draw_absolute(G: nx.Graph, I, V1, V2, quarantined, safe, name=None):
         nx.draw_networkx_labels(G, pos, font_size=1)
 
     if name is None:
-        name = "graph"
+        name = "graphs"
 
     plt.savefig(PROJECT_ROOT / 'output' / f'{name}.png', dpi=1000)
     plt.show()

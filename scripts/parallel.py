@@ -47,7 +47,7 @@ logger.info(f"Current path {sys.path}")
 # Create the SIR datatype (QUEUE version)
 SIR = namedtuple("SIR", ["S", "I_QUEUE", "R", "label"])
 
-# Load montgomery graph
+# Load montgomery graphs
 G = load_graph("montgomery")
 
 # <================================================== Configurations ==================================================>
