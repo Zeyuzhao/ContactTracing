@@ -91,14 +91,14 @@ for line in lines:
 COMPACT_CONFIG = {
     "G": [G2], # Graph
     "p": [0.06], # Probability of infection
-    "budget": [500,1000,1500,2000,2500], # The k value
-    "method": ["weighted"],
+    "budget": [i for i in range(500,2001,10)], # The k value
+    "method": ["random","degree","dependent","weighted"],
     "num_initial_infections": [3], # Initial Initial (DATA)
     "num_shocks": [20], # Size of shocks in initial (DATA)
     "initial_iterations": [1], # Number of iterations before intervention
     "MDP_iterations": [-1], # Number of iterations of intervention
     "iterations_to_recover": [1], # Number of iterations it takes for a infected node to recover (set to 1)
-    "from_cache": ['a' + str(i) + ".json" for i in range(5,12,1)], # If cache is specified, some arguments are ignored
+    "from_cache": ['a5.json'], # If cache is specified, some arguments are ignored
     "verbose": [False], # Prints stuff
     "trials": 10, # Number of trials to run for each config
 }
