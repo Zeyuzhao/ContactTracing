@@ -180,8 +180,7 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
             print(str(t) + " " + str(len(I_t)) + " " +
                   str(len(S)) + " " + str(len(R)))
 
-        (val, recommendation) = to_quarantine(
-            G, I_t, R, budget, method=method, p=p)
+        (val, recommendation) = to_quarantine(G, I_t, R, budget, p=p, method=method)
 
         (S, I_t, R) = MDP_step(G, S, I_t, R, Q_infected, Q_susceptible, p=p)
         # after this, R will contain Q_infected and Q_susceptible
@@ -356,8 +355,7 @@ def generalized_mdp(G: nx.graph,
     for t in iterator:
 
         # get recommended quarantine
-        (val, recommendation) = to_quarantine(
-            G, I, R, budget, method=method, p=p)
+        (val, recommendation) = to_quarantine(G, I, R, budget, p=p, method=method)
 
         # go through one step of the disease spread
         # (S, I, R) = MDP_step(G, S, I, R, Q_infected, Q_susceptible, p=p)

@@ -7,6 +7,8 @@ import pandas as pd
 from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Constraint, Solver, Variable, Objective
 
+from contextlib import redirect_stdout
+import io
 np.random.seed(42)
 
 class ProbMinExposed:
@@ -27,10 +29,16 @@ class ProbMinExposed:
             costs = defaultdict(lambda: 1)
 
         self.costs = costs
-        if solver is None:
-            solver = pywraplp.Solver.CreateSolver('GLOP')
-        else:
-            solver = pywraplp.Solver.CreateSolver(solver)
+
+        # Capture messages - Gurobi gives unnecessary log messages
+        file_out = io.StringIO()
+        with redirect_stdout(file_out):
+            if solver is None:
+                solver = pywraplp.Solver.CreateSolver('GLOP')
+            else:
+                solver = pywraplp.Solver.CreateSolver(solver)
+        self.recorded_out = file_out.getvalue()
+
         self.solver: Solver = solver
 
         # Check if solution is optimal
@@ -123,7 +131,7 @@ class ProbMinExposed:
         numExposed.SetMinimization()
 
     def setVariable(self, index: int, value: int):
-        """Sets the ith V1 indicator to value int"""
+        """Sets the ith V1 indicator to value int. May only use after solve_lp"""
         i = self.quaran_map[index]
         if i in self.partials:
             raise ValueError(f"in {i} is already set!")
@@ -135,7 +143,17 @@ class ProbMinExposed:
     def getVariables(self):
         return self.quaran_raw
 
+    def setVariableId(self, id: int, value: int):
+        """Sets the ith V1 indicator to value int"""
+        if id in self.partials:
+            raise ValueError(f"in {id} is already set!")
+        if value not in (0, 1):
+            raise ValueError("Value must be 0 or 1")
+        self.partials[id] = value
+        self.solver.Add(self.X1[id] == value)
+
     def filled(self):
+        # TODO: Does this method make sense?
         """Returns true if every variable is solved"""
         return self.partials == self.V1
 
