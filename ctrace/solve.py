@@ -211,7 +211,7 @@ def optimized_iterated_round(problem: ProbMinExposed, d: int):
     return (problem.objectiveVal, problem.quarantined_solution)
 
 #returns a map for which nodes to quarantine
-def to_quarantine(G: nx.graph, I0, safe, cost_constraint, runs = 20, p = .5, P = None, Q = None, method = "dependent"):
+def to_quarantine(G: nx.graph, I0, safe, cost_constraint, p = .5, method = "dependent"):
     """
 
     Parameters
