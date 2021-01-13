@@ -119,7 +119,7 @@ def prep_dataset(name: str, data_dir: Path=None, sizes=(None,)):
 def load_graph(dataset_name, graph_folder=None):
     """Will load the complete folder by default, and set the NAME attribute to dataset_name"""
     if graph_folder is None:
-        graph_folder = PROJECT_ROOT / "data"/ "graphs" / dataset_name / "complete"
+        graph_folder = PROJECT_ROOT / "data" / "graphs" / dataset_name / "complete"
     G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int)
 
     # Set name of graphs
@@ -179,9 +179,13 @@ def generate_absolute(G, infected, k: int = None, costs: list = None):
         "k": k,
     }
 
-def load_sir(dataset_name, dataset_folder: Path=None):
-    if dataset_folder is None:
-        dataset_folder = PROJECT_ROOT / "data" / "SIR_Cache"
-    dataset_path = dataset_folder / dataset_name
+def load_sir(sir_name, sir_folder: Path=None, merge=False):
+    if sir_folder is None:
+        sir_folder = PROJECT_ROOT / "data" / "SIR_Cache"
+    dataset_path = sir_folder / sir_name
     with open(dataset_path) as file:
-        return json.load(file)
+        data = json.load(file)
+        if merge:
+            data["I"] = list(set().union(*data["I_Queue"]))
+            del data["I_Queue"]
+        return data

@@ -3,7 +3,10 @@ import random
 from typing import Tuple, Set, List
 
 from .constraint import *
-from .utils import find_excluded_contours, PQ_deterministic
+from .utils import find_excluded_contours, PQ_deterministic, max_neighbors
+
+from io import StringIO
+import sys
 
 def simplify(alpha:float, beta:float):
     if (alpha<0) | (alpha>1) | (beta<0) | (beta>1):
@@ -208,7 +211,7 @@ def optimized_iterated_round(problem: ProbMinExposed, d: int):
     return (problem.objectiveVal, problem.quarantined_solution)
 
 #returns a map for which nodes to quarantine
-def to_quarantine(G: nx.graph, I0, safe, cost_constraint, runs = 20, p = .5, P = None, Q = None, method = "dependent"):
+def to_quarantine(G: nx.graph, I0, safe, cost_constraint, p=.5, method="dependent"):
     """
 
     Parameters
@@ -221,12 +224,8 @@ def to_quarantine(G: nx.graph, I0, safe, cost_constraint, runs = 20, p = .5, P =
         Recovered nodes that will not be infected
     cost_constraint
         The k value - the number of people to quarantine
-    runs
-        Unused
     p
 
-    P
-    Q
     method
 
     Returns
@@ -244,79 +243,138 @@ def to_quarantine(G: nx.graph, I0, safe, cost_constraint, runs = 20, p = .5, P =
         return (-1, sol)
     # TODO: Add weighted degree
     elif method == "degree":
-        #calculate degree of each vertex in V_1
-        degrees = []
-
-        for u in V_1:
-            count = 0
-            for v in set(G.neighbors(u)):
-                if v in V_2:
-                    count+=1
-
-            degrees.append((count,u))
-        
-        degrees.sort()
-        degrees.reverse()
-        
-        sol = {}
-        
-        for i in range(len(V_1)):
-            if i < cost_constraint:
-                sol[degrees[i][1]] = 1
-            else:
-                sol[degrees[i][1]] = 0
-                
-        return (-1, sol)
+        return degree_solver(G, V_1, V_2, cost_constraint)
 
     elif method == "random":
-        sample = random.sample(V_1, min(cost_constraint,len(V_1)))
-        
-        sol = {}
-        
-        for v in V_1:
-            if v in sample:
-                sol[v] = 1
-            else:
-                sol[v] = 0
-        
-        return (-1, sol)
+        return random_solver(V_1, cost_constraint)
 
-    _P, _Q = PQ_deterministic(G, I0, V_1, p)
-
-    # If either P or Q is specified, use the default
-    P = _P
-    Q = _Q
-
+    P, Q = PQ_deterministic(G, I0, V_1, p)
     if method == "weighted":
-
-        weights: List[Tuple[int, int]] = []
-        for u in V_1:
-            w_sum = 0
-            for v in set(G.neighbors(u)):
-                if v in V_2:
-                    w_sum += Q[u][v]
-            weights.append((P[u] * w_sum, u))
-        # Get the top k (cost_constraint) V1s ranked by w_u = p_u * sum(q_uv for v in v2)
-        weights.sort(reverse=True)
-        topK = weights[:cost_constraint]
-        topK = {i[1] for i in topK}
-
-        sol = {}
-        for u in V_1:
-            if u in topK:
-                sol[u] = 1
-            else:
-                sol[u] = 0
-        return (-1, sol)
+        return weighted_solver(G, I0, P, Q, V_1, V_2, cost_constraint, costs)
 
     prob = ProbMinExposed(G, I0, V_1, V_2, P, Q, cost_constraint, costs)
-    
     if method == "dependent":
         return basic_non_integer_round(prob)
     elif method == "iterated":
         return iterated_round(prob, int(len(V_1)/20))
     elif method == "optimized":
         return optimized_iterated_round(prob, int(len(V_1)/20))
+    elif method == "gurobi":
+        prob = ProbMinExposedMIP(G, I0, V_1, V_2, P, Q, cost_constraint, costs, solver='GUROBI')
+        prob.solve_lp()
+        # Returns a tuple for its optimal value
+        return (prob.objectiveVal, prob.isOptimal), prob.quarantined_solution
+    elif method == "dependent_gurobi":
+        prob = ProbMinExposed(G, I0, V_1, V_2, P, Q, cost_constraint, costs, solver='GUROBI_LP')
+        return basic_non_integer_round(prob)
     else:
         raise Exception("invalid method for optimization")
+
+
+def weighted_solver(G, I0, P, Q, V_1, V_2, cost_constraint, costs):
+    weights: List[Tuple[int, int]] = []
+    for u in V_1:
+        w_sum = 0
+        for v in set(G.neighbors(u)):
+            if v in V_2:
+                w_sum += Q[u][v]
+        weights.append((P[u] * w_sum, u))
+    # Get the top k (cost_constraint) V1s ranked by w_u = p_u * sum(q_uv for v in v2)
+    weights.sort(reverse=True)
+    topK = weights[:cost_constraint]
+    topK = {i[1] for i in topK}
+    sol = {}
+    for u in V_1:
+        if u in topK:
+            sol[u] = 1
+        else:
+            sol[u] = 0
+    # Compute LP MinExposed Score
+    # TODO: Migrate to specialized method?
+    prob = ProbMinExposed(G, I0, V_1, V_2, P, Q, cost_constraint, costs)
+    for k, v in sol.items():
+        prob.setVariableId(k, v)
+    prob.solve_lp()
+    return (prob.objectiveVal, sol)
+
+
+def random_solver(V_1, cost_constraint):
+    sample = random.sample(V_1, min(cost_constraint, len(V_1)))
+    sol = {}
+    for v in V_1:
+        if v in sample:
+            sol[v] = 1
+        else:
+            sol[v] = 0
+    return (-1, sol)
+
+
+def degree_solver(G, V_1, V_2, cost_constraint):
+    # calculate degree of each vertex in V_1
+    degrees = []
+    for u in V_1:
+        count = 0
+        for v in set(G.neighbors(u)):
+            if v in V_2:
+                count += 1
+
+        degrees.append((count, u))
+    degrees.sort()
+    degrees.reverse()
+    sol = {}
+    for i in range(len(V_1)):
+        if i < cost_constraint:
+            sol[degrees[i][1]] = 1
+        else:
+            sol[degrees[i][1]] = 0
+    return (-1, sol)
+
+
+def trial_tracker(G: nx.graph, I0, safe, cost_constraint, p=.5, method="dependent"):
+    """
+    Runs to_quarantine and tracks various statistics
+    Parameters
+    ----------
+    G
+    I0
+    safe
+    cost_constraint
+    p
+    method
+
+    Returns
+    -------
+    value, sol, isOptimal, maxD
+    value: the MinExposed objective value (expected number of people exposed)
+    sol: an dictionary mapping from V1 IDs to its indicator variables
+    isOptimal: (-1, 0, 1) -> (does not apply, false, true)
+    maxD: the maximum number of neighbors of V1 that are in V2
+    """
+    costs = np.ones(len(G.nodes))
+    V_1, V_2 = find_excluded_contours(G, I0, safe)
+    P, Q = PQ_deterministic(G, I0, V_1, p)
+    maxD = max_neighbors(G, V_1, V_2)
+
+    if method == "weighted":
+        obj_val, sol = weighted_solver(G, I0, P, Q, V_1, V_2, cost_constraint, costs)
+        return (obj_val, sol, -1, maxD)
+
+    if method == "dependent":
+        # Dependent LP Rounding
+        prob = ProbMinExposed(G, I0, V_1, V_2, P, Q, cost_constraint, costs)
+        obj_val, sol = basic_non_integer_round(prob)
+        return (obj_val, sol, -1, maxD)
+    elif method == "gurobi":
+        # Gurobi MIP Rounding
+        prob = ProbMinExposedMIP(G, I0, V_1, V_2, P, Q, cost_constraint, costs, solver='GUROBI')
+        prob.solve_lp()
+        # Returns a tuple for its optimal value
+        obj_val = prob.objectiveVal
+        sol = prob.quarantined_solution
+        isOptimal = prob.isOptimal
+        return (obj_val, sol, isOptimal, maxD)
+    else:
+        raise Exception("invalid method for optimization")
+
+
 

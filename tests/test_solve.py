@@ -1,9 +1,13 @@
-import numpy as np
-import networkx as nx
 import random
-from ctrace.solve import to_quarantine
-from ctrace.constraint import load_graph
 import time
+
+import networkx as nx
+import numpy as np
+
+from ctrace.dataset import load_graph
+from ctrace.solve import to_quarantine
+
+
 # test_greedy
 def test_degree_weighted_tree():
     np.random.seed(42)
@@ -14,8 +18,8 @@ def test_degree_weighted_tree():
 
     # Set K value
     K = 5
-    _, degreeSol = to_quarantine(G=G, I0=I, safe=[], cost_constraint=K, runs=20, p=1, P=None, Q=None, method="degree")
-    _, weightedSol = to_quarantine(G=G, I0=I, safe=[], cost_constraint=K, runs=20, p=1, P=None, Q=None, method="weighted")
+    _, degreeSol = to_quarantine(G=G, I0=I, safe=[], cost_constraint=K, p=1, method="degree")
+    _, weightedSol = to_quarantine(G=G, I0=I, safe=[], cost_constraint=K, p=1, method="weighted")
 
     sol1 = {k for k,v in degreeSol.items() if v == 1}
     sol2 = {k for k,v in weightedSol.items() if v == 1}
@@ -31,9 +35,9 @@ def test_degree_weighted_montgomery():
     K = 50
 
     start = time.time()
-    _, degreeSol = to_quarantine(G=G, I0=I, safe=[], cost_constraint=K, runs=20, p=1, P=None, Q=None, method="degree")
+    _, degreeSol = to_quarantine(G=G, I0=I, safe=[], cost_constraint=K, p=1, method="degree")
     end1 = time.time()
-    _, weightedSol = to_quarantine(G=G, I0=I, safe=[], cost_constraint=K, runs=20, p=1, P=None, Q=None, method="weighted")
+    _, weightedSol = to_quarantine(G=G, I0=I, safe=[], cost_constraint=K, p=1, method="weighted")
     end2 = time.time()
 
     time1 = end1 - start

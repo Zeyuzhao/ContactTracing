@@ -56,3 +56,6 @@ def PQ_deterministic(G: nx.Graph, I: Iterable[int], V1: Iterable[int], p: float)
     P = {v: 1 - math.pow((1 - p), len(set(G.neighbors(v)) & set(I))) for v in V1}
     Q = defaultdict(lambda: defaultdict(lambda: p))
     return P, Q
+
+def max_neighbors(G, V_1, V_2):
+    return max(len(set(G.neighbors(u)) & V_2) for u in V_1)
