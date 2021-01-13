@@ -1,8 +1,9 @@
-from ctrace.constraint import find_contours, find_excluded_contours, ProbMinExposedRestricted
+from ctrace.constraint import ProbMinExposedRestricted
+from ctrace.utils import find_contours, find_excluded_contours
 import networkx as nx
 import numpy as np
 
-from ctrace.contact_tracing import PQ_deterministic
+from ctrace.utils import PQ_deterministic
 
 def test_find_excluded_contours():
     np.random.seed(42)
