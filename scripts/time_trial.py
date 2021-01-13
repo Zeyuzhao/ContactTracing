@@ -37,14 +37,14 @@ logger.addHandler(fh)
 logger.info(f"Current working directory: {os.getcwd()}")
 logger.info(f"Current path {sys.path}")
 
-MAX_WORKERS = 1
+# MAX_WORKERS = 1
 COMPACT_CONFIG = {
     "G": ["montgomery"], # Graph
     "p": [0.078], # Probability of infection
-    "budget": [i for i in range(60, 81, 4)], # The k value
-    "method": ["gurobi", "weighted"],
+    "budget": [i for i in range(500, 1001, 5)], # The k value
+    "method": ["weighted", "dependent"],
     "from_cache": [f't{i}.json' for i in range(7, 17, 1)], # If cache is specified, some arguments are ignored
-    "trials": 5, # Number of trials to run for each config
+    "trials": 1, # Number of trials to run for each config
 }
 
 # Setup load graph:
@@ -113,7 +113,7 @@ def MDP_runner(param):
     return (value, isOptimal, maxD, time_diff), readable_params
 
 def parallel_MDP(args: List[Dict]):
-    with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor, open(OUTPUT_FILE, "w") as output_file:
+    with concurrent.futures.ProcessPoolExecutor() as executor, open(OUTPUT_FILE, "w") as output_file:
         results = [executor.submit(MDP_runner, arg) for arg in args]
         writer = csv.DictWriter(output_file, fieldnames=COMPLEX + PRIMITIVE + RESULTS)
         writer.writeheader()
@@ -161,7 +161,7 @@ def linear_MDP(args: List[Dict]):
 print(f'Logging Directory: {LOGGING_FILE}')
 expanded_configs = expand_configurations(COMPACT_CONFIG)
 print(expanded_configs[0])
-linear_MDP(expanded_configs)
+parallel_MDP(expanded_configs)
 print('done')
 # to_quarantine(G=GRAPH,
 #               I0=I,

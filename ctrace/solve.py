@@ -265,7 +265,7 @@ def to_quarantine(G: nx.graph, I0, safe, cost_constraint, p=.5, method="dependen
         # Returns a tuple for its optimal value
         return (prob.objectiveVal, prob.isOptimal), prob.quarantined_solution
     elif method == "dependent_gurobi":
-        prob = ProbMinExposed(G, I0, V_1, V_2, P, Q, cost_constraint, costs, solver='GUROBI_LP')
+        prob = ProbMinExposed(G, I0, V_1, V_2, P, Q, cost_constraint, costs, solver='GUROBI')
         return basic_non_integer_round(prob)
     else:
         raise Exception("invalid method for optimization")
