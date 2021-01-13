@@ -3,7 +3,7 @@ import time
 
 import networkx as nx
 import numpy as np
-
+from ortools.linear_solver import pywraplp
 from ctrace.dataset import load_graph
 from ctrace.solve import to_quarantine
 
@@ -55,6 +55,9 @@ def test_degree_weighted_montgomery():
     tolerance = 0.05 * len(sol1)
     assert len(diffs) < tolerance
 
+def test_gurobi():
+    solver = pywraplp.Solver.CreateSolver("GUROBI")
+    assert solver
 def test_gurobi_lp():
     # Setup montgomery graphs
     G = load_graph("montgomery")
@@ -65,7 +68,7 @@ def test_gurobi_lp():
     start = time.time()
     _, dependentSol = to_quarantine(G=G, I0=I, safe=[], cost_constraint=K, p=1, method="dependent")
     end1 = time.time()
-    _, gurobiLPSol = to_quarantine(G=G, I0=I, safe=[], cost_constraint=K, p=1, method="dependent_gurobi")
+    _, gurobiLPSol = to_quarantine(G=G, I0=I, safe=[], cost_constraint=K, p=1, method="gurobi")
     end2 = time.time()
 
     time1 = end1 - start

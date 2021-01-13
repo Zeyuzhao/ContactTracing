@@ -264,7 +264,7 @@ def generalized_mdp(G: nx.graph,
     y1 = []
     y2 = []
     y3 = []
-    
+
     # Data set up
     if from_cache:
         with open(PROJECT_ROOT / "data" / "SIR_Cache" / from_cache, 'r') as infile:
