@@ -1,30 +1,23 @@
-import sys
-import os
-import csv
-from tqdm import tqdm
-import logging
-from collections import namedtuple
-
-import pandas as pd
-import itertools
-import time
 import concurrent.futures
+import csv
+import logging
+import os
+import sys
+import time
+
 import shortuuid
+from tqdm import tqdm
 
-# Set path to ContactTracing/
-os.chdir('..')
-sys.path.insert(0, '.')
-
-from ctrace.simulation import *
-from ctrace.dataset import *
 from ctrace import PROJECT_ROOT
+from ctrace.dataset import *
+from ctrace.simulation import *
 
 # <======================================== Output Configurations ========================================>
 # Configure Logging Files => First 5 digits
 RUN_LABEL = shortuuid.uuid()[:5]
 
 # Setup output directories
-output_path = PROJECT_ROOT / "output" / f'run[{RUN_LABEL}]'
+output_path = PROJECT_ROOT / "output" / f'timer[{RUN_LABEL}]'
 output_path.mkdir(parents=True, exist_ok=True)
 
 OUTPUT_FILE = output_path / 'results.csv'
@@ -32,7 +25,7 @@ LOGGING_FILE = output_path / 'run.log'
 
 # <================================================== Logging Setup ==================================================>
 # Setup up Parallel Log Channel
-logger = logging.getLogger("Parallel")
+logger = logging.getLogger("Time_Trial")
 logger.setLevel(logging.DEBUG)
 
 # Set LOGGING_FILE as output
@@ -44,32 +37,18 @@ logger.addHandler(fh)
 logger.info(f"Current working directory: {os.getcwd()}")
 logger.info(f"Current path {sys.path}")
 
-# <================================================== Loaded Data ==================================================>
-# Create the SIR datatype (QUEUE version)
-SIR = namedtuple("SIR", ["S", "I_QUEUE", "R", "label"])
-
-# Load montgomery graphs
-G = load_graph("montgomery")
-
-# <================================================== Configurations ==================================================>
-
-# Configurations
-# Experiment 1
-MAX_WORKERS = 3
+MAX_WORKERS = 1
 COMPACT_CONFIG = {
-    "G": [G], # Graph
+    "G": ["montgomery"], # Graph
     "p": [0.078], # Probability of infection
-    "budget": [i for i in range(500, 550, 4)], # The k value
-    "method": ["gurobi"],
-    "num_initial_infections": [5], # Initial Initial (DATA)
-    "num_shocks": [8], # Size of shocks in initial (DATA)
-    "initial_iterations": [7], # Number of iterations before intervention
-    "MDP_iterations": [-1], # Number of iterations of intervention
-    "iterations_to_recover": [1], # Number of iterations it takes for a infected node to recover (set to 1)
-    "from_cache": ['t7.json'], # If cache is specified, some arguments are ignored
-    "verbose": [False], # Prints stuff
-    "trials": 10, # Number of trials to run for each config
+    "budget": [i for i in range(60, 81, 4)], # The k value
+    "method": ["gurobi", "weighted"],
+    "from_cache": [f't{i}.json' for i in range(7, 17, 1)], # If cache is specified, some arguments are ignored
+    "trials": 5, # Number of trials to run for each config
 }
+
+# Setup load graph:
+COMPACT_CONFIG["G"] = [load_graph(x) for x in COMPACT_CONFIG["G"]]
 
 # Attributes need to partition configuration! Do NOT have duplicate attributes
 COMPLEX = ["G"] # Attributes that need to be processed before printing
@@ -77,7 +56,7 @@ HIDDEN = ["visualization", "verbose", "trials", "logging"] # These attributes wi
 
 # Anything not in PRIMITIVE or HIDDEN
 PRIMITIVE = list(COMPACT_CONFIG.keys() - set(COMPLEX) - set(HIDDEN)) # Attributes that will be printed as is
-RESULTS = ["infected", "peak", "iterations_completed"]
+RESULTS = ["value", "isOptimal", "maxD", "duration"]
 
 # Utilities
 def dict_product(dicts):
@@ -110,18 +89,28 @@ def readable_configuration(config: Dict):
         output[p] = config[p]
 
     # Ignore HIDDEN attributes
-
     return output
-
 
 def MDP_runner(param):
     """Takes in runnable parameter and returns a (Result tuple, Readable Params)"""
     readable_params = readable_configuration(param)
     logger.info(f"Launching => {readable_params}")
 
-    (infected, peak, iterations) = generalized_mdp(**param)
-    return (infected, peak, iterations), readable_params
-
+    SIR = load_sir(param["from_cache"], merge=True)
+    processed_params = {
+        "G": param["G"],
+        "I0": SIR["I"],
+        "safe": SIR["R"],
+        "cost_constraint": param["budget"],
+        "p": param["p"],
+        "method": param["method"],
+    }
+    t0 = time.time()
+    # TODO: Fix parameters?
+    (value, sol, isOptimal, maxD) = trial_tracker(**processed_params)
+    t1 = time.time()
+    time_diff = t1-t0
+    return (value, isOptimal, maxD, time_diff), readable_params
 
 def parallel_MDP(args: List[Dict]):
     with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor, open(OUTPUT_FILE, "w") as output_file:
@@ -129,14 +118,15 @@ def parallel_MDP(args: List[Dict]):
         writer = csv.DictWriter(output_file, fieldnames=COMPLEX + PRIMITIVE + RESULTS)
         writer.writeheader()
         for f in tqdm(concurrent.futures.as_completed(results), total=len(args)):
-            ((infected, peak, iterations), readable) = f.result()
+            (value, isOptimal, maxD, time_diff), readable = f.result()
 
             # Merge the two dictionaries, with results taking precedence
             entry = readable
             result_dict = {
-                "infected": infected,
-                "peak": peak,
-                "iterations_completed": iterations,
+                "value": value,
+                "isOptimal": isOptimal,
+                "maxD": maxD,
+                "duration": time_diff,
             }
             entry.update(result_dict)
 
@@ -150,14 +140,15 @@ def linear_MDP(args: List[Dict]):
         writer = csv.DictWriter(output_file, fieldnames=COMPLEX + PRIMITIVE + RESULTS)
         writer.writeheader()
         for arg in tqdm(args, total=len(args)):
-            ((infected, peak, iterations), readable) = MDP_runner(arg)
+            (value, isOptimal, maxD, time_diff), readable = MDP_runner(arg)
 
             # Merge the two dictionaries, with results taking precedence
             entry = readable
             result_dict = {
-                "infected": infected,
-                "peak": peak,
-                "iterations_completed": iterations,
+                "value": value,
+                "isOptimal": isOptimal,
+                "maxD": maxD,
+                "duration": time_diff,
             }
             entry.update(result_dict)
 
@@ -167,8 +158,17 @@ def linear_MDP(args: List[Dict]):
             logger.info(f"Finished => {entry}")
 
 
-# Main
 print(f'Logging Directory: {LOGGING_FILE}')
 expanded_configs = expand_configurations(COMPACT_CONFIG)
+print(expanded_configs[0])
 linear_MDP(expanded_configs)
 print('done')
+# to_quarantine(G=GRAPH,
+#               I0=I,
+#               safe=RECOVERED_SET,
+#               cost_constraint=K_VALUE,
+#               p=P_VALUE,
+#               method = "dependent",
+#               runs=None,
+#               P=None,
+#               Q=None)
