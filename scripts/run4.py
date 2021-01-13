@@ -93,14 +93,14 @@ COMPACT_CONFIG = {
     "p": [0.09], # Probability of infection
     "budget": [i for i in range(500,2001,50)], # The k value
     "method": ["random","degree","dependent","weighted"],
-    "num_initial_infections": [5], # Initial Initial (DATA)
-    "num_shocks": [5], # Size of shocks in initial (DATA)
+    "num_initial_infections": [10], # Initial Initial (DATA)
+    "num_shocks": [0], # Size of shocks in initial (DATA)
     "initial_iterations": [5], # Number of iterations before intervention
     "MDP_iterations": [-1], # Number of iterations of intervention
     "iterations_to_recover": [1], # Number of iterations it takes for a infected node to recover (set to 1)
     "from_cache": [None], # If cache is specified, some arguments are ignored
     "verbose": [False], # Prints stuff
-    "trials": 10, # Number of trials to run for each config
+    "trials": 3, # Number of trials to run for each config
 }
 
 # Attributes need to partition configuration! Do NOT have duplicate attributes
