@@ -166,7 +166,7 @@ class ProbMinExposed:
             self.objectiveVal += (1 - self.saved_solution[v])
 
 class ProbMinExposedRestricted(ProbMinExposed):
-    def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, labels, label_limits, costs=None, solver=None):
+    def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, labels: Dict[int, int], label_limits, costs=None, solver=None):
         """
         Parameters
         ----------
@@ -186,10 +186,10 @@ class ProbMinExposedRestricted(ProbMinExposed):
         solver
         """
         self.L = len(label_limits)
-        if (len(labels) != len(G.nodes)):
-            raise ValueError("labels must match graph nodes")
+        if (len(labels) != len(contour1)):
+            raise ValueError("labels must match V1 size")
 
-        if (any(map(lambda x: x >= self.L or x < 0, labels))):
+        if any(map(lambda x: x >= self.L or x < 0, labels.values())):
             raise ValueError("labels must correspond to label limits")
 
         if (sum(label_limits) > k):
