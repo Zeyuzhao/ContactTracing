@@ -49,6 +49,9 @@ class ProbMinExposed:
         self.init_variables()
         self.init_constraints()
 
+        # Track number of edges between v1 and v2
+        self.num_cross_edges = 0
+
     @classmethod
     def from_dataframe(cls, G, I, contour1, contour2,
                        p1_df: pd.DataFrame, q_df: pd.DataFrame,
@@ -115,6 +118,8 @@ class ProbMinExposed:
         for u in self.V1:
             for v in self.G.neighbors(u):
                 if v in self.V2:
+                    # Tracking the number of constraints between V_1 and V_2
+                    self.num_cross_edges += 1
                     coeff = self.q[u][v] * self.p1[u]
                     self.solver.Add(self.Y2[v] >= coeff * self.Y1[u])
 

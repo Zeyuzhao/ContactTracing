@@ -1,3 +1,4 @@
+from collections import namedtuple
 import math
 import random
 from typing import Tuple, Set, List
@@ -295,8 +296,11 @@ def weighted_solver(G, I0, P, Q, V_1, V_2, cost_constraint, costs):
     for k, v in sol.items():
         prob.setVariableId(k, v)
     prob.solve_lp()
-    return (prob.objectiveVal, sol)
-
+    # I_size: size of I
+    # v1_size: size of V_1
+    # v2_size: size of V_2
+    # num_cross_edges: number of edges between v1 and v2
+    return (prob.objectiveVal, sol, (len(prob.I), len(prob.V1), len(prob.V2), len(prob.num_cross_edges)))
 
 def random_solver(V_1, cost_constraint):
     sample = random.sample(V_1, min(cost_constraint, len(V_1)))
@@ -330,6 +334,7 @@ def degree_solver(G, V_1, V_2, cost_constraint):
     return (-1, sol)
 
 
+TrackerInfo = namedtuple("TrackerInfo", ['value', 'sol', 'isOptimal', 'maxD', 'v1_size', 'v2_size', 'num_cross_edges'])
 def trial_tracker(G: nx.graph, I0, safe, cost_constraint, p=.5, method="dependent"):
     """
     Runs to_quarantine and tracks various statistics
@@ -344,11 +349,17 @@ def trial_tracker(G: nx.graph, I0, safe, cost_constraint, p=.5, method="dependen
 
     Returns
     -------
-    value, sol, isOptimal, maxD
+    value, sol, isOptimal, maxD, v1_size, v2_size, num_cross_edges
     value: the MinExposed objective value (expected number of people exposed)
     sol: an dictionary mapping from V1 IDs to its indicator variables
     isOptimal: (-1, 0, 1) -> (does not apply, false, true)
+
+    # Statistics
     maxD: the maximum number of neighbors of V1 that are in V2
+    I_size: size of I
+    v1_size: size of V_1
+    v2_size: size of V_2
+    num_cross_edges: number of edges between v1 and v2
     """
     costs = np.ones(len(G.nodes))
     V_1, V_2 = find_excluded_contours(G, I0, safe)
@@ -356,18 +367,19 @@ def trial_tracker(G: nx.graph, I0, safe, cost_constraint, p=.5, method="dependen
     maxD = max_neighbors(G, V_1, V_2)
 
     if method == "weighted":
-        obj_val, sol = weighted_solver(G, I0, P, Q, V_1, V_2, cost_constraint, costs)
-        return (obj_val, sol, -1, maxD)
+        obj_val, sol, info = weighted_solver(G, I0, P, Q, V_1, V_2, cost_constraint, costs)
+        return TrackerInfo(obj_val, sol, -1, maxD, *info)
 
     elif method == "dependent":
         # Dependent LP Rounding
         prob = ProbMinExposed(G, I0, V_1, V_2, P, Q, cost_constraint, costs, solver="GUROBI")
         obj_val, sol = basic_non_integer_round(prob)
-        return (obj_val, sol, -1, maxD)
+        return TrackerInfo(obj_val, sol, -1, maxD, len(prob.I), len(prob.V1), len(prob.V2), len(prob.num_cross_edges))
+
     elif method == "dependent_scip":
         prob = ProbMinExposed(G, I0, V_1, V_2, P, Q, cost_constraint, costs)
         obj_val, sol = basic_non_integer_round(prob)
-        return (obj_val, sol, -1, maxD)
+        return TrackerInfo(obj_val, sol, -1, maxD, len(prob.I), len(prob.V1), len(prob.V2), len(prob.num_cross_edges))
     elif method == "gurobi":
         # Gurobi MIP Rounding
         prob = ProbMinExposedMIP(G, I0, V_1, V_2, P, Q, cost_constraint, costs, solver='GUROBI')
@@ -376,7 +388,7 @@ def trial_tracker(G: nx.graph, I0, safe, cost_constraint, p=.5, method="dependen
         obj_val = prob.objectiveVal
         sol = prob.quarantined_solution
         isOptimal = prob.isOptimal
-        return (obj_val, sol, isOptimal, maxD)
+        return TrackerInfo(obj_val, sol, isOptimal, maxD, len(prob.I), len(prob.V1), len(prob.V2), len(prob.num_cross_edges))
     else:
         raise Exception("invalid method for optimization")
 
