@@ -359,8 +359,12 @@ def trial_tracker(G: nx.graph, I0, safe, cost_constraint, p=.5, method="dependen
         obj_val, sol = weighted_solver(G, I0, P, Q, V_1, V_2, cost_constraint, costs)
         return (obj_val, sol, -1, maxD)
 
-    if method == "dependent":
+    elif method == "dependent":
         # Dependent LP Rounding
+        prob = ProbMinExposed(G, I0, V_1, V_2, P, Q, cost_constraint, costs, solver="GUROBI")
+        obj_val, sol = basic_non_integer_round(prob)
+        return (obj_val, sol, -1, maxD)
+    elif method == "dependent_scip":
         prob = ProbMinExposed(G, I0, V_1, V_2, P, Q, cost_constraint, costs)
         obj_val, sol = basic_non_integer_round(prob)
         return (obj_val, sol, -1, maxD)

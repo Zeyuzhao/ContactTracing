@@ -189,3 +189,11 @@ def load_sir(sir_name, sir_folder: Path=None, merge=False):
             data["I"] = list(set().union(*data["I_Queue"]))
             del data["I_Queue"]
         return data
+
+def load_sir_path(path: Path, merge=False):
+    with open(path) as file:
+        data = json.load(file)
+        if merge:
+            data["I"] = list(set().union(*data["I_Queue"]))
+            del data["I_Queue"]
+        return data

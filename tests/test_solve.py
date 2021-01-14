@@ -5,8 +5,7 @@ import networkx as nx
 import numpy as np
 
 from ctrace.dataset import load_graph
-from ctrace.solve import to_quarantine
-
+from ctrace.solve import to_quarantine, trial_tracker
 
 # test_greedy
 def test_degree_weighted_tree():
@@ -55,6 +54,7 @@ def test_degree_weighted_montgomery():
     tolerance = 0.05 * len(sol1)
     assert len(diffs) < tolerance
 
+# Pytest may not set up Gurobi for some reason
 def test_gurobi_lp():
     # Setup montgomery graphs
     G = load_graph("montgomery")
@@ -63,9 +63,9 @@ def test_gurobi_lp():
     K = 50
 
     start = time.time()
-    _, dependentSol = to_quarantine(G=G, I0=I, safe=[], cost_constraint=K, p=1, method="dependent")
+    _, dependentSol, _, _ = trial_tracker(G, I0=I, safe=[], cost_constraint=K, p=.1, method="dependent_scip")
     end1 = time.time()
-    _, gurobiLPSol = to_quarantine(G=G, I0=I, safe=[], cost_constraint=K, p=1, method="dependent_gurobi")
+    _, gurobiLPSol, _, _ = trial_tracker(G=G, I0=I, safe=[], cost_constraint=K, p=.1, method="dependent")
     end2 = time.time()
 
     time1 = end1 - start
