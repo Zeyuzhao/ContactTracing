@@ -40,7 +40,9 @@ logger.info(f"Current path {sys.path}")
 # Get all files from SIR_Cache
 
 json_dir = PROJECT_ROOT / "data" / "SIR_Cache" / "time_trials"
-cache_paths = [f for f in json_dir.iterdir()]
+
+# Taking the first 300 files
+cache_paths = [f for f in json_dir.iterdir()][:300]
 print(f"Number of json files: {len(cache_paths)}")
 # MAX_WORKERS = 1
 COMPACT_CONFIG = {
@@ -49,7 +51,7 @@ COMPACT_CONFIG = {
     "budget": [i for i in range(400, 1001, 100)], # The k value
     "method": ["dependent", "weighted"],
     "from_cache": cache_paths, # If cache is specified, some arguments are ignored
-    "trials": 2, # Number of trials to run for each config
+    "trials": 1, # Number of trials to run for each config
 }
 
 # Setup load graph:
@@ -130,7 +132,8 @@ def MDP_runner(param):
     trial_results = trial_tracker(**processed_params)
     t1 = time.time()
     time_diff = t1-t0
-    return (*trial_results, time_diff), readable_params
+    # Exclude the solution
+    return (trial_results[0], *trial_results[2:], time_diff), readable_params
 
 def parallel_MDP(args: List[Dict]):
     with concurrent.futures.ProcessPoolExecutor() as executor, open(OUTPUT_FILE, "w") as output_file:
@@ -138,7 +141,7 @@ def parallel_MDP(args: List[Dict]):
         writer = csv.DictWriter(output_file, fieldnames=COMPLEX + PRIMITIVE + RESULTS)
         writer.writeheader()
         for f in tqdm(concurrent.futures.as_completed(results), total=len(args)):
-            (value, isOptimal, maxD, v1_size, v2_size, num_cross_edges, time_diff), readable = f.result()
+            (value, isOptimal, maxD, I_size, v1_size, v2_size, num_cross_edges, time_diff), readable = f.result()
 
             # Merge the two dictionaries, with results taking precedence
             entry = readable
@@ -146,6 +149,7 @@ def parallel_MDP(args: List[Dict]):
                 "value": value,
                 "isOptimal": isOptimal,
                 "maxD": maxD,
+                'I_size': I_size,
                 'v1_size': v1_size, 
                 'v2_size': v2_size, 
                 'num_cross_edges': num_cross_edges,
@@ -163,7 +167,7 @@ def linear_MDP(args: List[Dict]):
         writer = csv.DictWriter(output_file, fieldnames=COMPLEX + PRIMITIVE + RESULTS)
         writer.writeheader()
         for arg in tqdm(args, total=len(args)):
-            (value, isOptimal, maxD, v1_size, v2_size, num_cross_edges, time_diff), readable = MDP_runner(arg)
+            (value, isOptimal, maxD, I_size, v1_size, v2_size, num_cross_edges, time_diff), readable = MDP_runner(arg)
 
             # Merge the two dictionaries, with results taking precedence
             entry = readable
@@ -171,6 +175,7 @@ def linear_MDP(args: List[Dict]):
                 "value": value,
                 "isOptimal": isOptimal,
                 "maxD": maxD,
+                'I_size': I_size,
                 'v1_size': v1_size, 
                 'v2_size': v2_size, 
                 'num_cross_edges': num_cross_edges,
@@ -178,7 +183,11 @@ def linear_MDP(args: List[Dict]):
             }
             entry.update(result_dict)
 
-            # Write anMDP_runner(arg)
+            # Write and flush results
+            writer.writerow(entry)
+            output_file.flush()
+            logger.info(f"Finished => {entry}")
+            
 
 print(f'Logging Directory: {LOGGING_FILE}')
 expanded_configs = expand_configurations(COMPACT_CONFIG)
