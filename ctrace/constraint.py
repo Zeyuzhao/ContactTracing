@@ -44,13 +44,13 @@ class ProbMinExposed:
         # Check if solution is optimal
         self.isOptimal = None
 
+        # Track number of edges between v1 and v2
+        self.num_cross_edges = 0
+
         # Partial Evaluation storage
         self.partials = {}
         self.init_variables()
         self.init_constraints()
-
-        # Track number of edges between v1 and v2
-        self.num_cross_edges = 0
 
     @classmethod
     def from_dataframe(cls, G, I, contour1, contour2,
