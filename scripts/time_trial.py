@@ -49,7 +49,7 @@ COMPACT_CONFIG = {
     "budget": [i for i in range(400, 1001, 100)], # The k value
     "method": ["dependent", "weighted"],
     "from_cache": cache_paths, # If cache is specified, some arguments are ignored
-    "trials": 10, # Number of trials to run for each config
+    "trials": 2, # Number of trials to run for each config
 }
 
 # Setup load graph:
@@ -61,7 +61,20 @@ HIDDEN = ["visualization", "verbose", "trials", "logging"] # These attributes wi
 
 # Anything not in PRIMITIVE or HIDDEN
 PRIMITIVE = list(COMPACT_CONFIG.keys() - set(COMPLEX) - set(HIDDEN)) # Attributes that will be printed as is
-RESULTS = ["value", "isOptimal", "maxD", "duration"]
+
+# value, sol, isOptimal, maxD, v1_size, v2_size, num_cross_edges
+# value: the MinExposed objective value (expected number of people exposed)
+# sol: an dictionary mapping from V1 IDs to its indicator variables
+# isOptimal: (-1, 0, 1) -> (does not apply, false, true)
+
+# # Statistics
+# maxD: the maximum number of neighbors of V1 that are in V2
+# I_size: size of I
+# v1_size: size of V_1
+# v2_size: size of V_2
+# num_cross_edges: number of edges between v1 and v2
+
+RESULTS = ["value", "isOptimal", "maxD", "I_size", "v1_size", "v2_size", "num_cross_edges", "duration"]
 
 # Utilities
 def dict_product(dicts):
@@ -114,10 +127,10 @@ def MDP_runner(param):
     }
     t0 = time.time()
     # TODO: Fix parameters?
-    (value, sol, isOptimal, maxD) = trial_tracker(**processed_params)
+    trial_results = trial_tracker(**processed_params)
     t1 = time.time()
     time_diff = t1-t0
-    return (value, isOptimal, maxD, time_diff), readable_params
+    return (*trial_results, time_diff), readable_params
 
 def parallel_MDP(args: List[Dict]):
     with concurrent.futures.ProcessPoolExecutor() as executor, open(OUTPUT_FILE, "w") as output_file:
@@ -125,7 +138,7 @@ def parallel_MDP(args: List[Dict]):
         writer = csv.DictWriter(output_file, fieldnames=COMPLEX + PRIMITIVE + RESULTS)
         writer.writeheader()
         for f in tqdm(concurrent.futures.as_completed(results), total=len(args)):
-            (value, isOptimal, maxD, time_diff), readable = f.result()
+            (value, isOptimal, maxD, v1_size, v2_size, num_cross_edges, time_diff), readable = f.result()
 
             # Merge the two dictionaries, with results taking precedence
             entry = readable
@@ -133,6 +146,9 @@ def parallel_MDP(args: List[Dict]):
                 "value": value,
                 "isOptimal": isOptimal,
                 "maxD": maxD,
+                'v1_size': v1_size, 
+                'v2_size': v2_size, 
+                'num_cross_edges': num_cross_edges,
                 "duration": time_diff,
             }
             entry.update(result_dict)
@@ -147,7 +163,7 @@ def linear_MDP(args: List[Dict]):
         writer = csv.DictWriter(output_file, fieldnames=COMPLEX + PRIMITIVE + RESULTS)
         writer.writeheader()
         for arg in tqdm(args, total=len(args)):
-            (value, isOptimal, maxD, time_diff), readable = MDP_runner(arg)
+            (value, isOptimal, maxD, v1_size, v2_size, num_cross_edges, time_diff), readable = MDP_runner(arg)
 
             # Merge the two dictionaries, with results taking precedence
             entry = readable
@@ -155,15 +171,14 @@ def linear_MDP(args: List[Dict]):
                 "value": value,
                 "isOptimal": isOptimal,
                 "maxD": maxD,
+                'v1_size': v1_size, 
+                'v2_size': v2_size, 
+                'num_cross_edges': num_cross_edges,
                 "duration": time_diff,
             }
             entry.update(result_dict)
 
-            # Write and flush results
-            writer.writerow(entry)
-            output_file.flush()
-            logger.info(f"Finished => {entry}")
-
+            # Write anMDP_runner(arg)
 
 print(f'Logging Directory: {LOGGING_FILE}')
 expanded_configs = expand_configurations(COMPACT_CONFIG)
