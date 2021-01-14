@@ -17,7 +17,7 @@ from ctrace.simulation import *
 RUN_LABEL = shortuuid.uuid()[:5]
 
 # Setup output directories
-output_path = PROJECT_ROOT / "output" / f'timer[{RUN_LABEL}]'
+output_path = PROJECT_ROOT / "output" / f'saved_timer[{RUN_LABEL}]'
 output_path.mkdir(parents=True, exist_ok=True)
 
 OUTPUT_FILE = output_path / 'results.csv'
@@ -37,14 +37,19 @@ logger.addHandler(fh)
 logger.info(f"Current working directory: {os.getcwd()}")
 logger.info(f"Current path {sys.path}")
 
+# Get all files from SIR_Cache
+
+json_dir = PROJECT_ROOT / "data" / "SIR_Cache" / "time_trials"
+cache_paths = [f for f in json_dir.iterdir()]
+print(f"Number of json files: {len(cache_paths)}")
 # MAX_WORKERS = 1
 COMPACT_CONFIG = {
     "G": ["montgomery"], # Graph
     "p": [0.078], # Probability of infection
-    "budget": [i for i in range(500, 1001, 5)], # The k value
-    "method": ["weighted", "dependent"],
-    "from_cache": [f't{i}.json' for i in range(7, 17, 1)], # If cache is specified, some arguments are ignored
-    "trials": 1, # Number of trials to run for each config
+    "budget": [i for i in range(400, 1001, 100)], # The k value
+    "method": ["dependent", "weighted"],
+    "from_cache": cache_paths, # If cache is specified, some arguments are ignored
+    "trials": 10, # Number of trials to run for each config
 }
 
 # Setup load graph:
@@ -81,12 +86,14 @@ def readable_configuration(config: Dict):
 
     output = {}
 
-    # Handle COMPLEX attributes
-    output["G"] = config["G"].NAME
 
     # Paste in PRIMITIVE attributes
     for p in PRIMITIVE:
         output[p] = config[p]
+    
+    # Handle COMPLEX attributes
+    output["G"] = config["G"].NAME
+    output["from_cache"] = config["from_cache"].name
 
     # Ignore HIDDEN attributes
     return output
@@ -96,7 +103,7 @@ def MDP_runner(param):
     readable_params = readable_configuration(param)
     logger.info(f"Launching => {readable_params}")
 
-    SIR = load_sir(param["from_cache"], merge=True)
+    SIR = load_sir_path(param["from_cache"], merge=True)
     processed_params = {
         "G": param["G"],
         "I0": SIR["I"],
