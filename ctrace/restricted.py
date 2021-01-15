@@ -9,9 +9,9 @@ import seaborn as sns
 import time
 
 # New Imports
-from ctrace.contact_tracing import *
-from ctrace.constraint import *
-from ctrace.solve import *
+# from ctrace.contact_tracing import *
+# from ctrace.constraint import *
+# from ctrace.solve import *
 from ctrace.simulation import *
 
 def r_get_prob(G:nx.graph, I, R, k, p, rev_nodes):
