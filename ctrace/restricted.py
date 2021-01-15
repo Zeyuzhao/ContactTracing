@@ -108,7 +108,7 @@ def r_random(prob: ProbMinExposedRestricted):
         
         members = list(filter(lambda x: prob.labels[x] == l, prob.V1))
         
-        topK = random.sample(members,int(prob.label_limits[l]))
+        topK = random.sample(members,min(int(prob.label_limits[l]),len(members)))
         
         for u in members:
             if u in topK:
