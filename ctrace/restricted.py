@@ -12,10 +12,11 @@ import time
 # from ctrace.contact_tracing import *
 # from ctrace.constraint import *
 # from ctrace.solve import *
+from ctrace import PROJECT_ROOT
 from ctrace.simulation import *
 
 def r_get_prob(G:nx.graph, I, R, k, p, rev_nodes):
-    df = pd.read_csv("../data/cville_dem.txt")
+    df = pd.read_csv(PROJECT_ROOT / "data" / "cville_dem.txt")
     V_1, V_2 = find_excluded_contours(G,I,R)
 
     unique = df['age_group'].unique()

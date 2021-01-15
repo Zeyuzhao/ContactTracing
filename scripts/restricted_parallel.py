@@ -89,7 +89,7 @@ COMPACT_CONFIG = {
     "G": [G2], # Graph
     "p": [0.078], # Probability of infection
     "budget": [i for i in range(60, 1001, 4)], # The k value
-    "method": ["weighted"],
+    "method": ["rrandom"],
     "num_initial_infections": [5], # Initial Initial (DATA)
     "num_shocks": [8], # Size of shocks in initial (DATA)
     "initial_iterations": [7], # Number of iterations before intervention
@@ -175,9 +175,29 @@ def parallel_MDP(args: List[Dict]):
             output_file.flush()
             logger.info(f"Finished => {entry}")
 
+def linear_MDP(args: List[Dict]):
+    with open(OUTPUT_FILE, "w") as output_file:
+        writer = csv.DictWriter(output_file, fieldnames=COMPLEX + PRIMITIVE + RESULTS)
+        writer.writeheader()
+        for arg in tqdm(args, total=len(args)):
+            ((infected, peak, iterations), readable) = MDP_runner(arg)
+
+            # Merge the two dictionaries, with results taking precedence
+            entry = readable
+            result_dict = {
+                "infected": infected,
+                "peak": peak,
+                "iterations_completed": iterations,
+            }
+            entry.update(result_dict)
+
+            # Write and flush results
+            writer.writerow(entry)
+            output_file.flush()
+            logger.info(f"Finished => {entry}")
 
 # Main
 print(f'Logging Directory: {LOGGING_FILE}')
 expanded_configs = expand_configurations(COMPACT_CONFIG)
-parallel_MDP(expanded_configs)
+linear_MDP(expanded_configs)
 print('done')
