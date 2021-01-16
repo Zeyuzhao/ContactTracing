@@ -123,7 +123,7 @@ def load_graph(dataset_name, graph_folder=None):
     G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int)
 
     # Set name of graphs
-    G.NAME = dataset_name
+    G.graph["name"] = dataset_name
     return G
 
 def load_graph_cville(fp = "undirected_albe_1.90.txt"):
@@ -141,7 +141,7 @@ def load_graph_cville(fp = "undirected_albe_1.90.txt"):
     df[col2] = df[col2].map(lambda x: num2id[x])
 
     G = nx.from_pandas_edgelist(df, col1, col2)
-    G.NAME = "cville"
+    G.graph["name"] = "cville"
     return G
 
 def generate_random_absolute(G, num_infected: int = None, k: int = None, costs: list = None):

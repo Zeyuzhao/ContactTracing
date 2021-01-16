@@ -263,8 +263,7 @@ def to_quarantine(G: nx.graph, I0, safe, cost_constraint, p=.5, method="dependen
     elif method == "gurobi":
         prob = ProbMinExposedMIP(G, I0, V_1, V_2, P, Q, cost_constraint, costs, solver='GUROBI')
         prob.solve_lp()
-        # Returns a tuple for its optimal value
-        return (prob.objectiveVal, prob.isOptimal), prob.quarantined_solution
+        return (prob.objectiveVal), prob.quarantined_solution
     elif method == "dependent_gurobi":
         prob = ProbMinExposed(G, I0, V_1, V_2, P, Q, cost_constraint, costs, solver='GUROBI')
         return basic_non_integer_round(prob)
