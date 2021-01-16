@@ -11,7 +11,7 @@ from .solve import *
 SIR_TYPE = namedtuple("SIR_TYPE", ["S", "I_QUEUE", "R", "label"])
 
 # (len(R), peak, total_iterated)
-SIM_RETURN = namedtuple("SIM_RETURN", ["num_contracted", "peak_infected", "simulation_length"])
+SIM_RETURN = namedtuple("SIM_RETURN", ["objective_val", "peak_infected"])
 
 def initial_shock(G: nx.graph, timesteps=5, p=0.1, num_shocks=7, verbose=False):
     full_data = EoN.basic_discrete_SIR(
@@ -420,4 +420,4 @@ def generalized_mdp(G: nx.graph,
         plt.show()
         
     # TODO: Check return statement
-    return SIM_RETURN(len(R), peak, total_iterated)
+    return SIM_RETURN(len(R), peak)

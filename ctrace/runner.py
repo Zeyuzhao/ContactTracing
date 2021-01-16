@@ -3,14 +3,14 @@ import csv
 import itertools
 import logging
 from collections import namedtuple
-from typing import Dict, Callable, List, Any
+from typing import Dict, Callable, List, Any, NamedTuple
 
 import shortuuid
 from tqdm import tqdm
 
 from ctrace import PROJECT_ROOT
 
-
+DEBUG = False
 class GridExecutorParallel():
     """
     Encapsulates the cartesian product of different parameters
@@ -18,7 +18,7 @@ class GridExecutorParallel():
 
     Usage: Create a new GridExecutorParallel and call exec()
     """
-    def __init__(self, config: Dict, in_schema: List[str], out_schema: List[str], func: Callable):
+    def __init__(self, config: Dict, in_schema: List[str], out_schema: List[str], func: Callable[..., NamedTuple]):
         """
         Parameters
         ----------
@@ -29,7 +29,7 @@ class GridExecutorParallel():
         out_schema
             A list describing what and the order output attributes would be printed
         func
-            A function with parameters that match the keys of config and the keys encoded by out_schema
+            A function to execute in parallel. Input arguments must match
         """
         self.compact_config = config
         self.in_schema = in_schema
@@ -41,6 +41,7 @@ class GridExecutorParallel():
         # self.OutputFormatType: namedtuple = namedtuple("OutputSchema", out_schema)
 
         self.init_output_directory()
+        print(f"Logging Directory Initialized: {self.output_directory}")
         self.expand_config()
 
     @classmethod
@@ -78,25 +79,16 @@ class GridExecutorParallel():
             filtered[key] = str(out_param[key])
         return filtered
 
-    def runner(self, param):
-        formatter = self.input_param_formatter
-        logger = self.logger
-        func = self.func
-        # Return runner function
-        logger.info(f"Launching => {formatter(param)}")
-        out = func(param)
-        return (param, out)
-
     def init_output_directory(self):
         # Initialize Output
         self.run_id = shortuuid.uuid()[:5]
 
         # Setup output directories
-        output_directory = PROJECT_ROOT / "output" / f'run[{self.run_id}]'
-        output_directory.mkdir(parents=True, exist_ok=True)
+        self.output_directory = PROJECT_ROOT / "output" / f'run_{self.run_id}'
+        self.output_directory.mkdir(parents=True, exist_ok=True)
 
-        self.result_path = output_directory / 'results.csv'
-        self.logging_path = output_directory / 'run.log'
+        self.result_path = self.output_directory / 'results.csv'
+        self.logging_path = self.output_directory / 'run.log'
 
     def init_logger(self):
         # Setup up Parallel Log Channel
@@ -111,28 +103,41 @@ class GridExecutorParallel():
     # TODO: Encapsulate writer and its file into one object
     # TODO: Find a way to move it to the constructor (use file open and close?)
     def init_writer(self, result_file):
-        self.writer = csv.DictWriter(result_file, fieldnames=self.in_schema + self.out_schema)
-        self.writer.writeheader()
+        raise NotImplementedError
 
     # TODO: provide a single method write result and flush to file
     def write_result(self, in_param, out_param):
-        """Precondition: init_writer
-        Merges in_param and out_param and writes the row to the file
-        """
-        merged = {**in_param, **out_param}
-        self.writer.writerow(merged)
+        raise NotImplementedError
+
+    def runner(self, param: Dict[str, Any]):
+        """A runner method that returns a tuple (formatted_param, formatted_output)"""
+        logger = self.logger
+        func = self.func
+
+        # if DEBUG:
+        #     print(f"GUROBI_HOME: {os.environ.get('GUROBI_HOME')}")
+        formatted_param = self.input_param_formatter(param)
+        logger.info(f"Launching => {formatted_param}")
+        out = func(**param) # out must be a named_tuple
+        formatted_output = self.output_param_formatter(out._asdict())
+        return formatted_param, formatted_output
 
     def exec(self):
         with concurrent.futures.ProcessPoolExecutor() as executor, \
              open(self.result_path, "w") as result_file:
             self.init_logger()
-            self.init_writer(result_file)
+
+            # TODO: Encapsulate "initialize csv writer"
+            writer = csv.DictWriter(result_file, fieldnames=self.in_schema + self.out_schema)
+            writer.writeheader()
 
             results = [executor.submit(self.runner, arg) for arg in self.expanded_config]
 
             for finished_task in tqdm(concurrent.futures.as_completed(results), total=len(self.expanded_config)):
-                # TODO: Encapsulate flush
                 (in_param, out_param) = finished_task.result()
-                self.write_result(in_param, out_param)
+
+                # TODO: Encapsulate "writer"
+                writer.writerow({**in_param, **out_param})
                 result_file.flush()
+
                 self.logger.info(f"Finished => {in_param}")
