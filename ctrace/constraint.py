@@ -15,6 +15,11 @@ import pandas as pd
 from . import PROJECT_ROOT
 np.random.seed(42)
 
+# NOTES:
+# Used variables, quaran_raw, quarantined_solution v1 -> fractional indicators
+# Precondition: call solve_lp() -> ObjectiveVal
+#
+
 class ProbMinExposed:
     def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
         """Generates the constraints given a graph. Assumes V1, V2 are 1,2 away from I"""
@@ -123,7 +128,7 @@ class ProbMinExposed:
 
         numExposed.SetMinimization()
 
-    def setVariable(self, index: int, value: int):
+    def setVariable(self, index: int, value: int): # used
         """Sets the ith V1 indicator to value int"""
         i = self.quaran_map[index]
         if i in self.partials:
@@ -133,14 +138,14 @@ class ProbMinExposed:
         self.partials[i] = value
         self.solver.Add(self.X1[i] == value)
 
-    def getVariables(self):
+    def getVariables(self): # used
         return self.quaran_raw
 
     def filled(self):
         """Returns true if every variable is solved"""
-        return self.partials == self.V1
+        return set(self.partials.keys()) == set(self.V1)
 
-    def solve_lp(self):
+    def solve_lp(self): # Used
         """Solves the LP problem"""
         status = self.solver.Solve()
         if status == self.solver.INFEASIBLE:
@@ -439,3 +444,46 @@ def generate_absolute(G, infected, k: int = None, costs: list = None):
         "costs": costs,
         "k": k,
     }
+
+class SAA():
+    def __init__(self, G: nx.Graph, infected: Set[int], p: float, k: int, numberOfSamples: int, recovered: Set[int], costs: Dict[int, int], solver=None):
+        self.G = G
+        self.I = infected
+
+        # Set of intrinsic probabilities of infection
+        self.p = p
+
+        # The current budget
+        self.k = k
+
+        # Default costs of uniform
+        if costs is None:
+            costs = defaultdict(lambda: 1)
+        self.costs = costs
+
+        self.numberOfSamples = numberOfSamples
+
+        if solver is None:
+            solver: Solver = pywraplp.Solver.CreateSolver('GLOP')
+        self.solver = solver
+
+        # Set contours
+        self.contours = find_excluded_contours(self.G, self.I, recovered)
+
+    def init_variables(self):
+        # V1 indicator set
+        self.X1: Dict[int, Variable] = {}
+        self.Y1: Dict[int, Variable] = {}
+
+        # V2 indicator set
+        self.X2: Dict[int, Variable] = {}
+        self.Y2: Dict[int, Variable] = {}
+
+        # Declare Variables
+        for u in self.V1:
+            self.X1[u] = self.solver.NumVar(0, 1, f"V1_x{u}")
+            self.Y1[u] = self.solver.NumVar(0, 1, f"V1_y{u}")
+
+        for v in self.V2:
+            self.X2[v] = self.solver.NumVar(0, 1, f"V2_x{v}")
+            self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
