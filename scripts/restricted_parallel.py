@@ -87,15 +87,15 @@ for line in lines:
 # Experiment 1
 COMPACT_CONFIG = {
     "G": [G2], # Graph
-    "p": [0.078], # Probability of infection
-    "budget": [i for i in range(60, 1001, 4)], # The k value
-    "method": ["rrandom"],
+    "p": [0.06], # Probability of infection
+    "budget": [i for i in range(500, 2001, 20)], # The k value
+    "method": ["rrandom","rweighted","rdependent"],
     "num_initial_infections": [5], # Initial Initial (DATA)
     "num_shocks": [8], # Size of shocks in initial (DATA)
-    "initial_iterations": [7], # Number of iterations before intervention
+    "initial_iterations": [5], # Number of iterations before intervention
     "MDP_iterations": [-1], # Number of iterations of intervention
     "iterations_to_recover": [1], # Number of iterations it takes for a infected node to recover (set to 1)
-    "from_cache": ['t7.json'], # If cache is specified, some arguments are ignored
+    "from_cache": ['a5.json'], # If cache is specified, some arguments are ignored
     "verbose": [False], # Prints stuff
     "rev_nodes": [rev_nodes],
     "trials": 10, # Number of trials to run for each config
@@ -199,5 +199,5 @@ def linear_MDP(args: List[Dict]):
 # Main
 print(f'Logging Directory: {LOGGING_FILE}')
 expanded_configs = expand_configurations(COMPACT_CONFIG)
-linear_MDP(expanded_configs)
+parallel_MDP(expanded_configs)
 print('done')
