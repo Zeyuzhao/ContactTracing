@@ -5,13 +5,13 @@ from ctrace.experiments import *
 from ctrace.dataset import load_graph
 json_dir = PROJECT_ROOT / "data" / "SIR_Cache" / "time_trials"
 
-cache_paths = [f for f in json_dir.iterdir()][:300] # Taking the first 300 files
+cache_paths = [f for f in json_dir.iterdir()][:250] # Taking the first 250 files
 print(f"Number of json files: {len(cache_paths)}")
 
 config = {
     "G": ["montgomery"], # Graph
     "p": [0.078], # Probability of infection
-    "budget": [i for i in range(100, 1001, 100)], # The k value
+    "budget": [i for i in range(400, 1001, 100)], # The k value
     "from_cache": cache_paths,  # If cache is specified, some arguments are ignored
     "method": ["random", "dependent", "weighted", "gurobi"],
 }

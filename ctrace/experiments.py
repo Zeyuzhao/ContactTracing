@@ -132,7 +132,7 @@ def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kw
 
     elif method == "dependent":
         # Dependent LP Rounding
-        prob = ProbMinExposed(G, infected, contour1, contour2, P, Q, budget, costs, solver="GUROBI")
+        prob = ProbMinExposed(G, infected, contour1, contour2, P, Q, budget, costs, solver="GUROBI_LP")
         lp_value, method_solution = basic_non_integer_round(prob)
 
     elif method == "dependent_scip":
