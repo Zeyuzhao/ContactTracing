@@ -22,4 +22,5 @@ in_schema = list(config.keys())
 out_schema = list(TimeTrialExtendTrackerInfo._fields)
 run = GridExecutorLinear.init_multiple(config, in_schema, out_schema, func=time_trial_extended_tracker, trials=2)
 # Attempt at making schemas extensible - quite hacky right now
+# run.track_duration()
 run.exec()

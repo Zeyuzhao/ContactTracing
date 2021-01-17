@@ -7,6 +7,7 @@ from .constraint import *
 from .dataset import load_sir
 from .utils import find_excluded_contours, PQ_deterministic, max_neighbors, min_exposed_objective, indicatorToSet
 from .solve import *
+from time import perf_counter
 from io import StringIO
 import sys
 
@@ -107,8 +108,10 @@ def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kw
     maxD = max_neighbors(G, contour1, contour2)
 
     # start time
+    weighted_start = perf_counter()
     _, weighted_solution = weighted_solver(G, infected, P, Q, contour1, contour2, budget, costs)
     # end time
+    weighted_end = perf_counter()
 
     if method == "weighted":
         prob = ProbMinExposed(G, infected, contour1, contour2, P, Q, budget, costs)
@@ -117,7 +120,15 @@ def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kw
         prob.solve_lp()
 
         min_exposed_value = min_exposed_objective(G, (_, infected, recovered), (contour1, contour2), p, weighted_solution)
-        return TimeTrialExtendTrackerInfo(min_exposed_value, prob.objectiveVal, -1, maxD, len(infected), len(contour1), len(contour2), prob.num_cross_edges, -1)
+        return TimeTrialExtendTrackerInfo(min_exposed_value,
+                                          prob.objectiveVal,
+                                          -1,
+                                          maxD,
+                                          len(infected),
+                                          len(contour1),
+                                          len(contour2),
+                                          prob.num_cross_edges,
+                                          duration=weighted_end - weighted_start)
 
     elif method == "dependent":
         # Dependent LP Rounding
@@ -138,6 +149,7 @@ def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kw
     else:
         raise Exception("invalid method for optimization")
 
+    method_end = perf_counter()
     # Round method solution?
     greedy_intersection = len(indicatorToSet(method_solution) & indicatorToSet(weighted_solution))
     # TODO: Encapsulate G, (_, infected, recovered), (contour1, contour2)
@@ -150,4 +162,4 @@ def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kw
                                       len(contour1),
                                       len(contour2),
                                       prob.num_cross_edges,
-                                      duration=-1)
+                                      duration=method_end - weighted_end)
