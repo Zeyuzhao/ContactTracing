@@ -39,6 +39,9 @@ class ProbMinExposed:
                 solver = pywraplp.Solver.CreateSolver(solver)
         self.recorded_out = file_out.getvalue()
 
+        if solver is None:
+            raise ValueError("Solver failed to initialized!")
+
         self.solver: Solver = solver
 
         # Check if solution is optimal
