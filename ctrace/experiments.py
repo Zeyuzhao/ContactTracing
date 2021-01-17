@@ -70,7 +70,7 @@ def time_trial_tracker(G: nx.graph, I0, safe, cost_constraint, p=.5, method="dep
 
 return_params = ['min_exposed_value', 'lp_value', 'greedy_intersection', 'maxD', 'I_size', 'v1_size', 'v2_size', 'num_cross_edges', 'duration']
 TimeTrialExtendTrackerInfo = namedtuple("TrackerInfo", return_params)
-def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache):
+def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kwargs):
     """
     Runs to_quarantine and tracks various statistics
     Parameters
