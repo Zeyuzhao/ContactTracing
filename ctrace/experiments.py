@@ -5,7 +5,7 @@ from typing import Tuple, Set, List
 
 from .constraint import *
 from .dataset import load_sir
-from .utils import find_excluded_contours, PQ_deterministic, max_neighbors, MinExposedObjective, indicatorToSet
+from .utils import find_excluded_contours, PQ_deterministic, max_neighbors, min_exposed_objective, indicatorToSet
 from .solve import *
 from io import StringIO
 import sys
@@ -116,7 +116,7 @@ def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache):
             prob.setVariableId(k, v)
         prob.solve_lp()
 
-        min_exposed_value = MinExposedObjective(G, (_, infected, recovered), (contour1, contour2), p, weighted_solution)
+        min_exposed_value = min_exposed_objective(G, (_, infected, recovered), (contour1, contour2), p, weighted_solution)
         return TimeTrialExtendTrackerInfo(min_exposed_value, prob.objectiveVal, -1, maxD, len(infected), len(contour1), len(contour2), prob.num_cross_edges, -1)
 
     elif method == "dependent":
@@ -124,7 +124,6 @@ def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache):
         prob = ProbMinExposed(G, infected, contour1, contour2, P, Q, budget, costs, solver="GUROBI")
         lp_value, method_solution = basic_non_integer_round(prob)
 
-        greedy_intersection = len(indicatorToSet(method_solution) & indicatorToSet(weighted_solution))
     elif method == "dependent_scip":
         prob = ProbMinExposed(G, infected, contour1, contour2, P, Q, budget, costs)
         lp_value, method_solution = basic_non_integer_round(prob)
@@ -142,7 +141,7 @@ def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache):
     # Round method solution?
     greedy_intersection = len(indicatorToSet(method_solution) & indicatorToSet(weighted_solution))
     # TODO: Encapsulate G, (_, infected, recovered), (contour1, contour2)
-    min_exposed_value = MinExposedObjective(G, (_, infected, recovered), (contour1, contour2), p, method_solution)
+    min_exposed_value = min_exposed_objective(G, (_, infected, recovered), (contour1, contour2), p, method_solution)
     return TimeTrialExtendTrackerInfo(min_exposed_value,
                                       lp_value,
                                       greedy_intersection,

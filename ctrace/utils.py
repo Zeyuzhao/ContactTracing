@@ -111,12 +111,12 @@ def MinExposedTrial(G: nx.Graph, SIR: Tuple[List[int], List[int],
     objective_value = len(set(I) & set(contours[1]))
     return objective_value
 
-def MinExposedObjective(G: nx.Graph,
-                        SIR: Tuple[List[int], List[int], List[int]],
-                        contours: Tuple[List[int], List[int]],
-                        p: float,
-                        quarantined_solution: Dict[int, int],
-                        trials=5):
+def min_exposed_objective(G: nx.Graph,
+                          SIR: Tuple[List[int], List[int], List[int]],
+                          contours: Tuple[List[int], List[int]],
+                          p: float,
+                          quarantined_solution: Dict[int, int],
+                          trials=5):
     runs = [MinExposedTrial(G, SIR, contours, p, quarantined_solution) for _ in range(trials)]
     return mean(runs)
 
