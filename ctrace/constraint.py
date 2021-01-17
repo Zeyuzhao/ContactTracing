@@ -180,6 +180,11 @@ class ProbMinExposed:
 
         self.objectiveVal = 0
 
+        for i, u in enumerate(self.V1):
+            val = self.quaran_raw[i] = self.quarantined_solution[u] = self.X1[u].solution_value(
+            )
+            self.quaran_map[i] = u
+
         for v in self.V2:
             self.saved_solution[v] = self.X2[v].solution_value()
             self.objectiveVal += (1 - self.saved_solution[v])

@@ -11,8 +11,8 @@ print(f"Number of json files: {len(cache_paths)}")
 config = {
     "G": ["montgomery"], # Graph
     "p": [0.078], # Probability of infection
-    "budget": [i for i in range(400, 1001, 100)], # The k value
-    "method": ["dependent", "weighted"],
+    "budget": [i for i in range(100, 1001, 100)], # The k value
+    "method": ["dependent", "weighted", "gurobi", "random"],
     "from_cache": cache_paths, # If cache is specified, some arguments are ignored
 }
 config["G"] = [load_graph(x) for x in config["G"]]
@@ -20,7 +20,7 @@ config["G"] = [load_graph(x) for x in config["G"]]
 # in_schema and out_schema MUST match the input arguments and namedtuple respectively!
 in_schema = list(config.keys())
 out_schema = list(TimeTrialExtendTrackerInfo._fields)
-run = GridExecutorLinear.init_multiple(config, in_schema, out_schema, func=time_trial_extended_tracker, trials=2)
+run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_extended_tracker, trials=2)
 # Attempt at making schemas extensible - quite hacky right now
 # run.track_duration()
 run.exec()
