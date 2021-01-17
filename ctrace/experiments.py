@@ -146,6 +146,14 @@ def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kw
         # Returns a tuple for its optimal value
         lp_value = prob.objectiveVal
         method_solution = prob.quarantined_solution
+    elif method == "random":
+        _, method_solution = random_solver(contour1, budget)
+
+        prob = ProbMinExposed(G, infected, contour1, contour2, P, Q, budget, costs)
+        for k, v in method_solution.items():
+            prob.setVariableId(k, v)
+        prob.solve_lp()
+        lp_value = prob.objectiveVal
     else:
         raise Exception("invalid method for optimization")
 
