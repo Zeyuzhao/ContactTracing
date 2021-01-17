@@ -126,9 +126,6 @@ class ProbMinExposed:
         # Set minimization objective
         # Number of people free in V1 and people exposed in V2
         numExposed: Objective = self.solver.Objective()
-        for u in self.V1:
-            # print(f"p1: {self.p1[u]}")
-            numExposed.SetCoefficient(self.Y1[u], self.p1[u])
 
         for v in self.V2:
             numExposed.SetCoefficient(self.Y2[v], 1)
@@ -182,11 +179,6 @@ class ProbMinExposed:
         self.quaran_map = {}
 
         self.objectiveVal = 0
-        for i, u in enumerate(self.V1):
-            val = self.quaran_raw[i] = self.quarantined_solution[u] = self.X1[u].solution_value(
-            )
-            self.quaran_map[i] = u
-            self.objectiveVal += (self.p1[u] * (1 - val))
 
         for v in self.V2:
             self.saved_solution[v] = self.X2[v].solution_value()
