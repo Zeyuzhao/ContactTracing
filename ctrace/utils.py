@@ -3,10 +3,12 @@ Utility Functions, such as contours and PQ
 """
 import math
 from collections import defaultdict
-from typing import Set, Iterable
+from typing import Set, Iterable, Tuple, List
 
+import EoN
 import networkx as nx
 import numpy as np
+
 
 np.random.seed(42)
 
@@ -59,3 +61,47 @@ def PQ_deterministic(G: nx.Graph, I: Iterable[int], V1: Iterable[int], p: float)
 
 def max_neighbors(G, V_1, V_2):
     return max(len(set(G.neighbors(u)) & V_2) for u in V_1)
+
+def MinExposedObjective(G: nx.Graph, SIR: Tuple[List[int], List[int],
+                        List[int]], contours: Tuple[List[int], List[int]], p: float, to_quarantine: List[int]):
+    """
+
+    Parameters
+    ----------
+    G
+        The contact tracing graph with node ids.
+    SIR
+        The tuple of three lists of S, I, R. Each of these lists contain G's node ids.
+    contours
+        A tuple of contour1, contour2.
+    p
+        The transition probability of infection
+    to_quarantine
+        The list of people to quarantine, should be a subset of contour1
+    Returns
+    -------
+    objective_value - The number of people in v_2 who are infected.
+    """
+    S, I, R = SIR
+
+    full_data = EoN.basic_discrete_SIR(G=G, p=p, initial_infecteds=I,
+                                       initial_recovereds=R, tmin=0,
+                                       tmax=1, return_full_data=True)
+
+    S_1 = set([k for (k, v) in full_data.get_statuses(
+        time=1).items() if v == 'S'])
+    I_1 = set([k for (k, v) in full_data.get_statuses(
+        time=1).items() if v == 'I'])
+
+    recovered_quarantined = R + to_quarantine
+    full_data = EoN.basic_discrete_SIR(G=G, p=p, initial_infecteds=I,
+                                       initial_recovereds=recovered_quarantined,
+                                       tmin=0, tmax=1, return_full_data=True)
+    # Number of people infected in V_2
+    I_1 = set([k for (k, v) in full_data.get_statuses(
+        time=1).items() if v == 'I'])
+    objective_value = len(set(I_1) & set(contours[1]))
+    return objective_value
+
+
+

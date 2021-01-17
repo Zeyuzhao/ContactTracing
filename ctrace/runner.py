@@ -1,7 +1,9 @@
 import concurrent.futures
 import csv
+import functools
 import itertools
 import logging
+import time
 from collections import namedtuple
 from typing import Dict, Callable, List, Any, NamedTuple
 
@@ -11,6 +13,7 @@ from tqdm import tqdm
 from ctrace import PROJECT_ROOT
 
 DEBUG = False
+
 class GridExecutor():
     """
     Usage: Create a new GridExecutor with config, in_schema, out_schema and func.
@@ -32,9 +35,11 @@ class GridExecutor():
             A function to execute in parallel. Input arguments must match config keys.
             Output arguments must be a namedtuple. namedtuple must encompass all attributes in out_schema
         """
-        self.compact_config = config
-        self.in_schema = in_schema
-        self.out_schema = out_schema
+        self.compact_config = config.copy()
+
+        # Schemas need to be consistent with input_param_formatter and output_param_formatter
+        self.in_schema = in_schema.copy()
+        self.out_schema = out_schema.copy()
         self.func = func
 
         self.init_output_directory()
@@ -42,6 +47,9 @@ class GridExecutor():
 
         # Expand configurations
         self.expanded_config = list(GridExecutor.cartesian_product(self.compact_config))
+
+        # TODO: Hack Fix
+        self._track_duration = False
 
     # TODO: Change post initialization method?
     @classmethod
@@ -51,11 +59,33 @@ class GridExecutor():
         Runs each configuration trials number of times. Each trial is indexed by a "trial_id"s
         """
         compact_config = config.copy()
-        # Add trials
         compact_config["trial_id"] = list(range(trials))
         in_schema.append("trial_id")
         return cls(compact_config, in_schema, out_schema, func)
 
+
+    # TODO: Find a workaround for decorations???
+    # <================== Problem ====================>
+    def track_duration(self):
+        """Adds a wrapper to runner to track duration, and another column to out_schema for run_duration"""
+        # raise NotImplementedError
+        self.out_schema.append("run_duration")
+        self._track_duration = True
+        # self.runner = GridExecutor.timer(self.runner)
+
+    @staticmethod
+    def timer(func):
+        """A decorator that adds an duration attribute to output of a runner"""
+        @functools.wraps(func)
+        def wrapper_timer(*args, **kwargs):
+            start_time = time.perf_counter()  # 1
+            formatted_param, formatted_output = func(*args, **kwargs)
+            end_time = time.perf_counter()  # 2
+
+            formatted_output["run_duration"] = str(end_time - start_time)
+            return formatted_param, formatted_output
+        return wrapper_timer
+    # <================== Problem ====================>
 
     @staticmethod
     def cartesian_product(dicts):
@@ -63,15 +93,14 @@ class GridExecutor():
         return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values()))
 
     def input_param_formatter(self, in_param):
-        """Uses schema and __str__ to return a formatted dict"""
-
+        """Uses in_schema and __str__ to return a formatted dict"""
         filtered = {}
         for key in self.in_schema:
             filtered[key] = str(in_param[key])
         return filtered
 
     def output_param_formatter(self, out_param):
-        """Uses schema and __str__ to return a formatted dict"""
+        """Uses out_schema and __str__ to return a formatted dict"""
 
         filtered = {}
         for key in self.out_schema:
@@ -108,13 +137,26 @@ class GridExecutor():
     def write_result(self, in_param, out_param):
         raise NotImplementedError
 
-    def runner(self, param: Dict[str, Any]):
+    def _runner(self, param: Dict[str, Any]):
         """A runner method that returns a tuple (formatted_param, formatted_output)"""
         formatted_param = self.input_param_formatter(param)
         self.logger.info(f"Launching => {formatted_param}")
-        out = self.func(**param) # out must be a named_tuple
-        formatted_output = self.output_param_formatter(out._asdict())
+
+        out = self.func(**param)._asdict()
+
+        # TODO: Added as a hack to allow output_param_formatter not to crash
+        if self._track_duration:
+            out["run_duration"] = None
+        # output_param_formatter assumes out to be consistent with out_schema
+        formatted_output = self.output_param_formatter(out)
         return formatted_param, formatted_output
+
+    def runner(self, param):
+        """TODO: Temporary workaround because of multiprocessing issues with decorators and lambdas"""
+        if self._track_duration:
+            return GridExecutor.timer(self._runner)(param)
+        else:
+            return self._runner(param)
 
     def exec(self):
         raise NotImplementedError
@@ -123,11 +165,12 @@ class GridExecutorParallel(GridExecutor):
     # Override the exec
     def exec(self):
         with concurrent.futures.ProcessPoolExecutor() as executor, \
-             open(self.result_path, "w") as result_file: # TODO: Encapsulate "csv file"
+             open(self.result_path, "w+") as result_file: # TODO: Encapsulate "csv file"
             self.init_logger()
 
             # TODO: Encapsulate "initialize csv writer" - perhaps use a context managers
-            writer = csv.DictWriter(result_file, fieldnames=self.in_schema + self.out_schema)
+            row_names = self.in_schema + self.out_schema
+            writer = csv.DictWriter(result_file, fieldnames=row_names)
             writer.writeheader()
 
             results = [executor.submit(self.runner, arg) for arg in self.expanded_config]
