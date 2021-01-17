@@ -11,7 +11,7 @@ from tqdm import tqdm
 from ctrace import PROJECT_ROOT
 from ctrace.dataset import *
 from ctrace.simulation import *
-
+from ctrace.experiments import time_trial_tracker
 # <======================================== Output Configurations ========================================>
 # Configure Logging Files => First 5 digits
 RUN_LABEL = shortuuid.uuid()[:5]
@@ -129,7 +129,7 @@ def MDP_runner(param):
     }
     t0 = time.time()
     # TODO: Fix parameters?
-    trial_results = trial_tracker(**processed_params)
+    trial_results = time_trial_tracker(**processed_params)
     t1 = time.time()
     time_diff = t1-t0
     # Exclude the solution
