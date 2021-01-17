@@ -24,5 +24,6 @@ config = {
 in_schema = ["G", "p", "budget", "method", "from_cache"]
 out_schema = ["objective_val", "peak_infected"]
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=generalized_mdp, trials=2)
+# Attempt at making schemas extensible - quite hacky right now
 run.track_duration()
 run.exec()
