@@ -11,12 +11,11 @@ from tqdm import tqdm
 from ctrace import PROJECT_ROOT
 
 DEBUG = False
-class GridExecutorParallel():
+class GridExecutor():
     """
-    Encapsulates the cartesian product of different parameters
-    Specify the key "trials" to run the same method several times
-
-    Usage: Create a new GridExecutorParallel and call exec()
+    Usage: Create a new GridExecutor with config, in_schema, out_schema and func.
+    GridExecutor is an abstract class for running a cartesian product of lists of arguments.
+    Input and output arguments specified by schemas are assumed to have pretty __str__.
     """
     def __init__(self, config: Dict, in_schema: List[str], out_schema: List[str], func: Callable[..., NamedTuple]):
         """
@@ -24,44 +23,44 @@ class GridExecutorParallel():
         ----------
         config
             A dictionary mapping string attributes to arrays of different parameters.
+            Each item of the dictionary must be an array of arguments
         in_schema
             A list describing what and the order input attributes would be printed
         out_schema
             A list describing what and the order output attributes would be printed
         func
-            A function to execute in parallel. Input arguments must match
+            A function to execute in parallel. Input arguments must match config keys.
+            Output arguments must be a namedtuple. namedtuple must encompass all attributes in out_schema
         """
         self.compact_config = config
         self.in_schema = in_schema
         self.out_schema = out_schema
         self.func = func
 
-        # Initialize NamedTuple Schemas for logger
-        # self.InputFormatType: namedtuple = namedtuple("InputSchema", in_schema)
-        # self.OutputFormatType: namedtuple = namedtuple("OutputSchema", out_schema)
-
         self.init_output_directory()
         print(f"Logging Directory Initialized: {self.output_directory}")
-        self.expand_config()
 
+        # Expand configurations
+        self.expanded_config = list(GridExecutor.cartesian_product(self.compact_config))
+
+    # TODO: Change post initialization method?
     @classmethod
     def init_multiple(cls, config: Dict[str, Any], in_schema: List[str],
                       out_schema: List[str], func: Callable, trials: int):
+        """
+        Runs each configuration trials number of times. Each trial is indexed by a "trial_id"s
+        """
         compact_config = config.copy()
         # Add trials
         compact_config["trial_id"] = list(range(trials))
         in_schema.append("trial_id")
         return cls(compact_config, in_schema, out_schema, func)
 
+
     @staticmethod
     def cartesian_product(dicts):
         """Expands an dictionary of lists into a list of dictionaries through a cartesian product"""
         return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values()))
-
-    def expand_config(self):
-        """Adds trial IDs to replace trials and generates expanded configurations"""
-        # TODO: stick with generator?
-        self.expanded_config = list(GridExecutorParallel.cartesian_product(self.compact_config))
 
     def input_param_formatter(self, in_param):
         """Uses schema and __str__ to return a formatted dict"""
@@ -111,23 +110,23 @@ class GridExecutorParallel():
 
     def runner(self, param: Dict[str, Any]):
         """A runner method that returns a tuple (formatted_param, formatted_output)"""
-        logger = self.logger
-        func = self.func
-
-        # if DEBUG:
-        #     print(f"GUROBI_HOME: {os.environ.get('GUROBI_HOME')}")
         formatted_param = self.input_param_formatter(param)
-        logger.info(f"Launching => {formatted_param}")
-        out = func(**param) # out must be a named_tuple
+        self.logger.info(f"Launching => {formatted_param}")
+        out = self.func(**param) # out must be a named_tuple
         formatted_output = self.output_param_formatter(out._asdict())
         return formatted_param, formatted_output
 
     def exec(self):
+        raise NotImplementedError
+
+class GridExecutorParallel(GridExecutor):
+    # Override the exec
+    def exec(self):
         with concurrent.futures.ProcessPoolExecutor() as executor, \
-             open(self.result_path, "w") as result_file:
+             open(self.result_path, "w") as result_file: # TODO: Encapsulate "csv file"
             self.init_logger()
 
-            # TODO: Encapsulate "initialize csv writer"
+            # TODO: Encapsulate "initialize csv writer" - perhaps use a context managers
             writer = csv.DictWriter(result_file, fieldnames=self.in_schema + self.out_schema)
             writer.writeheader()
 
@@ -141,3 +140,23 @@ class GridExecutorParallel():
                 result_file.flush()
 
                 self.logger.info(f"Finished => {in_param}")
+
+class GridExecutorLinear(GridExecutor):
+    # Override the exec
+    def exec(self):
+        with open(self.result_path, "w") as result_file: # TODO: Encapsulate "csv file"
+            self.init_logger()
+
+            # TODO: Encapsulate "initialize csv writer" - perhaps use a context managers
+            writer = csv.DictWriter(result_file, fieldnames=self.in_schema + self.out_schema)
+            writer.writeheader()
+
+            for arg in tqdm(self.expanded_config):
+                (in_param, out_param) = self.runner(arg)
+
+                # TODO: Encapsulate "writer"
+                writer.writerow({**in_param, **out_param})
+                result_file.flush()
+
+                self.logger.info(f"Finished => {in_param}")
+
