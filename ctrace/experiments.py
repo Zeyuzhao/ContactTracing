@@ -69,7 +69,7 @@ def time_trial_tracker(G: nx.graph, I0, safe, cost_constraint, p=.5, method="dep
     else:
         raise Exception("invalid method for optimization")
 
-return_params = ['min_exposed_value', 'lp_value', 'greedy_intersection', 'maxD', 'I_size', 'v1_size', 'v2_size', 'num_cross_edges', 'duration']
+return_params = ['min_exposed_value', 'mip_value', 'greedy_intersection', 'maxD', 'I_size', 'v1_size', 'v2_size', 'num_cross_edges', 'duration']
 TimeTrialExtendTrackerInfo = namedtuple("TrackerInfo", return_params)
 def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kwargs):
     """
@@ -87,7 +87,7 @@ def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kw
     Returns
     -------
     min_exposed_value: MinExposed objective value (expected number of people exposed)
-    lp_value: the MinExposed LP objective value
+    mip_value: the MinExposed LP objective value
     greedy_intersection: the percentage of quarantined members shared with weighted greedy
 
     # Statistics
@@ -133,18 +133,18 @@ def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kw
     elif method == "dependent":
         # Dependent LP Rounding
         prob = ProbMinExposed(G, infected, contour1, contour2, P, Q, budget, costs, solver="GUROBI_LP")
-        lp_value, method_solution = basic_non_integer_round(prob)
+        mip_value, method_solution = basic_non_integer_round(prob)
 
     elif method == "dependent_scip":
         prob = ProbMinExposed(G, infected, contour1, contour2, P, Q, budget, costs)
-        lp_value, method_solution = basic_non_integer_round(prob)
+        mip_value, method_solution = basic_non_integer_round(prob)
 
-    elif method == "gurobi":
+    elif method == "mip_gurobi":
         # Gurobi MIP Rounding
         prob = ProbMinExposedMIP(G, infected, contour1, contour2, P, Q, budget, costs, solver='GUROBI')
         prob.solve_lp()
         # Returns a tuple for its optimal value
-        lp_value = prob.objectiveVal
+        mip_value = prob.objectiveVal
         method_solution = prob.quarantined_solution
     elif method == "random":
         _, method_solution = random_solver(contour1, budget)
@@ -153,7 +153,7 @@ def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kw
         for k, v in method_solution.items():
             prob.setVariableId(k, v)
         prob.solve_lp()
-        lp_value = prob.objectiveVal
+        mip_value = prob.objectiveVal
     else:
         raise Exception("invalid method for optimization")
 
@@ -163,7 +163,7 @@ def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kw
     # TODO: Encapsulate G, (_, infected, recovered), (contour1, contour2)
     min_exposed_value = min_exposed_objective(G, (_, infected, recovered), (contour1, contour2), p, method_solution)
     return TimeTrialExtendTrackerInfo(min_exposed_value,
-                                      lp_value,
+                                      mip_value,
                                       greedy_intersection,
                                       maxD,
                                       len(infected),
