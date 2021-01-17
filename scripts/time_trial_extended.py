@@ -12,8 +12,8 @@ config = {
     "G": ["montgomery"], # Graph
     "p": [0.078], # Probability of infection
     "budget": [i for i in range(100, 1001, 100)], # The k value
-    "method": ["dependent", "weighted", "gurobi", "random"],
-    "from_cache": cache_paths, # If cache is specified, some arguments are ignored
+    "from_cache": cache_paths,  # If cache is specified, some arguments are ignored
+    "method": ["random", "dependent", "weighted", "gurobi"],
 }
 config["G"] = [load_graph(x) for x in config["G"]]
 
