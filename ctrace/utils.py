@@ -3,7 +3,8 @@ Utility Functions, such as contours and PQ
 """
 import math
 from collections import defaultdict
-from typing import Set, Iterable, Tuple, List
+from typing import Set, Iterable, Tuple, List, Dict
+from statistics import mean
 
 import EoN
 import networkx as nx
@@ -62,8 +63,8 @@ def PQ_deterministic(G: nx.Graph, I: Iterable[int], V1: Iterable[int], p: float)
 def max_neighbors(G, V_1, V_2):
     return max(len(set(G.neighbors(u)) & V_2) for u in V_1)
 
-def MinExposedObjective(G: nx.Graph, SIR: Tuple[List[int], List[int],
-                        List[int]], contours: Tuple[List[int], List[int]], p: float, to_quarantine: List[int]):
+def MinExposedTrial(G: nx.Graph, SIR: Tuple[List[int], List[int],
+                        List[int]], contours: Tuple[List[int], List[int]], p: float, quarantined_solution: Dict[int, int]):
     """
 
     Parameters
@@ -82,26 +83,42 @@ def MinExposedObjective(G: nx.Graph, SIR: Tuple[List[int], List[int],
     -------
     objective_value - The number of people in v_2 who are infected.
     """
-    S, I, R = SIR
+    _, I, R = SIR
 
     full_data = EoN.basic_discrete_SIR(G=G, p=p, initial_infecteds=I,
                                        initial_recovereds=R, tmin=0,
                                        tmax=1, return_full_data=True)
 
-    S_1 = set([k for (k, v) in full_data.get_statuses(
-        time=1).items() if v == 'S'])
-    I_1 = set([k for (k, v) in full_data.get_statuses(
+    # Update S, I, R
+    I = set([k for (k, v) in full_data.get_statuses(
         time=1).items() if v == 'I'])
 
-    recovered_quarantined = R + to_quarantine
+    R = set([k for (k, v) in full_data.get_statuses(
+        time=1).items() if v == 'R'])
+
+    to_quarantine = indicatorToSet(quarantined_solution)
+    # Move quarantined to recovered
+    R = list(R & to_quarantine)
+    # Remove quarantined from infected
+    I = [i for i in I if i not in to_quarantine]
     full_data = EoN.basic_discrete_SIR(G=G, p=p, initial_infecteds=I,
-                                       initial_recovereds=recovered_quarantined,
+                                       initial_recovereds=R,
                                        tmin=0, tmax=1, return_full_data=True)
+
     # Number of people infected in V_2
-    I_1 = set([k for (k, v) in full_data.get_statuses(
+    I = set([k for (k, v) in full_data.get_statuses(
         time=1).items() if v == 'I'])
-    objective_value = len(set(I_1) & set(contours[1]))
+    objective_value = len(set(I) & set(contours[1]))
     return objective_value
 
+def MinExposedObjective(G: nx.Graph,
+                        SIR: Tuple[List[int], List[int], List[int]],
+                        contours: Tuple[List[int], List[int]],
+                        p: float,
+                        quarantined_solution: Dict[int, int],
+                        trials=5):
+    runs = [MinExposedTrial(G, SIR, contours, p, quarantined_solution) for _ in range(trials)]
+    return mean(runs)
 
-
+def indicatorToSet(quarantined_solution: Dict[int, int]):
+    return {q for q in quarantined_solution if quarantined_solution[q] == 1}
