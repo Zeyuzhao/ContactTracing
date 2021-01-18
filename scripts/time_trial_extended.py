@@ -13,7 +13,7 @@ config = {
     "p": [0.078], # Probability of infection
     "budget": [i for i in range(400, 1001, 100)], # The k value
     "from_cache": cache_paths,  # If cache is specified, some arguments are ignored
-    "method": ["random", "dependent", "weighted", "mip_gurobi"],
+    "method": ["random", "dependent", "greedy_weighted", "mip_gurobi"],
 }
 config["G"] = [load_graph(x) for x in config["G"]]
 
