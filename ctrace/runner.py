@@ -202,4 +202,3 @@ class GridExecutorLinear(GridExecutor):
                 result_file.flush()
 
                 self.logger.info(f"Finished => {in_param}")
-

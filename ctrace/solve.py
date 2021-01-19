@@ -112,21 +112,21 @@ def D_prime(p):
 #returns rounded bits and objective value of those bits
 def basic_non_integer_round(problem: ProbMinExposed):
     problem.solve_lp()
-    probabilities = problem.getVariables()
+    probabilities = problem.get_variables()
     rounded = D_prime(np.array(probabilities))
     
     #sets variables so objective function value is correct
     for i in range(len(rounded)):
-        problem.setVariable(i,rounded[i])
+        problem.set_variable(i, rounded[i])
     
     problem.solve_lp()
     
-    return (problem.objectiveVal, problem.quarantined_solution)
+    return (problem.objective_value, problem.quarantined_solution)
 
 #returns rounded bits and objective value of those bits
 def iterated_round(problem: ProbMinExposed, d: int):
     problem.solve_lp()
-    probabilities = np.array(problem.getVariables())
+    probabilities = np.array(problem.get_variables())
     
     curr = 0
     
@@ -137,10 +137,10 @@ def iterated_round(problem: ProbMinExposed, d: int):
         
         for i in range(d):
             
-            problem.setVariable(curr+i, probabilities[curr+i])
+            problem.set_variable(curr + i, probabilities[curr + i])
         
         problem.solve_lp()
-        probabilities = np.array(problem.getVariables())
+        probabilities = np.array(problem.get_variables())
         
         curr += d
     
@@ -148,16 +148,16 @@ def iterated_round(problem: ProbMinExposed, d: int):
     probabilities[curr:] = D_prime(probabilities[curr:])
     
     for i in range(curr,len(probabilities)):
-        problem.setVariable(i,probabilities[i])
+        problem.set_variable(i, probabilities[i])
     
     problem.solve_lp()
     
-    return (problem.objectiveVal, problem.quarantined_solution)
+    return (problem.objective_value, problem.quarantined_solution)
 
 #returns rounded bits and objective value of those bits
 def optimized_iterated_round(problem: ProbMinExposed, d: int):
     problem.solve_lp()
-    probabilities = np.array(problem.getVariables())
+    probabilities = np.array(problem.get_variables())
     
     #creates mapping to avoid re-ordering of the array
     mapping = []
@@ -179,11 +179,11 @@ def optimized_iterated_round(problem: ProbMinExposed, d: int):
         rounded = D_prime(np.array(to_round))
         
         for i in range(d):
-            problem.setVariable(mapping[i][1], rounded[i])
+            problem.set_variable(mapping[i][1], rounded[i])
         
         #resolves the LP under new constraints
         problem.solve_lp()
-        probabilities = np.array(problem.getVariables())
+        probabilities = np.array(problem.get_variables())
         
         #updates the mappings; only need to worry about previously unrounded values
         mapping = mapping[d:]
@@ -204,12 +204,12 @@ def optimized_iterated_round(problem: ProbMinExposed, d: int):
     rounded = D_prime(np.array(to_round))
     
     for i in range(len(rounded)):
-        problem.setVariable(mapping[i][1],rounded[i])
+        problem.set_variable(mapping[i][1], rounded[i])
         probabilities[mapping[i][1]] = rounded[i]
     
     problem.solve_lp()
     
-    return (problem.objectiveVal, problem.quarantined_solution)
+    return (problem.objective_value, problem.quarantined_solution)
 
 #returns a map for which nodes to quarantine
 def to_quarantine(G: nx.graph, I0, safe, cost_constraint, p=.5, method="dependent"):
@@ -263,7 +263,7 @@ def to_quarantine(G: nx.graph, I0, safe, cost_constraint, p=.5, method="dependen
     elif method == "gurobi":
         prob = ProbMinExposedMIP(G, I0, V_1, V_2, P, Q, cost_constraint, costs, solver='GUROBI')
         prob.solve_lp()
-        return (prob.objectiveVal), prob.quarantined_solution
+        return (prob.objective_value), prob.quarantined_solution
     elif method == "dependent_gurobi":
         prob = ProbMinExposed(G, I0, V_1, V_2, P, Q, cost_constraint, costs, solver='GUROBI')
         return basic_non_integer_round(prob)
@@ -321,7 +321,3 @@ def degree_solver(G, V_1, V_2, cost_constraint):
         else:
             sol[degrees[i][1]] = 0
     return (-1, sol)
-
-
-
-
