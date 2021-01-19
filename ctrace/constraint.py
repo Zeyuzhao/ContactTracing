@@ -3,12 +3,9 @@ from typing import Dict
 
 import networkx as nx
 import numpy as np
-import pandas as pd
 from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Constraint, Solver, Variable, Objective
 
-from contextlib import redirect_stdout
-import io
 np.random.seed(42)
 
 class ProbMinExposed:
@@ -83,6 +80,7 @@ class ProbMinExposed:
         self.quarantine_map = {}
         # Dense representation of v1 indicators for iterated rounding
         self.quarantine_raw = np.zeros(len(self.X1))
+        self.objective_value_with_constant = 0
 
         # X2 indicator variables
         self.saved_solution: Dict[int, float] = {}
@@ -219,6 +217,14 @@ class ProbMinExposed:
         self.quarantine_map
             Maps the array index to the V1 node id
         """
+
+        # Reset variables
+        self.objective_value = 0
+        self.quarantine_map = {}
+        self.quarantine_raw = np.zeros(len(self.X1))
+        self.quarantined_solution = {}
+        self.saved_solution = {}
+
         status = self.solver.Solve()
         if status == self.solver.INFEASIBLE:
             raise ValueError("Infeasible solution")
@@ -233,13 +239,20 @@ class ProbMinExposed:
             )
             self.quarantine_map[i] = u
 
+        # V2 portion of the objective value
         for v in self.V2:
             self.saved_solution[v] = self.X2[v].solution_value()
             self.objective_value += (1 - self.saved_solution[v])
 
+        # # Add the constant to the objective value (the V1 portion of the objective value)
+        # self.objective_value_with_constant = self.objective_value + sum(self.p1[u] for u in self.V1)
+
 class ProbMinExposedRestricted(ProbMinExposed):
     def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, labels, label_limits, costs=None, solver=None):
         """
+        Uses the same LP as ProbMinExposed, but with the added constraint of labels.
+        Labels (from [0,L-1]) are assigned to every member in contour1, and label_limits sets
+        the limit for the number of people quarantined in a label group.
         Parameters
         ----------
         G
@@ -250,13 +263,15 @@ class ProbMinExposedRestricted(ProbMinExposed):
         q
         k
         labels
-            A len(G.node) sized array with labels 0..L-1 for each node
+            A len(G.contour1) sized array with labels 0..L-1 for each node
         label_limits
             A L sized array restricting the number of people in each category.
             Must sum to less than to <= k (these constraints should be more strict than k)
         costs
         solver
         """
+
+        # TODO: Merge with main
         self.L = len(label_limits)
         if (len(labels) != len(G.nodes)):
             raise ValueError("labels must match graphs nodes")
@@ -286,6 +301,9 @@ class ProbMinExposedRestricted(ProbMinExposed):
 
 
 class ProbMinExposedMIP(ProbMinExposed):
+    """
+    Uses the same LP formulation as ProbMinExposed, but creates integer variables for contour1 nodes.
+    """
     def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
         if solver is None:
             solver = 'SCIP'
