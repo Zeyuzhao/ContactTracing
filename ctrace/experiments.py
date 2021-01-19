@@ -64,7 +64,7 @@ def time_trial_tracker(G: nx.graph, I0, safe, cost_constraint, p=.5, method="dep
         raise Exception("invalid method for optimization")
 
 
-return_params = ['min_exposed_value', 'mip_value', 'v1_objective', 'maxD', 'I_size', 'v1_size', 'v2_size', 'num_cross_edges', 'duration']
+return_params = ['I_size', 'v1_size', 'v2_size', 'num_cross_edges', 'maxD', 'min_exposed_value', 'mip_value', 'duration', 'v1_objective', 'greedy_overlap']
 TimeTrialExtendTrackerInfo = namedtuple("TrackerInfo", return_params)
 def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kwargs):
     """
@@ -118,15 +118,18 @@ def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kw
         prob.solve_lp()
 
         min_exposed_value = min_exposed_objective(G, (_, infected, recovered), (contour1, contour2), p, weighted_solution)
-        return TimeTrialExtendTrackerInfo(min_exposed_value,
-                                          prob.objective_value,
-                                          v1_objective,
-                                          maxD,
-                                          len(infected),
-                                          len(contour1),
-                                          len(contour2),
-                                          prob.num_cross_edges,
-                                          weighted_end - weighted_start)
+        return TimeTrialExtendTrackerInfo(
+            len(infected),
+            len(contour1),
+            len(contour2),
+            prob.num_cross_edges,
+            maxD,
+            prob.objective_value,
+            min_exposed_value,
+            weighted_end - weighted_start,
+            v1_objective,
+            -1,
+        )
     elif method == "greedy_degree":
         _, method_solution = degree_solver(G, contour1, contour2, budget)
         prob = ProbMinExposed(G, infected, contour1, contour2, P, Q, budget, costs)
@@ -169,15 +172,19 @@ def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kw
 
     method_end = perf_counter()
     # Round method solution?
-    # greedy_intersection = len(indicatorToSet(method_solution) & indicatorToSet(weighted_solution))
+    greedy_intersection = len(indicatorToSet(method_solution) & indicatorToSet(weighted_solution))
     # TODO: Encapsulate G, (_, infected, recovered), (contour1, contour2)
     min_exposed_value = min_exposed_objective(G, (_, infected, recovered), (contour1, contour2), p, method_solution)
-    return TimeTrialExtendTrackerInfo(min_exposed_value,
-                                      mip_value,
-                                      v1_objective,
-                                      maxD,
-                                      len(infected),
-                                      len(contour1),
-                                      len(contour2),
-                                      prob.num_cross_edges,
-                                      duration=method_end - weighted_end)
+
+    return TimeTrialExtendTrackerInfo(
+        len(infected),
+        len(contour1),
+        len(contour2),
+        prob.num_cross_edges,
+        maxD,
+        mip_value,
+        min_exposed_value,
+        method_end - weighted_end,
+        v1_objective,
+        greedy_intersection
+    )
