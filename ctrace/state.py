@@ -18,8 +18,6 @@ class SIR_State():
         self.R = set()
 
 
-        # TODO: Run simulations
-
     @staticmethod
     def from_cache(graph_path, cache_path, args_path):
         pass

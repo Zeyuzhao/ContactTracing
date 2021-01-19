@@ -241,20 +241,22 @@ def shock(S, I, num_shocks):
 
 
 def generalized_mdp(G: nx.graph,
-                    p: float,  # Required
-                    budget: int,  # Required
-                    method: str,  # Required
+                    p: float,
+                    budget: int,
+                    method: str,
                     MDP_iterations: int,
-                    num_shocks: int,  # Required
+                    num_shocks: int,
                     num_initial_infections: int,
-                    initial_iterations: int,  # Data
-                    iterations_to_recover: int = 1,  # Required
-                    cache: str = None,  # Data
+                    initial_iterations: int,
+                    iterations_to_recover: int = 1,
+                    cache: str = None,
                     from_cache: str = None,
-                    shock_MDP: bool = False,  # Required
-                    visualization: bool = False,  # Required
+                    shock_MDP: bool = False,
+                    visualization: bool = False,
                     verbose: bool = False,
-                    **kwargs):  # Required
+                    **kwargs):
+
+
     S = set()
     I = set()
     R = set()

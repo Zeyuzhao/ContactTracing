@@ -13,7 +13,33 @@ np.random.seed(42)
 
 class ProbMinExposed:
     def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver: str=None):
-        """Generates the constraints given a graphs. Assumes V1, V2 are 1,2 away from I"""
+        """
+        Constructs the constraints of the LP relaxation of MinExposed.
+        Provides an API to retrieve LP solutions and set LP variables for iterated rounding algorithms.
+        Parameters
+        ----------
+        G
+            The contact tracing graph.
+            Assumes each node labelled consecutively from [0, N), where N is the number of nodes
+        infected
+            The set of infected nodes
+        contour1
+            The set of nodes distance one away from infected, excluding recovered nodes
+        contour2
+            The set of nodes distance two away from infected, excluding recovered nodes
+        p1
+            An dictionary p1[u] that maps node u in V1 to its probability of infection
+        q
+            An dictionary q[u][v] that maps edge (u, v) to conditional probability of infection from node u to v
+        k
+            The budget allotted to quarantine nodes in V1.
+        costs
+            An dictionary costs[u] that describes the cost associated quarantining node u.
+            Defaults to 1 for this project.
+        solver
+            An string describing the solver backend or-tools will use.
+            Defaults to GLOP, but we GUROBI_LP for our experiments.
+        """
         self.G = G
         self.I = infected
         self.V1 = contour1
@@ -27,17 +53,12 @@ class ProbMinExposed:
         # Default costs of uniform
         if costs is None:
             costs = defaultdict(lambda: 1)
-
         self.costs = costs
 
-        # Capture messages - Gurobi gives unnecessary log messages
-        file_out = io.StringIO()
-        with redirect_stdout(file_out):
-            if solver is None:
-                solver = pywraplp.Solver.CreateSolver('GLOP')
-            else:
-                solver = pywraplp.Solver.CreateSolver(solver)
-        self.recorded_out = file_out.getvalue()
+        if solver is None:
+            solver = pywraplp.Solver.CreateSolver('GLOP')
+        else:
+            solver = pywraplp.Solver.CreateSolver(solver)
 
         if solver is None:
             raise ValueError("Solver failed to initialized!")
@@ -45,7 +66,7 @@ class ProbMinExposed:
         self.solver: Solver = solver
 
         # Check if solution is optimal
-        self.isOptimal = None
+        self.is_optimal = None
 
         # Track number of edges between v1 and v2
         self.num_cross_edges = 0
@@ -55,23 +76,21 @@ class ProbMinExposed:
         self.init_variables()
         self.init_constraints()
 
-    @classmethod
-    def from_dataframe(cls, G, I, contour1, contour2,
-                       p1_df: pd.DataFrame, q_df: pd.DataFrame,
-                       k, costs=None, solver=None):
-        # Initialize p1
-        p1 = {}
-        for i, row in p1_df.iterrows():
-            p1[row['v']] = row['p_v']
+        # Computed after calling solve_lp()
+        self.objective_value = 0
 
-        # Initialize p2
-        q = defaultdict(lambda: defaultdict(int))
-        for i, row in q_df.iterrows():
-            q[row['u']][row['v']] = row['q_uv']
+        # Maps from node id -> dense index
+        self.quarantine_map = {}
+        # Dense representation of v1 indicators for iterated rounding
+        self.quarantine_raw = np.zeros(len(self.X1))
 
-        return cls(G, I, contour1, contour2, p1, q, k, costs, solver)
+        # X2 indicator variables
+        self.saved_solution: Dict[int, float] = {}
+        # X1 indicator variables
+        self.quarantined_solution: Dict[int, float] = {}
 
     def init_variables(self):
+        """Initializes the variables with LP variables (fractional solutions)"""
         # V1 indicator set
         self.X1: Dict[int, Variable] = {}
         self.Y1: Dict[int, Variable] = {}
@@ -90,6 +109,7 @@ class ProbMinExposed:
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
 
     def init_constraints(self):
+        """Initializes the constraints according to the relaxed LP formulation of MinExposed"""
 
         # First set of constraints X + Y = 1
         # By definition, X and Y sum to 1
@@ -98,7 +118,6 @@ class ProbMinExposed:
         # Parameter indicators (we have control)
         for u in self.V1:
             self.solver.Add(self.X1[u] + self.Y1[u] == 1)
-
         # Safe (x) / Exposed (y) Indicators
         # Result indicators (we have no control)
         for v in self.V2:
@@ -121,35 +140,33 @@ class ProbMinExposed:
         for u in self.V1:
             for v in self.G.neighbors(u):
                 if v in self.V2:
-                    # Tracking the number of constraints between V_1 and V_2
-                    self.num_cross_edges += 1
                     coeff = self.q[u][v] * self.p1[u]
                     self.solver.Add(self.Y2[v] >= coeff * self.Y1[u])
 
-        # Set minimization objective
-        # Number of people free in V1 and people exposed in V2
-        numExposed: Objective = self.solver.Objective()
+                    # Tracking the number of constraints between V_1 and V_2
+                    self.num_cross_edges += 1
 
+        # Set minimization objective
+        # Number of people exposed in V2
+        numExposed: Objective = self.solver.Objective()
         for v in self.V2:
             numExposed.SetCoefficient(self.Y2[v], 1)
-
         numExposed.SetMinimization()
 
-    def setVariable(self, index: int, value: int):
-        """Sets the ith V1 indicator to value int. May only use after solve_lp"""
-        i = self.quaran_map[index]
-        if i in self.partials:
-            raise ValueError(f"in {i} is already set!")
-        if value not in (0, 1):
-            raise ValueError("Value must be 0 or 1")
-        self.partials[i] = value
-        self.solver.Add(self.X1[i] == value)
+    def set_variable_id(self, id: int, value: int):
+        """
+        Sets the ith V1 indicator by node id to value
 
-    def getVariables(self):
-        return self.quaran_raw
-
-    def setVariableId(self, id: int, value: int):
-        """Sets the ith V1 indicator to value int"""
+        Parameters
+        ----------
+        id
+            Node Id of a node in V1
+        value
+            An integer of value 0 or 1
+        Returns
+        -------
+        None
+        """
         if id in self.partials:
             raise ValueError(f"in {id} is already set!")
         if value not in (0, 1):
@@ -157,40 +174,68 @@ class ProbMinExposed:
         self.partials[id] = value
         self.solver.Add(self.X1[id] == value)
 
-    def filled(self):
-        # TODO: Does this method make sense?
-        """Returns true if every variable is solved"""
-        return self.partials == self.V1
+    def set_variable(self, index: int, value: int):
+        """
+        Sets the ith V1 indicator using dense array index to value int.
+        May only use after solve_lp
+
+        Parameters
+        ----------
+        index
+            An array index of the dense representation
+        value
+            An integer of value 0 or 1
+        Returns
+        -------
+        None
+        """
+        i = self.quarantine_map[index]
+        self.set_variable_id(i, value)
+
+    def get_variables(self):
+        """
+        Retrieve the dense array representation of v1 indicators
+        Returns
+        -------
+        array
+        """
+        return self.quarantine_raw
 
     def solve_lp(self):
-        """Solves the LP problem"""
+        """
+        Solves the LP problem and computes the LP objective value
+        Returns
+        -------
+        None
+        Sets the following variables:
+        self.objective_value
+            The objective value of the LP solution
+        self.is_optimal
+            Whether the LP solver reached an optimal solution
+        self.quarantined_solution
+            An dictionary mapping from V1 node id to its fractional solution
+        self.quarantine_raw
+            An array (dense) of the LP V1 (fractional) fractional solutions
+        self.quarantine_map
+            Maps the array index to the V1 node id
+        """
         status = self.solver.Solve()
         if status == self.solver.INFEASIBLE:
             raise ValueError("Infeasible solution")
 
         if status == self.solver.OPTIMAL:
-            self.isOptimal = True
+            self.is_optimal = True
         else:
-            self.isOptimal = False
+            self.is_optimal = False
         # Indicators
-        self.quarantined_solution: Dict[int, float] = {}
-        self.saved_solution: Dict[int, float] = {}
-        self.infected_v1: Dict[int, float] = {}
-        self.infected_v2: Dict[int, float] = {}
-
-        self.quaran_raw = np.zeros(len(self.X1))
-        self.quaran_map = {}
-
-        self.objectiveVal = 0
-
         for i, u in enumerate(self.V1):
-            val = self.quaran_raw[i] = self.quarantined_solution[u] = self.X1[u].solution_value(
+            self.quarantine_raw[i] = self.quarantined_solution[u] = self.X1[u].solution_value(
             )
-            self.quaran_map[i] = u
+            self.quarantine_map[i] = u
 
         for v in self.V2:
             self.saved_solution[v] = self.X2[v].solution_value()
-            self.objectiveVal += (1 - self.saved_solution[v])
+            self.objective_value += (1 - self.saved_solution[v])
 
 class ProbMinExposedRestricted(ProbMinExposed):
     def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, labels, label_limits, costs=None, solver=None):
@@ -247,6 +292,7 @@ class ProbMinExposedMIP(ProbMinExposed):
         super().__init__(G, infected, contour1, contour2, p1, q, k, costs, solver)
 
     def init_variables(self):
+        """Initializes the variables with LP variables (fractional solutions)"""
         # V1 indicator set
         self.X1: Dict[int, Variable] = {}
         self.Y1: Dict[int, Variable] = {}

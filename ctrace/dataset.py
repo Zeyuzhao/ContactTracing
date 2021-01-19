@@ -17,7 +17,6 @@ np.random.seed(42)
 def prep_labelled_graph(in_path, out_dir, num_lines=None, delimiter=","):
     """Generates a labelled graphs. Converts IDs to ids from 0 to N vertices
 
-
     Parameters
     ----------
     in_path:
