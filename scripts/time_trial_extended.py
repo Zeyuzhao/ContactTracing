@@ -11,7 +11,7 @@ print(f"Number of json files: {len(cache_paths)}")
 config = {
     "G": ["montgomery"], # Graph
     "p": [0.078], # Probability of infection
-    "budget": [i for i in range(400, 1001, 100)], # The k value
+    "budget": [i for i in range(500, 1001, 100)], # The k value
     "from_cache": cache_paths,  # If cache is specified, some arguments are ignored
     "method": ["random", "dependent", "greedy_weighted", "mip_gurobi"],
 }
