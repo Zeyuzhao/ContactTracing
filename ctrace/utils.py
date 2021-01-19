@@ -118,7 +118,7 @@ def min_exposed_objective(G: nx.Graph,
                           quarantined_solution: Dict[int, int],
                           trials=5):
     runs = [MinExposedTrial(G, SIR, contours, p, quarantined_solution) for _ in range(trials)]
-    return mean(runs), np.std(runs, ddof=1)
+    return mean(runs) #, np.std(runs, ddof=1)
 
 def indicatorToSet(quarantined_solution: Dict[int, int]):
     return {q for q in quarantined_solution if quarantined_solution[q] == 1}
