@@ -15,10 +15,13 @@ import time
 from ctrace import PROJECT_ROOT
 from ctrace.simulation import *
 
-def r_get_prob(G:nx.graph, I, R, k, p, rev_nodes):
-    df = pd.read_csv(PROJECT_ROOT / "data" / "cville_dem.txt")
+def r_get_prob(G:nx.graph, I, R, k, p, rev_nodes, policy='equal'):
+    
+    
     V_1, V_2 = find_excluded_contours(G,I,R)
+    P, Q = PQ_deterministic(G,I,V_1,p)
 
+    df = pd.read_csv(PROJECT_ROOT / "data" / "cville_dem.txt")
     unique = df['age_group'].unique()
     map_label = {}
 
@@ -31,14 +34,38 @@ def r_get_prob(G:nx.graph, I, R, k, p, rev_nodes):
     #generate label limits by our definition of fairness
     label_limits = [0 for _ in range(len(map_label.keys()))]
 
-    for i in V_1:
-        label_limits[labels[i]]+=1
+    if policy == 'equal':
+        
+        for i in V_1:
+            label_limits[labels[i]]+=1
+        
+    elif policy == "old":
+
+        for i in V_1:
+            label_limits[labels[i]]+=1
+        
+        label_limits[map_label['g']]*=2
     
-    if len(V_1) != 0:
-        label_limits = k*np.array(label_limits)/len(V_1)
+    elif policy == "young":
+
+        for i in V_1:
+            label_limits[labels[i]]+=1
+        
+        label_limits[map_label['p']]*=2
+        label_limits[map_label['s']]*=2
+    elif policy == "adult":
+
+        for i in V_1:
+            label_limits[labels[i]]+=1
+        
+        label_limits[map_label['a']]*=.5
+        label_limits[map_label['o']]*=.5
+    
+    
+    if sum(label_limits) != 0:
+        label_limits = k*np.array(label_limits)/sum(label_limits)
         label_limits = np.floor(label_limits)
 
-    P, Q = PQ_deterministic(G,I,V_1,p)
 
     prob = ProbMinExposedRestricted(G=G,
                                     infected=I,
@@ -119,9 +146,9 @@ def r_random(prob: ProbMinExposedRestricted):
     
     return (-1, sol)
     
-def to_q(G, I, R, budget, method, p, rev_nodes):
+def to_q(G, I, R, budget, method, p, rev_nodes,policy='equal'):
     
-    prob = r_get_prob(G, I, R, budget, p, rev_nodes)
+    prob = r_get_prob(G, I, R, budget, p, rev_nodes, policy)
     
     if method == "rrandom":
         return r_random(prob)
@@ -148,6 +175,7 @@ def r_mdp(G: nx.graph,
         shock_MDP: bool = False,  # Required
         visualization: bool = False,  # Required
         verbose: bool = False,
+        policy = 'equal',
         **kwargs):  # Required   
     S = set()
     I = set()
@@ -246,7 +274,7 @@ def r_mdp(G: nx.graph,
     for t in iterator:
 
         # get recommended quarantine
-        (val, recommendation) = to_q(G, I, R, budget, method=method, p=p, rev_nodes=rev_nodes)
+        (val, recommendation) = to_q(G, I, R, budget, method=method, p=p, rev_nodes=rev_nodes, policy=policy)
 
         # go through one step of the disease spread
         # (S, I, R) = MDP_step(G, S, I, R, Q_infected, Q_susceptible, p=p)

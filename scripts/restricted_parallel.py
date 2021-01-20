@@ -88,8 +88,8 @@ for line in lines:
 COMPACT_CONFIG = {
     "G": [G2], # Graph
     "p": [0.06], # Probability of infection
-    "budget": [i for i in range(500, 2001, 20)], # The k value
-    "method": ["rrandom","rweighted","rdependent"],
+    "budget": [500,1000,1500,2000], # The k value
+    "method": ["rweighted"],
     "num_initial_infections": [5], # Initial Initial (DATA)
     "num_shocks": [8], # Size of shocks in initial (DATA)
     "initial_iterations": [5], # Number of iterations before intervention
