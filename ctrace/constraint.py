@@ -477,7 +477,7 @@ def load_graph_cville():
             c+=1
             G2.add_edge(u,v)
             
-    return G2
+    return (G2, rev_nodes)
 
 def MinExposedTrial(G: nx.Graph, SIR: Tuple[List[int], List[int],
                         List[int]], contours: Tuple[List[int], List[int]], p: float, quarantined_solution: Dict[int, int]):
