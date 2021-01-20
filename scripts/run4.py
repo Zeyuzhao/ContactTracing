@@ -90,17 +90,18 @@ for line in lines:
 # Experiment 1
 COMPACT_CONFIG = {
     "G": [G2], # Graph
-    "p": [0.09], # Probability of infection
-    "budget": [i for i in range(500,2001,50)], # The k value
-    "method": ["random","degree","dependent","weighted"],
-    "num_initial_infections": [10], # Initial Initial (DATA)
+    "p": [0.06], # Probability of infection
+    #"budget": [10],
+    "budget": [i for i in range(500,2001,10)], # The k value
+    "method": ["dependent"],
+    "num_initial_infections": [1], # Initial Initial (DATA)
     "num_shocks": [0], # Size of shocks in initial (DATA)
-    "initial_iterations": [5], # Number of iterations before intervention
+    "initial_iterations": [1], # Number of iterations before intervention
     "MDP_iterations": [-1], # Number of iterations of intervention
     "iterations_to_recover": [1], # Number of iterations it takes for a infected node to recover (set to 1)
-    "from_cache": [None], # If cache is specified, some arguments are ignored
+    "from_cache": ['a5.json'], # If cache is specified, some arguments are ignored
     "verbose": [False], # Prints stuff
-    "trials": 3, # Number of trials to run for each config
+    "trials": 10, # Number of trials to run for each config
 }
 
 # Attributes need to partition configuration! Do NOT have duplicate attributes
