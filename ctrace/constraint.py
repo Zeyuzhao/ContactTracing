@@ -444,39 +444,38 @@ def load_graph_cville():
     G2 = nx.Graph()
     G2.NAME = "able"
     nodes = {}
+    rev_nodes = []
 
-    file = open("data/undirected_albe_1.90.txt", "r")
+    file = open("../data/undirected_albe_1.90.txt", "r")
     file.readline()
     lines = file.readlines()
     c = 0
     c_node=0
 
     for line in lines:
-        #print(line.split())
+
         a = line.split()
         u = int(a[1])
+        v = int(a[2])
+
         if u in nodes.keys():
             u = nodes[u]
         else:
             nodes[u] = c_node
+            rev_nodes.append(u)
             u = c_node
-            c_node+=1
-
-        v = int(a[2])
+            c_node+=1        
 
         if v in nodes.keys():
             v = nodes[v]
         else:
             nodes[v] = c_node
+            rev_nodes.append(v)
             v = c_node
             c_node+=1
 
-        w = int(a[3])
-
-        if w >= 3600:
-            c+=1
-            G2.add_edge(u,v)
-            
+        G2.add_edge(u,v)
+        
     return (G2, rev_nodes)
 
 def MinExposedTrial(G: nx.Graph, SIR: Tuple[List[int], List[int],
