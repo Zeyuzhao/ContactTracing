@@ -1,3 +1,6 @@
+from statistics import mean
+
+import EoN
 import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
@@ -6,7 +9,7 @@ from collections import defaultdict
 from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Constraint, Solver, Variable, Objective
 
-from typing import Set, Dict, Sequence
+from typing import Set, Dict, Sequence, Tuple, List
 import pickle as pkl
 from pathlib import Path
 
@@ -14,6 +17,11 @@ import pandas as pd
 
 from . import PROJECT_ROOT
 np.random.seed(42)
+
+# NOTES:
+# Used variables, quaran_raw, quarantined_solution v1 -> fractional indicators
+# Precondition: call solve_lp() -> ObjectiveVal
+#
 
 class ProbMinExposed:
     def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
@@ -138,7 +146,7 @@ class ProbMinExposed:
 
     def filled(self):
         """Returns true if every variable is solved"""
-        return self.partials == self.V1
+        return set(self.partials.keys()) == set(self.V1)
 
     def solve_lp(self):
         """Solves the LP problem"""
@@ -439,6 +447,49 @@ def generate_absolute(G, infected, k: int = None, costs: list = None):
         "costs": costs,
         "k": k,
     }
+
+class SAA():
+    def __init__(self, G: nx.Graph, infected: Set[int], p: float, k: int, numberOfSamples: int, recovered: Set[int], costs: Dict[int, int], solver=None):
+        self.G = G
+        self.I = infected
+
+        # Set of intrinsic probabilities of infection
+        self.p = p
+
+        # The current budget
+        self.k = k
+
+        # Default costs of uniform
+        if costs is None:
+            costs = defaultdict(lambda: 1)
+        self.costs = costs
+
+        self.numberOfSamples = numberOfSamples
+
+        if solver is None:
+            solver: Solver = pywraplp.Solver.CreateSolver('GLOP')
+        self.solver = solver
+
+        # Set contours
+        self.contours = find_excluded_contours(self.G, self.I, recovered)
+
+    def init_variables(self):
+        # V1 indicator set
+        self.X1: Dict[int, Variable] = {}
+        self.Y1: Dict[int, Variable] = {}
+
+        # V2 indicator set
+        self.X2: Dict[int, Variable] = {}
+        self.Y2: Dict[int, Variable] = {}
+
+        # Declare Variables
+        for u in self.V1:
+            self.X1[u] = self.solver.NumVar(0, 1, f"V1_x{u}")
+            self.Y1[u] = self.solver.NumVar(0, 1, f"V1_y{u}")
+
+        for v in self.V2:
+            self.X2[v] = self.solver.NumVar(0, 1, f"V2_x{v}")
+            self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
 
 def load_graph_cville():
     G2 = nx.Graph()
