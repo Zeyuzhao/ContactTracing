@@ -367,6 +367,10 @@ def load_able_graph(fp = "undirected_albe_1.90.txt"):
     return G
 
 
+
+
+
+
 def find_contours(G: nx.Graph, infected):
     """Produces contour1 and contour2 from infected"""
     N = G.number_of_nodes()
@@ -523,8 +527,8 @@ def load_graph_cville():
         if w >= 3600:
             c+=1
             G2.add_edge(u,v)
-
-    return G2
+            
+    return (G2, rev_nodes)
 
 def MinExposedTrial(G: nx.Graph, SIR: Tuple[List[int], List[int],
                         List[int]], contours: Tuple[List[int], List[int]], p: float, quarantined_solution: Dict[int, int]):
