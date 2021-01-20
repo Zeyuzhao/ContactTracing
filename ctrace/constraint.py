@@ -493,11 +493,11 @@ class SAA():
 
 def load_graph_cville():
     G2 = nx.Graph()
-    G2.NAME = "able"
+    G2.graph["name"] = "cville"
     nodes = {}
     rev_nodes = []
 
-    file = open("../data/undirected_albe_1.90.txt", "r")
+    file = open(PROJECT_ROOT / "data" / "undirected_albe_1.90.txt", "r")
     file.readline()
     lines = file.readlines()
     c = 0
@@ -529,6 +529,8 @@ def load_graph_cville():
         
     return (G2, rev_nodes)
 
+
+# TODO: Move MinExposed objective to ProbMinExposed class
 def MinExposedTrial(G: nx.Graph, SIR: Tuple[List[int], List[int],
                         List[int]], contours: Tuple[List[int], List[int]], p: float, quarantined_solution: Dict[int, int]):
     """
