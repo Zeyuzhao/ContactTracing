@@ -1,3 +1,6 @@
+from statistics import mean
+
+import EoN
 import networkx as nx
 import matplotlib.pyplot as plt
 import numpy as np
@@ -6,7 +9,7 @@ from collections import defaultdict
 from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Constraint, Solver, Variable, Objective
 
-from typing import Set, Dict, Sequence
+from typing import Set, Dict, Sequence, Tuple, List
 import pickle as pkl
 from pathlib import Path
 
@@ -362,10 +365,6 @@ def load_able_graph(fp = "undirected_albe_1.90.txt"):
     G = nx.from_pandas_edgelist(df, col1, col2)
     G.NAME = "albe"
     return G
-
-
-
-
 
 
 def find_contours(G: nx.Graph, infected):
