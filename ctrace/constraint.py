@@ -439,3 +439,101 @@ def generate_absolute(G, infected, k: int = None, costs: list = None):
         "costs": costs,
         "k": k,
     }
+
+def load_graph_cville():
+    G2 = nx.Graph()
+    G2.NAME = "able"
+    nodes = {}
+
+    file = open("data/undirected_albe_1.90.txt", "r")
+    file.readline()
+    lines = file.readlines()
+    c = 0
+    c_node=0
+
+    for line in lines:
+        #print(line.split())
+        a = line.split()
+        u = int(a[1])
+        if u in nodes.keys():
+            u = nodes[u]
+        else:
+            nodes[u] = c_node
+            u = c_node
+            c_node+=1
+
+        v = int(a[2])
+
+        if v in nodes.keys():
+            v = nodes[v]
+        else:
+            nodes[v] = c_node
+            v = c_node
+            c_node+=1
+
+        w = int(a[3])
+
+        if w >= 3600:
+            c+=1
+            G2.add_edge(u,v)
+            
+    return G2
+
+def MinExposedTrial(G: nx.Graph, SIR: Tuple[List[int], List[int],
+                        List[int]], contours: Tuple[List[int], List[int]], p: float, quarantined_solution: Dict[int, int]):
+    """
+    Parameters
+    ----------
+    G
+        The contact tracing graph with node ids.
+    SIR
+        The tuple of three lists of S, I, R. Each of these lists contain G's node ids.
+    contours
+        A tuple of contour1, contour2.
+    p
+        The transition probability of infection
+    to_quarantine
+        The list of people to quarantine, should be a subset of contour1
+    Returns
+    -------
+    objective_value - The number of people in v_2 who are infected.
+    """
+    _, I, R = SIR
+
+    full_data = EoN.basic_discrete_SIR(G=G, p=p, initial_infecteds=I,
+                                       initial_recovereds=R, tmin=0,
+                                       tmax=1, return_full_data=True)
+
+    # Update S, I, R
+    I = set([k for (k, v) in full_data.get_statuses(
+        time=1).items() if v == 'I'])
+
+    R = set([k for (k, v) in full_data.get_statuses(
+        time=1).items() if v == 'R'])
+
+    to_quarantine = indicatorToSet(quarantined_solution)
+    # Move quarantined to recovered
+    R = list(R & to_quarantine)
+    # Remove quarantined from infected
+    I = [i for i in I if i not in to_quarantine]
+    full_data = EoN.basic_discrete_SIR(G=G, p=p, initial_infecteds=I,
+                                       initial_recovereds=R,
+                                       tmin=0, tmax=1, return_full_data=True)
+
+    # Number of people infected in V_2
+    I = set([k for (k, v) in full_data.get_statuses(
+        time=1).items() if v == 'I'])
+    objective_value = len(set(I) & set(contours[1]))
+    return objective_value
+
+def min_exposed_objective(G: nx.Graph,
+                          SIR: Tuple[List[int], List[int], List[int]],
+                          contours: Tuple[List[int], List[int]],
+                          p: float,
+                          quarantined_solution: Dict[int, int],
+                          trials=5):
+    runs = [MinExposedTrial(G, SIR, contours, p, quarantined_solution) for _ in range(trials)]
+    return mean(runs) #, np.std(runs, ddof=1)
+
+def indicatorToSet(quarantined_solution: Dict[int, int]):
+    return {q for q in quarantined_solution if quarantined_solution[q] == 1}
