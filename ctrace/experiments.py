@@ -64,7 +64,7 @@ def time_trial_tracker(G: nx.graph, I0, safe, cost_constraint, p=.5, method="dep
         raise Exception("invalid method for optimization")
 
 
-return_params = ['I_size', 'v1_size', 'v2_size', 'num_cross_edges', 'maxD', 'min_exposed_value', 'mip_value', 'duration', 'v1_objective', 'greedy_overlap']
+return_params = ['I_size', 'v1_size', 'v2_size', 'num_cross_edges', 'maxD', 'mip_value', 'min_exposed_value', 'duration', 'v1_objective', 'greedy_overlap']
 TimeTrialExtendTrackerInfo = namedtuple("TrackerInfo", return_params)
 def time_trial_extended_tracker(G: nx.graph, p, budget, method, from_cache, **kwargs):
     """
