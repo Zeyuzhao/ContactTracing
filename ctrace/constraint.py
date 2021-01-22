@@ -6,7 +6,19 @@ import numpy as np
 from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Constraint, Solver, Variable, Objective
 
+from typing import Set, Dict, Sequence, Tuple, List
+import pickle as pkl
+from pathlib import Path
+
+import pandas as pd
+
+from . import PROJECT_ROOT
 np.random.seed(42)
+
+# NOTES:
+# Used variables, quaran_raw, quarantined_solution v1 -> fractional indicators
+# Precondition: call solve_lp() -> ObjectiveVal
+#
 
 class ProbMinExposed:
     def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver: str=None):
@@ -248,7 +260,7 @@ class ProbMinExposed:
         # self.objective_value_with_constant = self.objective_value + sum(self.p1[u] for u in self.V1)
 
 class ProbMinExposedRestricted(ProbMinExposed):
-    def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, labels, label_limits, costs=None, solver=None):
+    def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, labels: Dict[int, int], label_limits, costs=None, solver=None):
         """
         Uses the same LP as ProbMinExposed, but with the added constraint of labels.
         Labels (from [0,L-1]) are assigned to every member in contour1, and label_limits sets
@@ -270,13 +282,11 @@ class ProbMinExposedRestricted(ProbMinExposed):
         costs
         solver
         """
-
-        # TODO: Merge with main
         self.L = len(label_limits)
-        if (len(labels) != len(G.nodes)):
-            raise ValueError("labels must match graphs nodes")
+        if (len(labels) != len(contour1)):
+            raise ValueError("labels must match V1 size")
 
-        if (any(map(lambda x: x >= self.L or x < 0, labels))):
+        if any(map(lambda x: x >= self.L or x < 0, labels.values())):
             raise ValueError("labels must correspond to label limits")
 
         if (sum(label_limits) > k):
@@ -306,7 +316,7 @@ class ProbMinExposedMIP(ProbMinExposed):
     """
     def __init__(self, G: nx.Graph, infected, contour1, contour2, p1, q, k, costs=None, solver=None):
         if solver is None:
-            solver = 'SCIP'
+            solver = pywraplp.Solver.CreateSolver('SCIP')
         super().__init__(G, infected, contour1, contour2, p1, q, k, costs, solver)
 
     def init_variables(self):
