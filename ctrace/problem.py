@@ -35,8 +35,25 @@ class MinExposedLP:
     def __init__(self, G: nx.Graph, SIR, budgets, labels, p=None, q=None, solver: str=""):
         pass
 
-    def init_variables(self):
-
 
 class MinExposedMIP:
-    pass
+    def __init__(self, G: nx.Graph, SIR, budgets, p=None, q=None, solver: str = ""):
+        pass
+
+
+class InfectionState:
+    def __init__(self):
+        self.G = None
+        self.S = None
+        self.I_known = None
+        self.I = None
+        self.R = None
+
+    def load_graph(self, name=""):
+        pass
+
+    def load_sir(self):
+        pass
+
+    def save_sir(self):
+        pass
