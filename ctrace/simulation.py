@@ -1,23 +1,17 @@
 import itertools
 import json
-
-import networkx as nx
-import matplotlib.pyplot as plt
-import pandas as pd
-import numpy as np
-import random
-import EoN
 from collections import namedtuple
 
-from .contact_tracing import *
-from .constraint import *
-from .solve import *
+import EoN
+import matplotlib.pyplot as plt
+
 from . import *
+from .solve import *
 
 SIR_TYPE = namedtuple("SIR_TYPE", ["S", "I_QUEUE", "R", "label"])
 
 # (len(R), peak, total_iterated)
-SIM_RETURN = namedtuple("SIM_RETURN", ["num_contracted", "peak_infected", "simulation_length"])
+SIM_RETURN = namedtuple("SIM_RETURN", ["objective_val", "peak_infected"])
 
 def initial_shock(G: nx.graph, timesteps=5, p=0.1, num_shocks=7, verbose=False):
     full_data = EoN.basic_discrete_SIR(
@@ -63,7 +57,7 @@ def initial(G: nx.graph = None, timesteps=5, p=0.1, cache=None, from_cache=None)
     Parameters
     ----------
     G
-        The contact tracing graph
+        The contact tracing graphs
     timesteps
         Number of iterations to run for EON
     p
@@ -123,12 +117,12 @@ def MDP_step(G, S, I_t, R, Q1, Q2, p):
 def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent", visualization=False, verbose=False,
         **kwargs):
     """
-    Simulates a discrete step SIR model on graph G. Infected patients recover within one time period.
+    Simulates a discrete step SIR model on graphs G. Infected patients recover within one time period.
 
     Parameters
     ----------
     G
-        The graph G of disease spread
+        The graphs G of disease spread
     budget
         The "k" value to quarantine per time step
     S
@@ -186,8 +180,7 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
             print(str(t) + " " + str(len(I_t)) + " " +
                   str(len(S)) + " " + str(len(R)))
 
-        (val, recommendation) = to_quarantine(
-            G, I_t, R, budget, method=method, p=p)
+        (val, recommendation) = to_quarantine(G, I_t, R, budget, p=p, method=method)
 
         (S, I_t, R) = MDP_step(G, S, I_t, R, Q_infected, Q_susceptible, p=p)
         # after this, R will contain Q_infected and Q_susceptible
@@ -213,7 +206,7 @@ def MDP(G: nx.graph, budget, S, I_t, R, p=0.5, iterations=10, method="dependent"
         if len(I_t) > peak:
             peak = len(I_t)
 
-        # people are quarantined (removed from graph temporarily after the timestep)
+        # people are quarantined (removed from graphs temporarily after the timestep)
         for (k, v) in recommendation.items():
             if v == 1:
                 if k in S:
@@ -248,20 +241,22 @@ def shock(S, I, num_shocks):
 
 
 def generalized_mdp(G: nx.graph,
-                    p: float,  # Required
-                    budget: int,  # Required
-                    method: str,  # Required
+                    p: float,
+                    budget: int,
+                    method: str,
                     MDP_iterations: int,
-                    num_shocks: int,  # Required
+                    num_shocks: int,
                     num_initial_infections: int,
-                    initial_iterations: int,  # Data
-                    iterations_to_recover: int = 1,  # Required
-                    cache: str = None,  # Data
+                    initial_iterations: int,
+                    iterations_to_recover: int = 1,
+                    cache: str = None,
                     from_cache: str = None,
-                    shock_MDP: bool = False,  # Required
-                    visualization: bool = False,  # Required
+                    shock_MDP: bool = False,
+                    visualization: bool = False,
                     verbose: bool = False,
-                    **kwargs):  # Required
+                    **kwargs):
+
+
     S = set()
     I = set()
     R = set()
@@ -271,7 +266,7 @@ def generalized_mdp(G: nx.graph,
     y1 = []
     y2 = []
     y3 = []
-    
+
     # Data set up
     if from_cache:
         with open(PROJECT_ROOT / "data" / "SIR_Cache" / from_cache, 'r') as infile:
@@ -362,8 +357,7 @@ def generalized_mdp(G: nx.graph,
     for t in iterator:
 
         # get recommended quarantine
-        (val, recommendation) = to_quarantine(
-            G, I, R, budget, method=method, p=p)
+        (val, recommendation) = to_quarantine(G, I, R, budget, p=p, method=method)
 
         # go through one step of the disease spread
         # (S, I, R) = MDP_step(G, S, I, R, Q_infected, Q_susceptible, p=p)
@@ -403,7 +397,7 @@ def generalized_mdp(G: nx.graph,
             total_iterated = t + initial_iterations + 1
             break
         
-        # people are quarantined (removed from graph temporarily after the timestep)
+        # people are quarantined (removed from graphs temporarily after the timestep)
         for (k, v) in recommendation.items():
             if v == 1:
                 if k in S:
@@ -428,4 +422,4 @@ def generalized_mdp(G: nx.graph,
         plt.show()
         
     # TODO: Check return statement
-    return SIM_RETURN(len(R), peak, total_iterated)
+    return SIM_RETURN(len(R), peak)
