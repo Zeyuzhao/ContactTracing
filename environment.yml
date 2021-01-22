@@ -1,6 +1,7 @@
 name: tracing
 channels:
     - defaults
+    - https://conda.anaconda.org/gurobi
 dependencies:
     - numpy
     - networkx

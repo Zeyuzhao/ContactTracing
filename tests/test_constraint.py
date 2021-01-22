@@ -1,10 +1,12 @@
 import random
 
-from ctrace.constraint import find_contours, find_excluded_contours, ProbMinExposedRestricted, load_graph
+from ctrace.constraint import ProbMinExposedRestricted
+from ctrace.dataset import load_graph
+from ctrace.utils import find_contours, find_excluded_contours
 import networkx as nx
 import numpy as np
 
-from ctrace.contact_tracing import PQ_deterministic
+from ctrace.utils import PQ_deterministic
 
 EPSILON = 0.0001
 def test_find_excluded_contours():
@@ -28,7 +30,7 @@ def test_find_excluded_contours():
 
 
 def test_find_excluded_contours_randomized():
-    """Randomly generates graphs and tests by removing the actual nodes from the graph"""
+    """Randomly generates graphs and tests by removing the actual nodes from the graphs"""
     np.random.seed(42)
 
     for i in range(10):
@@ -39,7 +41,7 @@ def test_find_excluded_contours_randomized():
 
         computed = find_excluded_contours(G, I, excluded)
 
-        # Remove nodes from graph and recompute
+        # Remove nodes from graphs and recompute
         G.remove_nodes_from(excluded)
         expected = find_contours(G, I - excluded)
 
@@ -49,7 +51,7 @@ def test_find_excluded_contours_randomized():
 def test_restricted_respect_limits_small():
     np.random.seed(42)
 
-    # Setup contact tracing graph
+    # Setup contact tracing graphs
     G = nx.balanced_tree(3, 3)
     I = {0, 1}
 
