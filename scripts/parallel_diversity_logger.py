@@ -47,7 +47,7 @@ logger.info(f"Current path {sys.path}")
 # Create the SIR datatype (QUEUE version)
 SIR = namedtuple("SIR", ["S", "I_QUEUE", "R", "label"])
 
-# Load montgomery graphs
+# Load montgomery graph
 G = load_graph("montgomery")
 
 # <================================================== Configurations ==================================================>
@@ -57,8 +57,8 @@ G = load_graph("montgomery")
 COMPACT_CONFIG = {
     "G": [G], # Graph
     "p": [0.078], # Probability of infection
-    "budget": [i for i in range(60,1001,4)], # The k value
-    "method": ["random","dependent","weighted"],
+    "budget": [i for i in range(60, 1001, 4)], # The k value
+    "method": ["weighted"],
     "num_initial_infections": [5], # Initial Initial (DATA)
     "num_shocks": [8], # Size of shocks in initial (DATA)
     "initial_iterations": [7], # Number of iterations before intervention

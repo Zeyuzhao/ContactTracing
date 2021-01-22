@@ -15,7 +15,7 @@ import shortuuid
 os.chdir('..')
 sys.path.insert(0, '.')
 
-from ctrace.simulation import *
+from ctrace.restricted import *
 from ctrace import PROJECT_ROOT
 
 # <======================================== Output Configurations ========================================>
@@ -47,31 +47,65 @@ logger.info(f"Current path {sys.path}")
 # Create the SIR datatype (QUEUE version)
 SIR = namedtuple("SIR", ["S", "I_QUEUE", "R", "label"])
 
-# Load montgomery graphs
-G = load_graph("montgomery")
+G2 = nx.Graph()
+G2.NAME = "able"
+nodes = {}
+rev_nodes = []
 
+file = open(PROJECT_ROOT / "data" / "undirected_albe_1.90.txt", "r")
+file.readline()
+lines = file.readlines()
+c = 0
+c_node = 0
+
+# rev_nodes is array
+# maps from graph id to pid
+for line in lines:
+
+    a = line.split()
+    u = int(a[1])
+    v = int(a[2])
+
+    if u in nodes.keys():
+        u = nodes[u]
+    else:
+        nodes[u] = c_node
+        rev_nodes.append(u)
+        u = c_node
+        c_node += 1
+
+    if v in nodes.keys():
+        v = nodes[v]
+    else:
+        nodes[v] = c_node
+        rev_nodes.append(v)
+        v = c_node
+        c_node += 1
+
+    G2.add_edge(u, v)
 # <================================================== Configurations ==================================================>
 
 # Configurations
 # Experiment 1
 COMPACT_CONFIG = {
-    "G": [G], # Graph
-    "p": [0.078], # Probability of infection
-    "budget": [i for i in range(60,1001,4)], # The k value
-    "method": ["random","dependent","weighted"],
+    "G": [G2], # Graph
+    "p": [0.06], # Probability of infection
+    "budget": [500,1000,1500,2000], # The k value
+    "method": ["rweighted"],
     "num_initial_infections": [5], # Initial Initial (DATA)
     "num_shocks": [8], # Size of shocks in initial (DATA)
-    "initial_iterations": [7], # Number of iterations before intervention
+    "initial_iterations": [5], # Number of iterations before intervention
     "MDP_iterations": [-1], # Number of iterations of intervention
     "iterations_to_recover": [1], # Number of iterations it takes for a infected node to recover (set to 1)
-    "from_cache": ['t7.json'], # If cache is specified, some arguments are ignored
+    "from_cache": ['a5.json'], # If cache is specified, some arguments are ignored
     "verbose": [False], # Prints stuff
+    "rev_nodes": [rev_nodes],
     "trials": 10, # Number of trials to run for each config
 }
 
 # Attributes need to partition configuration! Do NOT have duplicate attributes
 COMPLEX = ["G"] # Attributes that need to be processed before printing
-HIDDEN = ["visualization", "verbose", "trials"] # These attributes will NOT be logged at all
+HIDDEN = ["visualization", "verbose", "trials", "rev_nodes"] # These attributes will NOT be logged at all
 
 # Anything not in PRIMITIVE or HIDDEN
 PRIMITIVE = list(COMPACT_CONFIG.keys() - set(COMPLEX) - set(HIDDEN)) # Attributes that will be printed as is
@@ -117,7 +151,7 @@ def MDP_runner(param):
     readable_params = readable_configuration(param)
     logger.info(f"Launching => {readable_params}")
 
-    (infected, peak, iterations) = generalized_mdp(**param)
+    (infected, peak, iterations) = r_mdp(**param)
     return (infected, peak, iterations), readable_params
 
 
@@ -143,6 +177,26 @@ def parallel_MDP(args: List[Dict]):
             output_file.flush()
             logger.info(f"Finished => {entry}")
 
+def linear_MDP(args: List[Dict]):
+    with open(OUTPUT_FILE, "w") as output_file:
+        writer = csv.DictWriter(output_file, fieldnames=COMPLEX + PRIMITIVE + RESULTS)
+        writer.writeheader()
+        for arg in tqdm(args, total=len(args)):
+            ((infected, peak, iterations), readable) = MDP_runner(arg)
+
+            # Merge the two dictionaries, with results taking precedence
+            entry = readable
+            result_dict = {
+                "infected": infected,
+                "peak": peak,
+                "iterations_completed": iterations,
+            }
+            entry.update(result_dict)
+
+            # Write and flush results
+            writer.writerow(entry)
+            output_file.flush()
+            logger.info(f"Finished => {entry}")
 
 # Main
 print(f'Logging Directory: {LOGGING_FILE}')

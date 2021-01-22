@@ -47,24 +47,59 @@ logger.info(f"Current path {sys.path}")
 # Create the SIR datatype (QUEUE version)
 SIR = namedtuple("SIR", ["S", "I_QUEUE", "R", "label"])
 
-# Load montgomery graphs
-G = load_graph("montgomery")
+# Load montgomery graph
+G2 = nx.Graph()
+G2.NAME = "able"
+nodes = {}
+
+file = open("data/undirected_albe_1.90.txt", "r")
+file.readline()
+lines = file.readlines()
+c = 0
+c_node=0
+
+for line in lines:
+    #print(line.split())
+    a = line.split()
+    u = int(a[1])
+    if u in nodes.keys():
+        u = nodes[u]
+    else:
+        nodes[u] = c_node
+        u = c_node
+        c_node+=1
+        
+    v = int(a[2])
+    
+    if v in nodes.keys():
+        v = nodes[v]
+    else:
+        nodes[v] = c_node
+        v = c_node
+        c_node+=1
+
+    w = int(a[3])
+    
+    if w >= 3600:
+        c+=1
+        G2.add_edge(u,v)
 
 # <================================================== Configurations ==================================================>
 
 # Configurations
 # Experiment 1
 COMPACT_CONFIG = {
-    "G": [G], # Graph
-    "p": [0.078], # Probability of infection
-    "budget": [i for i in range(60,1001,4)], # The k value
-    "method": ["random","dependent","weighted"],
-    "num_initial_infections": [5], # Initial Initial (DATA)
-    "num_shocks": [8], # Size of shocks in initial (DATA)
-    "initial_iterations": [7], # Number of iterations before intervention
+    "G": [G2], # Graph
+    "p": [0.06], # Probability of infection
+    #"budget": [10],
+    "budget": [i for i in range(500,2001,10)], # The k value
+    "method": ["dependent"],
+    "num_initial_infections": [1], # Initial Initial (DATA)
+    "num_shocks": [0], # Size of shocks in initial (DATA)
+    "initial_iterations": [1], # Number of iterations before intervention
     "MDP_iterations": [-1], # Number of iterations of intervention
     "iterations_to_recover": [1], # Number of iterations it takes for a infected node to recover (set to 1)
-    "from_cache": ['t7.json'], # If cache is specified, some arguments are ignored
+    "from_cache": ['a5.json'], # If cache is specified, some arguments are ignored
     "verbose": [False], # Prints stuff
     "trials": 10, # Number of trials to run for each config
 }

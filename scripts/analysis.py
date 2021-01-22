@@ -1,6 +1,6 @@
 import pandas as pd
 
-with open("../output/plots/logging.csv", "r") as csv:
+with open("../output/archive/plots/logging.csv", "r") as csv:
     df = pd.read_csv(csv)
 print(df)
 random = df.loc[df["method"] == "random"]
