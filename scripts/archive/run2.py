@@ -12,8 +12,8 @@ import concurrent.futures
 import shortuuid
 
 # Set path to ContactTracing/
-os.chdir('..')
-sys.path.insert(0, '.')
+os.chdir('../..')
+sys.path.insert(0, '..')
 
 from ctrace.simulation import *
 from ctrace import PROJECT_ROOT

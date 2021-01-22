@@ -12,10 +12,11 @@ import concurrent.futures
 import shortuuid
 
 # Set path to ContactTracing/
-os.chdir('..')
-sys.path.insert(0, '.')
+os.chdir('../..')
+sys.path.insert(0, '..')
 
 from ctrace.simulation import *
+from ctrace.dataset import *
 from ctrace import PROJECT_ROOT
 
 # <======================================== Output Configurations ========================================>
@@ -54,11 +55,12 @@ G = load_graph("montgomery")
 
 # Configurations
 # Experiment 1
+MAX_WORKERS = 3
 COMPACT_CONFIG = {
     "G": [G], # Graph
     "p": [0.078], # Probability of infection
-    "budget": [i for i in range(60, 1001, 4)], # The k value
-    "method": ["weighted"],
+    "budget": [i for i in range(500, 550, 4)], # The k value
+    "method": ["gurobi"],
     "num_initial_infections": [5], # Initial Initial (DATA)
     "num_shocks": [8], # Size of shocks in initial (DATA)
     "initial_iterations": [7], # Number of iterations before intervention
@@ -71,7 +73,7 @@ COMPACT_CONFIG = {
 
 # Attributes need to partition configuration! Do NOT have duplicate attributes
 COMPLEX = ["G"] # Attributes that need to be processed before printing
-HIDDEN = ["visualization", "verbose", "trials"] # These attributes will NOT be logged at all
+HIDDEN = ["visualization", "verbose", "trials", "logging"] # These attributes will NOT be logged at all
 
 # Anything not in PRIMITIVE or HIDDEN
 PRIMITIVE = list(COMPACT_CONFIG.keys() - set(COMPLEX) - set(HIDDEN)) # Attributes that will be printed as is
@@ -122,7 +124,7 @@ def MDP_runner(param):
 
 
 def parallel_MDP(args: List[Dict]):
-    with concurrent.futures.ProcessPoolExecutor() as executor, open(OUTPUT_FILE, "w") as output_file:
+    with concurrent.futures.ProcessPoolExecutor(max_workers=MAX_WORKERS) as executor, open(OUTPUT_FILE, "w") as output_file:
         results = [executor.submit(MDP_runner, arg) for arg in args]
         writer = csv.DictWriter(output_file, fieldnames=COMPLEX + PRIMITIVE + RESULTS)
         writer.writeheader()
@@ -143,9 +145,30 @@ def parallel_MDP(args: List[Dict]):
             output_file.flush()
             logger.info(f"Finished => {entry}")
 
+def linear_MDP(args: List[Dict]):
+    with open(OUTPUT_FILE, "w") as output_file:
+        writer = csv.DictWriter(output_file, fieldnames=COMPLEX + PRIMITIVE + RESULTS)
+        writer.writeheader()
+        for arg in tqdm(args, total=len(args)):
+            ((infected, peak, iterations), readable) = MDP_runner(arg)
+
+            # Merge the two dictionaries, with results taking precedence
+            entry = readable
+            result_dict = {
+                "infected": infected,
+                "peak": peak,
+                "iterations_completed": iterations,
+            }
+            entry.update(result_dict)
+
+            # Write and flush results
+            writer.writerow(entry)
+            output_file.flush()
+            logger.info(f"Finished => {entry}")
+
 
 # Main
 print(f'Logging Directory: {LOGGING_FILE}')
 expanded_configs = expand_configurations(COMPACT_CONFIG)
-parallel_MDP(expanded_configs)
+linear_MDP(expanded_configs)
 print('done')
