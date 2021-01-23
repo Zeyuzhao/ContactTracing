@@ -1,65 +1,48 @@
+import abc
+import math
+from abc import ABC
 from collections import defaultdict
 from typing import Dict
 
 import networkx as nx
 import numpy as np
 from ortools.linear_solver import pywraplp
-from ortools.linear_solver.pywraplp import Constraint, Solver, Variable, Objective
-
-from typing import Set, Dict, Sequence, Tuple, List
-import pickle as pkl
-from pathlib import Path
-
-import pandas as pd
-
-from . import PROJECT_ROOT
-
-class MinExposed:
-    def __init__(self, G: nx.Graph, SIR, p, q, k, solver: str=""):
-        pass
-
-    def init_variables(self):
-        raise NotImplementedError
-
-    def init_constraints(self):
-        raise NotImplementedError
-
-    def solve_lp(self):
-        pass
-
-    def get_array_variables(self):
-        """Returns array representation of indicator variables"""
-        raise NotImplementedError
-
-    def set_array_variable(self, index: int, value: int):
-        """Sets the the ith indicator variable in the array representation"""
-        pass
-
-    def set_variable_id(self, id: int, value: int):
-        """Sets a V1 indicator by its id"""
-        pass
-
-    def get_solution(self):
-        raise NotImplementedError
-
-
-class MinExposedLP:
-    def __init__(self, G: nx.Graph, SIR, budgets, labels, p=None, q=None, solver: str=""):
-        pass
-
-
-class MinExposedMIP:
-    def __init__(self, G: nx.Graph, SIR, budgets, p=None, q=None, solver: str = ""):
-        pass
-
+from ortools.linear_solver.pywraplp import Constraint, Variable, Objective
 
 class InfectionState:
-    def __init__(self):
-        self.G = None
-        self.S = None
-        self.I_known = None
-        self.I = None
-        self.R = None
+    def __init__(self, G, S, I, I_known, R, p):
+        self.G: nx.Graph = nx.Graph()
+
+        # SIR (with limited visibility of infected nodes)
+        self.S: set = set()
+        # Contours stores I, V1, V2 ...
+        self.contours = [set()]
+        self.contours_known = [set()]
+        self.R: set = set()
+
+        self.p: int = 0
+        # TODO: Is this code efficient?
+        self.init_pq("independent")
+
+    def init_pq(self, method="constant"):
+        if method == "absolute":
+            self.P = defaultdict(lambda: 1)
+            self.Q = defaultdict(lambda: defaultdict(lambda: 1))
+            return True
+        if method == "independent": # TODO: Test!
+            self.P = {}
+            for u in self.contours_known[1]:
+                # Count the number of neighbors in infected
+                count = sum((v in self.contours_known[0]) for v in self.G.neighbors(u))
+                self.P[u] = 1 - math.pow(1 - self.p, count)
+            self.Q = defaultdict(lambda: defaultdict(lambda: self.p))
+            return True
+        if method == "uniform":
+            pass
+        raise ValueError(f'Method "{method}" is invalid')
+
+    def init_contours(self):
+        pass
 
     def load_graph(self, name=""):
         pass
@@ -68,4 +51,168 @@ class InfectionState:
         pass
 
     def save_sir(self):
+        pass
+
+
+class MinExposed(ABC):
+    def __init__(self, infection_state: InfectionState, budget, solver_id: str = "GUROBI"):
+        self.G = infection_state.G
+        self.contour1, self.contour2 = infection_state.contours()
+        self.budget = budget
+
+        # Compute P, Q from SIR
+        self.P, self.Q = PQ_deterministic()
+
+        self.solver = pywraplp.Solver.CreateSolver(solver_id)
+
+        # Partial evaluation storage
+        self.partials = {}
+
+        # controllable - contour1
+        self.X1: Dict[int, Variable] = {}
+        self.Y1: Dict[int, Variable] = {}
+
+        # non-controllable - contour2
+        self.X2: Dict[int, Variable] = {}
+        self.Y2: Dict[int, Variable] = {}
+        self.init_variables()
+
+        # Initialize constraints
+        self.init_constraints()
+
+    @abc.abstractmethod
+    def init_variables(self):
+        """Declare variables as needed"""
+        pass
+
+    def init_constraints(self):
+        """Initializes the constraints according to the relaxed LP formulation of MinExposed"""
+
+        # X-Y are opposite
+        for u in self.contour1:
+            self.solver.Add(self.X1[u] + self.Y1[u] == 1)
+        for v in self.contour2:
+            self.solver.Add(self.X2[v] + self.Y2[v] == 1)
+
+        # cost (number of people quarantined) must be within budget
+        cost: Constraint = self.solver.Constraint(0, self.budget)
+        for u in self.contour1:
+            cost.SetCoefficient(self.X1[u], 1)
+
+        for u in self.contour1:
+            for v in self.G.neighbors(u):
+                if v in self.contour2:
+                    c = self.Q[u][v] * self.P[u]
+                    self.solver.Add(self.Y2[v] >= c * self.Y1[u])
+
+        # Objective: Minimize number of people exposed in contour2
+        num_exposed: Objective = self.solver.Objective()
+        for v in self.contour2:
+            num_exposed.SetCoefficient(self.Y2[v], 1)
+        num_exposed.SetMinimization()
+
+    def solve_lp(self):
+        """
+        Solves the LP problem and computes the LP objective value
+        Returns
+        -------
+        None
+        Sets the following variables:
+        self.objective_value
+            The objective value of the LP solution
+        self.is_optimal
+            Whether the LP solver reached an optimal solution
+        self.quarantined_solution
+            An dictionary mapping from V1 node id to its fractional solution
+        self.quarantine_raw
+            An array (dense) of the LP V1 (fractional) fractional solutions
+        self.quarantine_map
+            Maps the array index to the V1 node id
+        """
+
+        # Reset variables
+        self.objective_value = 0
+        self.quarantine_map = [] # Maps from dense to id
+        self.quarantine_raw = np.zeros(len(self.X1))
+        self.quarantined_solution = {}
+        self.is_optimal = False
+
+        status = self.solver.Solve()
+        if status == self.solver.INFEASIBLE:
+            raise ValueError("Infeasible solution")
+
+        if status == self.solver.OPTIMAL:
+            self.is_optimal = True
+        else:
+            self.is_optimal = False
+
+        # Indicators
+        for i, u in enumerate(self.contour1):
+            self.quarantine_raw[i] = self.quarantined_solution[u] = self.X1[u].solution_value()
+            self.quarantine_map.append(u)
+
+        # Number of people exposed in V2
+        self.objective_value = 0
+        for v in self.contour2:
+            self.objective_value += self.Y2[v].solution_value()
+
+    def get_variables(self):
+        """Returns array representation of indicator variables"""
+        return self.quarantine_raw
+
+    def set_variable(self, index: int, value: int):
+        """
+        Sets the ith V1 indicator using dense array index to value int.
+        May only use after solve_lp
+
+        Parameters
+        ----------
+        index
+            An array index of the dense representation
+        value
+            An integer of value 0 or 1
+        Returns
+        -------
+        None
+        """
+        i = self.quarantine_map[index]
+        self.set_variable_id(i, value)
+
+    def set_variable_id(self, id: int, value: int):
+        """
+        Sets the ith V1 indicator by node id to value
+
+        Parameters
+        ----------
+        id
+            Node Id of a node in V1
+        value
+            An integer of value 0 or 1
+        Returns
+        -------
+        None
+        """
+        if id in self.partials:
+            raise ValueError(f"in {id} is already set!")
+        if value not in (0, 1):
+            raise ValueError("Value must be 0 or 1")
+        self.partials[id] = value
+        self.solver.Add(self.X1[id] == value)
+
+    def get_solution(self):
+        return self.quarantined_solution
+
+    def solve(self):
+        # Returns rounded solution
+        self.solve_lp()
+        return self._round(self)
+
+
+class MinExposedLP(MinExposed):
+    def __init__(self, G: nx.Graph, SIR, budgets, labels, p=None, q=None, solver: str=""):
+        pass
+
+
+class MinExposedMIP(MinExposed):
+    def __init__(self, G: nx.Graph, SIR, budgets, p=None, q=None, solver: str = ""):
         pass
