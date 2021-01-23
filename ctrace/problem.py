@@ -1,26 +1,29 @@
 import abc
 import math
 from abc import ABC
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 from typing import Dict
 
 import networkx as nx
 import numpy as np
 from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Constraint, Variable, Objective
+from ctrace.utils import *
 
+
+SIR = namedtuple("SIR", ["S", "I", "R"])
 class InfectionState:
-    def __init__(self, G, S, I, I_known, R, p):
-        self.G: nx.Graph = nx.Graph()
+    """Requires loading of graph"""
+    def __init__(self, G, sir, p):
+        # Requirements on G - needs the name attribute!
+        # G.graph["name"] = {ACTUAL NAME}
+        self.G: nx.Graph = G
 
-        # SIR (with limited visibility of infected nodes)
-        self.S: set = set()
-        # Contours stores I, V1, V2 ...
-        self.contours = [set()]
-        self.contours_known = [set()]
-        self.R: set = set()
+        # visible sir
+        self.sir = sir
+        self.contours = [set(), set()]
 
-        self.p: int = 0
+        self.p: int = p
         # TODO: Is this code efficient?
         self.init_pq("independent")
 
@@ -31,9 +34,9 @@ class InfectionState:
             return True
         if method == "independent": # TODO: Test!
             self.P = {}
-            for u in self.contours_known[1]:
+            for u in self.contours[1]:
                 # Count the number of neighbors in infected
-                count = sum((v in self.contours_known[0]) for v in self.G.neighbors(u))
+                count = sum((v in self.contours[0]) for v in self.G.neighbors(u))
                 self.P[u] = 1 - math.pow(1 - self.p, count)
             self.Q = defaultdict(lambda: defaultdict(lambda: self.p))
             return True
@@ -42,10 +45,16 @@ class InfectionState:
         raise ValueError(f'Method "{method}" is invalid')
 
     def init_contours(self):
+        # Initialize known contours
+        v1, v2 = find_excluded_contours(self.G, self.sir.I, self.sir.R)
+        self.contours.append(v1)
+        self.contours.append(v2)
+
+    def solve(self):
         pass
 
     def load_graph(self, name=""):
-        pass
+        raise NotImplementedError("Too slow to run")
 
     def load_sir(self):
         pass
@@ -54,8 +63,9 @@ class InfectionState:
         pass
 
 
-class MinExposed(ABC):
-    def __init__(self, infection_state: InfectionState, budget, solver_id: str = "GUROBI"):
+class MinExposed(InfectionState):
+    def __init__(self, budget, G, S, I, I_known, R, p, solver_id: str = "GUROBI"):
+        super().__init__(G, S, I, I_known, R, p)
         self.G = infection_state.G
         self.contour1, self.contour2 = infection_state.contours()
         self.budget = budget
