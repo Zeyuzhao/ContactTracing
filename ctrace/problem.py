@@ -88,7 +88,7 @@ class MinExposed(ABC):
     def init_constraints(self):
         """Initializes the constraints according to the relaxed LP formulation of MinExposed"""
 
-        # X-Y are opposite
+        # X-Y are complements
         for u in self.contour1:
             self.solver.Add(self.X1[u] + self.Y1[u] == 1)
         for v in self.contour2:
@@ -98,7 +98,8 @@ class MinExposed(ABC):
         cost: Constraint = self.solver.Constraint(0, self.budget)
         for u in self.contour1:
             cost.SetCoefficient(self.X1[u], 1)
-
+	
+	# Y2[v] becomes a lower bound for the probability that vertex v is infected
         for u in self.contour1:
             for v in self.G.neighbors(u):
                 if v in self.contour2:
