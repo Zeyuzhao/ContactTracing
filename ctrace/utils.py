@@ -53,7 +53,7 @@ def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int]):
     v2 = union_neighbors(G, v1, set(v1) | set(infected) | set(excluded))
     return (v1, v2)
 
-def PQ_deterministic(G: nx.Graph, I: Iterable[int], V1: Iterable[int], p: float):
+def pq_independent(G: nx.Graph, I: Iterable[int], V1: Iterable[int], p: float):
     # Returns dictionary P, Q
     # Calculate P, (1-P) ^ [number of neighbors in I]
     P = {v: 1 - math.pow((1 - p), len(set(G.neighbors(v)) & set(I))) for v in V1}
