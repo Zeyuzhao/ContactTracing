@@ -108,8 +108,8 @@ class MinExposed(InfectionState):
         cost: Constraint = self.solver.Constraint(0, self.budget)
         for u in self.contour1:
             cost.SetCoefficient(self.X1[u], 1)
-	
-	# Y2[v] becomes a lower bound for the probability that vertex v is infected
+
+        # Y2[v] becomes a lower bound for the probability that vertex v is infected
         for u in self.contour1:
             for v in self.G.neighbors(u):
                 if v in self.contour2:
