@@ -10,60 +10,18 @@ from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Constraint, Variable, Objective
 from ctrace.utils import *
 
-
-SIR = namedtuple("SIR", ["S", "I", "R"])
-class InfectionState:
-    """Requires loading of graph"""
-    def __init__(self, G, sir, p):
-        # Requirements on G - needs the name attribute!
-        # G.graph["name"] = {ACTUAL NAME}
-        self.G: nx.Graph = G
-
-        # visible sir
-        self.sir = sir
-        self.contours = [set(), set()]
-
-        self.p: int = p
-        # TODO: Is this code efficient?
-        self.init_pq("independent")
-
-    def init_pq(self, method="constant"):
-        if method == "absolute":
-            self.P = defaultdict(lambda: 1)
-            self.Q = defaultdict(lambda: defaultdict(lambda: 1))
-            return True
-        if method == "independent": # TODO: Test!
-            self.P = {}
-            for u in self.contours[1]:
-                # Count the number of neighbors in infected
-                count = sum((v in self.contours[0]) for v in self.G.neighbors(u))
-                self.P[u] = 1 - math.pow(1 - self.p, count)
-            self.Q = defaultdict(lambda: defaultdict(lambda: self.p))
-            return True
-        if method == "uniform":
-            pass
-        raise ValueError(f'Method "{method}" is invalid')
-
-    def init_contours(self):
-        # Initialize known contours
-        v1, v2 = find_excluded_contours(self.G, self.sir.I, self.sir.R)
-        self.contours.append(v1)
-        self.contours.append(v2)
-
-    def solve(self):
+class Problem():
+    
+    def recommend():
         pass
+    pass
 
-    def load_graph(self, name=""):
-        raise NotImplementedError("Too slow to run")
-
-    def load_sir(self):
-        pass
-
-    def save_sir(self):
-        pass
+class MaxSave(Problem):
+    
+    pass
 
 
-class MinExposed(InfectionState):
+class MinExposed(Problem):
     def __init__(self, budget, G, S, I, I_known, R, p, solver_id: str = "GUROBI"):
         super().__init__(G, S, I, I_known, R, p)
         self.G = infection_state.G
