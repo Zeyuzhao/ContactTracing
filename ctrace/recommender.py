@@ -2,6 +2,7 @@ import random
 import numpy as np
 
 from .problem import *
+from .round import *
 
 def random(V_1, cost_constraint):
     sample = random.sample(V_1, min(cost_constraint, len(V_1)))
