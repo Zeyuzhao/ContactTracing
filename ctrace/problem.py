@@ -11,6 +11,10 @@ from ortools.linear_solver.pywraplp import Constraint, Variable, Objective
 from ctrace.utils import *
 
 
+class SimulationState:
+    def __init__(self):
+        self.
+
 SIR = namedtuple("SIR", ["S", "I", "R"])
 class InfectionState:
     """Requires loading of graph"""
@@ -63,7 +67,7 @@ class InfectionState:
         pass
 
 
-class MinExposed(InfectionState):
+class MinExposed(ABC):
     def __init__(self, budget, G, S, I, I_known, R, p, solver_id: str = "GUROBI"):
         super().__init__(G, S, I, I_known, R, p)
         self.G = infection_state.G
@@ -219,11 +223,13 @@ class MinExposed(InfectionState):
         return self._round(self)
 
 
+class MinExposedProgram(ABC):
+    pass
+
 class MinExposedLP(MinExposed):
     def __init__(self, G: nx.Graph, SIR, budgets, labels, p=None, q=None, solver: str=""):
         pass
 
-
-class MinExposedMIP(MinExposed):
+class MinExposedIP(MinExposed):
     def __init__(self, G: nx.Graph, SIR, budgets, p=None, q=None, solver: str = ""):
         pass
