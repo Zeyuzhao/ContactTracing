@@ -11,10 +11,6 @@ from ortools.linear_solver.pywraplp import Constraint, Variable, Objective
 from ctrace.utils import *
 
 
-class SimulationState:
-    def __init__(self):
-        self.
-
 SIR = namedtuple("SIR", ["S", "I", "R"])
 class InfectionState:
     """Requires loading of graph"""
@@ -57,17 +53,14 @@ class InfectionState:
     def solve(self):
         pass
 
-    def load_graph(self, name=""):
-        raise NotImplementedError("Too slow to run")
+class MaxSave(Problem):
 
-    def load_sir(self):
-        pass
+    pass
 
     def save_sir(self):
         pass
 
-
-class MinExposed(ABC):
+class MinExposed(Problem):
     def __init__(self, budget, G, S, I, I_known, R, p, solver_id: str = "GUROBI"):
         super().__init__(G, S, I, I_known, R, p)
         self.G = infection_state.G
