@@ -2,17 +2,17 @@ import networkx as nx
 import numpy as np
 import EoN
 import random
+import gym
 
 from .problem import *
 
 
-class SimulationState:
+class SimulationState(gym.Env):
     
-    def __init__(self, G:nx.graph, SIR_real, SIR_known, problem:Problem, transmission_rate:float, compliance_rate:float, global_rate:float):
+    def __init__(self, G:nx.graph, SIR_real, SIR_known, transmission_rate:float, compliance_rate:float, global_rate:float):
         
         self.SIR_real: InfectionState = InfectionState(G, SIR_real)
         self.SIR_known: InfectionState = InfectionState(G, SIR_known)
-        self.strategy: Problem = problem
         self.transmission_rate = transmission_rate
         self.compliance_rate = compliance_rate
         self.global_rate = global_rate
@@ -28,10 +28,8 @@ class SimulationState:
     # equivalent to our previous initial function 
     def generate(self, G:nx.graph, initial_infections:int, ):
         
-    def step(self):
+    def step(self, quarantine_known):
         
-        # get the quarantine recommendation from strategy
-        quarantine_known = strategy.recommend()
         size = np.random.binomial(len(quarantine_known),compliance_rate)
         quarantine_real = set(random.sample(quarantine_known, size))
         
