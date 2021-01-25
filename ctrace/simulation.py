@@ -24,7 +24,8 @@ class SimulationState(gym.Env):
      
     # equivalent to our previous initial function 
     def generate(self, G:nx.graph, initial_infections:int, ):
-        
+        pass
+    
     def step(self, quarantine_known):
         
         size = np.random.binomial(len(quarantine_known),compliance_rate)
@@ -39,10 +40,10 @@ class SimulationState(gym.Env):
 
 class InfectionState:
     
-    def __init__(self, G:nx.graph, (S,I,R)):
+    def __init__(self, G:nx.graph, SIR):
         
         self.graph = G
-        self.SIR = (S,I,R)
+        self.SIR = SIR
         self.quarantined = ([],[],[])
         
     def step(self, p, to_quarantine):
