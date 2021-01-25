@@ -18,8 +18,7 @@ class SimulationState(gym.Env):
     #idk how to use json loading stuff, this is on you Zach, make it pretty please
     def load(self, G:nx.graph, file):
         pass
-        
-        
+
     def save(self):
         pass
      
