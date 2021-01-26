@@ -5,19 +5,24 @@ import networkx as nx
 import numpy as np
 from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Variable, Constraint, Objective
+from .recommender import *
+from .utils import pq_independent, find_excluded_contours
 
-from .utils import pq_independent
 
 class InfectionInfo:
     """Encapsulates the current state of infection given to the agent"""
+
     def __init__(self, G: nx.graph, sir, p):
         self.G = G
         self.sir = sir
         self.budget = 0
         self.p = p
+
     def contours(self):
         return NotImplementedError
 
+
+# Is this abstraction even needed?
 class Problem:
     def __init__(self, info: InfectionInfo):
         self.info = info
@@ -25,6 +30,38 @@ class Problem:
     def recommend(self):
         """Returns an n-sized set of individuals to quarantine"""
         raise NotImplementedError
+
+# Why do we have classes - add additional capability and to conform to standard?
+
+# TODO: Add a Mixin to allow for MinExposed tracking ability?
+class RandomSolver(Problem):
+    def __init__(self, info):
+        super().__init__(info)
+
+    def recommend(self):
+        v1, _ = find_excluded_contours(self.info.G, self.info.sir.I, self.info.sir.R)
+        return rand(v1, self.info.budget)
+
+
+class DegreeSolver(Problem):
+    def __init__(self, info):
+        super().__init__(info)
+
+    def recommend(self):
+        v1, v2 = find_excluded_contours(self.info.G, self.info.sir.I, self.info.sir.R)
+        return degree(self.info.G, v1, v2, self.info.budget)
+
+
+class WeightedSolver(Problem):
+    def __init__(self, info):
+        super().__init__(info)
+
+    def recommend(self):
+        v1, v2 = find_excluded_contours(self.info.G, self.info.sir.I,
+                                        self.info.sir.R)  # Time impact of excluded_contours?
+        P, Q = pq_independent(self.info.G, self.info.sir.I, v1, self.info.p)  # Time impact of pq?
+        return weighted(self.info.G, P, Q, v1, v2, self.info.budget)
+
 
 # Should random, greedy, weighted go under Problem?
 
@@ -34,8 +71,8 @@ class MaxSave(Problem):
 
 class MinExposed(Problem):
     def __init__(self, info: InfectionInfo, recommender):
+        super().__init__(info)
         self._recommender = recommender
-        self.info = info
 
     def min_exposed_objective(self):
         """Simulate the MinExposed Objective outline in the paper"""
@@ -44,8 +81,10 @@ class MinExposed(Problem):
     def recommend(self):
         self._recommender(self.info)
 
+
 class MinExposedProgram(MinExposed):
     def __init__(self, info: InfectionInfo, solver_id):
+        super().__init__(info)
         self.G = info.G
         self.SIR = info.sir
         self.contour1, self.contour2 = info.contours()
@@ -148,6 +187,8 @@ class MinExposedProgram(MinExposed):
         for v in self.contour2:
             self.objective_value += self.Y2[v].solution_value()
 
+        return self.quarantined_solution
+
     def get_variables(self):
         """Returns array representation of indicator variables"""
         return self.quarantine_raw
@@ -195,10 +236,12 @@ class MinExposedProgram(MinExposed):
     def recommend(self):
         raise NotImplementedError
 
+
 class MinExposedLP(MinExposedProgram):
     def __init__(self, info: InfectionInfo, solver_id, rounder):
         super().__init__(info, solver_id)
         self.init_variables()
+        self.rounder = rounder
 
     def init_variables(self):
         # Declare Fractional Variables
@@ -209,6 +252,8 @@ class MinExposedLP(MinExposedProgram):
             self.X2[v] = self.solver.NumVar(0, 1, f"V2_x{v}")
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
 
+    def recommend(self):
+        return self.rounder(self)
 
 
 class MinExposedIP(MinExposedProgram):
@@ -224,4 +269,3 @@ class MinExposedIP(MinExposedProgram):
         for v in self.contour2:
             self.X2[v] = self.solver.NumVar(0, 1, f"V2_x{v}")
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
-

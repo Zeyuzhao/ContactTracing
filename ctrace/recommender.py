@@ -1,10 +1,12 @@
 import random
+from typing import List, Tuple
+
 import numpy as np
 
 from .problem import *
 from .round import *
 
-def random(V_1, cost_constraint):
+def rand(V_1, cost_constraint):
     sample = random.sample(V_1, min(cost_constraint, len(V_1)))
     sol = {}
     for v in V_1:
@@ -34,7 +36,7 @@ def degree(G, V_1, V_2, cost_constraint):
             sol[degrees[i][1]] = 0
     return (-1, sol)
 
-def weighted(G, I0, P, Q, V_1, V_2, cost_constraint, costs):
+def weighted(G, P, Q, V_1, V_2, cost_constraint):
     weights: List[Tuple[int, int]] = []
     for u in V_1:
         w_sum = 0
@@ -69,7 +71,7 @@ def dependent(problem: MinExposedLP):
     return (problem.objective_value, problem.quarantined_solution)
 
 #returns rounded bits and objective value of those bits
-def iterated(problem: ProbMinExposed, d: int):
+def iterated(problem: MinExposedLP, d: int):
     problem.solve_lp()
     probabilities = np.array(problem.get_variables())
     
@@ -100,7 +102,7 @@ def iterated(problem: ProbMinExposed, d: int):
     return (problem.objective_value, problem.quarantined_solution)
 
 #returns rounded bits and objective value of those bits
-def optimized(problem: ProbMinExposed, d: int):
+def optimized(problem: MinExposedLP, d: int):
     problem.solve_lp()
     probabilities = np.array(problem.get_variables())
     
