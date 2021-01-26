@@ -18,7 +18,7 @@ class SimulationState(gym.Env):
     #idk how to use json loading stuff, this is on you Zach, make it pretty please
     def load(self, G:nx.graph, file):
         
-        with open(PROJECT_ROOT / "data" / "SIR_Cache" / from_cache, 'r') as infile:
+        with open(PROJECT_ROOT / "data" / "SIR_Cache" / file, 'r') as infile:
             j = json.load(infile)
             
             if G.name != j['G']:
@@ -45,7 +45,7 @@ class SimulationState(gym.Env):
             "global_rate": self.global_rate
         }
         
-        with open(PROJECT_ROOT / "data" / "SIR_Cache" / from_cache, 'w') as outfile:
+        with open(PROJECT_ROOT / "data" / "SIR_Cache" / file, 'w') as outfile:
             json.dump(to_save, outfile)
             
     # equivalent to our previous initial function 
