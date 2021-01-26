@@ -53,14 +53,9 @@ class InfectionState:
     def solve(self):
         pass
 
-class MaxSave(Problem):
 
-    pass
 
-    def save_sir(self):
-        pass
-
-class MinExposed(Problem):
+class MinExposed():
     def __init__(self, budget, G, S, I, I_known, R, p, solver_id: str = "GUROBI"):
         super().__init__(G, S, I, I_known, R, p)
         self.G = infection_state.G

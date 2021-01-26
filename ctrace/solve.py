@@ -4,8 +4,8 @@ import random
 from typing import Tuple, Set, List
 
 from .constraint import *
-from .utils import find_excluded_contours, PQ_deterministic, max_neighbors
-from .round import *
+from .utils import find_excluded_contours, pq_independent, max_neighbors
+from .recommender import *
 
 from io import StringIO
 import sys

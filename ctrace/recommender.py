@@ -1,10 +1,10 @@
 import random
 import numpy as np
 
-from .problem import *
+from .constraint import *
 from .round import *
 
-def random(V_1, cost_constraint):
+def random_solver(V_1, cost_constraint):
     sample = random.sample(V_1, min(cost_constraint, len(V_1)))
     sol = {}
     for v in V_1:
@@ -55,7 +55,7 @@ def weighted(G, I0, P, Q, V_1, V_2, cost_constraint, costs):
     return -1, sol
 
 #returns rounded bits and objective value of those bits
-def dependent(problem: MinExposedLP):
+def dependent(problem: ProbMinExposed):
     problem.solve_lp()
     probabilities = problem.get_variables()
     rounded = D_prime(np.array(probabilities))
