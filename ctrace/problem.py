@@ -33,56 +33,57 @@ class Problem:
 
 # Why do we have classes - add additional capability and to conform to standard?
 
+# Is it good software practice to call methods after the fact?
+class MaxSaveMixin():
+    def max_save_objective(self):
+        """May only be called after recommend"""
+        if self.result is None:
+            raise ValueError("Must call recommend() before retrieving objective value")
+        raise NotImplementedError
+
+class MinExposedMixin():
+    def min_exposed_objective(self):
+        """Simulate the MinExposed Objective outline in the paper. May only be called after recommend"""
+        if self.result is None:
+            raise ValueError("Must call recommend() before retrieving objective value")
+        raise NotImplementedError
+
 # TODO: Add a Mixin to allow for MinExposed tracking ability?
-class RandomSolver(Problem):
+class RandomSolver(MaxSaveMixin, MinExposedMixin, Problem):
     def __init__(self, info):
         super().__init__(info)
+        self.result = None
 
     def recommend(self):
         v1, _ = find_excluded_contours(self.info.G, self.info.sir.I, self.info.sir.R)
-        return rand(v1, self.info.budget)
+        self.result = rand(v1, self.info.budget)
+        return self.result
 
-
-class DegreeSolver(Problem):
+class DegreeSolver(MaxSaveMixin, MinExposedMixin, Problem):
     def __init__(self, info):
         super().__init__(info)
+        self.result = None
 
     def recommend(self):
         v1, v2 = find_excluded_contours(self.info.G, self.info.sir.I, self.info.sir.R)
-        return degree(self.info.G, v1, v2, self.info.budget)
+        self.result = degree(self.info.G, v1, v2, self.info.budget)
+        return self.result
 
-
-class WeightedSolver(Problem):
+class WeightedSolver(MaxSaveMixin, MinExposedMixin, Problem):
     def __init__(self, info):
         super().__init__(info)
+        self.result = None
 
     def recommend(self):
         v1, v2 = find_excluded_contours(self.info.G, self.info.sir.I,
                                         self.info.sir.R)  # Time impact of excluded_contours?
         P, Q = pq_independent(self.info.G, self.info.sir.I, v1, self.info.p)  # Time impact of pq?
-        return weighted(self.info.G, P, Q, v1, v2, self.info.budget)
-
+        self.result = weighted(self.info.G, P, Q, v1, v2, self.info.budget)
+        return self.result
 
 # Should random, greedy, weighted go under Problem?
 
-class MaxSave(Problem):
-    pass
-
-
-class MinExposed(Problem):
-    def __init__(self, info: InfectionInfo, recommender):
-        super().__init__(info)
-        self._recommender = recommender
-
-    def min_exposed_objective(self):
-        """Simulate the MinExposed Objective outline in the paper"""
-        raise NotImplementedError
-
-    def recommend(self):
-        self._recommender(self.info)
-
-
-class MinExposedProgram(MinExposed):
+class MinExposedProgram(MinExposedMixin, Problem):
     def __init__(self, info: InfectionInfo, solver_id):
         super().__init__(info)
         self.G = info.G
