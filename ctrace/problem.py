@@ -26,7 +26,8 @@ class Problem:
         """Returns an n-sized set of individuals to quarantine"""
         raise NotImplementedError
 
-# Should random, greedy, weighted go under
+# Should random, greedy, weighted go under Problem?
+
 class MaxSave(Problem):
     pass
 
