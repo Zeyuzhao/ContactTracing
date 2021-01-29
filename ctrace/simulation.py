@@ -1,17 +1,22 @@
+import json
+import random
+
+import EoN
+import gym
 import networkx as nx
 import numpy as np
-import EoN
-import random
-import gym
+from typing import Set
 
-
+from . import PROJECT_ROOT
+from collections import namedtuple
+SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I", "R"])
 
 class SimulationState(gym.Env):
     
-    def __init__(self, G:nx.graph, SIR_real, SIR_known, transmission_rate:float, compliance_rate:float, global_rate:float):
-        
-        self.SIR_real: InfectionState = InfectionState(G, SIR_real, transmission_rate)
-        self.SIR_known: InfectionState = InfectionState(G, SIR_known, transmission_rate)
+    def __init__(self, G:nx.graph, SIR_real: SIR_Tuple, SIR_known: SIR_Tuple, budget: int, transmission_rate:float, compliance_rate:float, global_rate:float):
+        self.G = G
+        self.SIR_real: InfectionInfo = InfectionInfo(G, SIR_real, budget, transmission_rate)
+        self.SIR_known: InfectionInfo = InfectionInfo(G, SIR_known, budget, transmission_rate)
         self.compliance_rate = compliance_rate
         self.global_rate = global_rate
         
@@ -28,18 +33,18 @@ class SimulationState(gym.Env):
             SIR_known = (j["S_known"], j["I_known"], j["R_known"])
             
             return SimulationState(G, SIR_real, SIR_known, j["transmission_rate"], j["compliance_rate"], j["global_rate"])
-        
-        
+
     def save(self, file):
         
         to_save = {
-            "G": self.SIR_real.graph.name,
+            "G": self.SIR_real.G.name,
             "S_real": self.SIR_real.SIR[0],
             "I_real": self.SIR_real.SIR[1],
             "R_real": self.SIR_real.SIR[2],
             "S_known": self.SIR_known.SIR[0],
             "I_known": self.SIR_known.SIR[1],
             "R_known": self.SIR_known.SIR[2],
+            "budget": self.SIR_real.budget,
             "transmission_rate": self.SIR_real.transmission_rate,
             "compliance_rate": self.compliance_rate,
             "global_rate": self.global_rate
@@ -50,10 +55,10 @@ class SimulationState(gym.Env):
             
     # equivalent to our previous initial function 
     def generate(self, G:nx.graph, initial_infections:int):
-        pass
-    
-    def step(self, quarantine_known):
-        
+        raise NotImplementedError
+
+    # TODO: Adapt to indicators over entire Graph G
+    def step(self, quarantine_known: Set[int]):
         size = np.random.binomial(len(quarantine_known),self.compliance_rate)
         quarantine_real = set(random.sample(quarantine_known, size))
         
@@ -66,18 +71,17 @@ class SimulationState(gym.Env):
 
 class InfectionInfo:
     
-    def __init__(self, G:nx.graph, SIR, budget:int, transmission_rate:float):
-        
-        self.graph = G
-        self.SIR = SIR
+    def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, transmission_rate:float):
+        self.G = G
+        self.SIR = SIR_Tuple(*SIR)
         self.transmission_rate = transmission_rate
-	self.budget = budget
+        self.budget = budget
         self.quarantined = ([],[],[])
 
     def step(self, to_quarantine):
         
         #this might need to be edited slightly depending on if we are assuming SIR to be lists vs. sets
-        full_data = EoN.basic_discrete_SIR(G=self.graph, p=self.transmission_rate, initial_infecteds=self.SIR[1], initial_recovereds=self.SIR[2]+[item for sublist in self.quarantined for item in sublist], tmin=0, tmax=1, return_full_data=True)
+        full_data = EoN.basic_discrete_SIR(G=self.G, p=self.transmission_rate, initial_infecteds=self.SIR[1], initial_recovereds=self.SIR[2] + [item for sublist in self.quarantined for item in sublist], tmin=0, tmax=1, return_full_data=True)
 
         S = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'S']
         I = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'I']
@@ -98,7 +102,5 @@ class InfectionInfo:
             else:
                 R.remove(node)
                 self.quarantined[2].append(node)
-        
-        
-        self.SIR = (S,I,R)
-        
+
+        self.SIR = SIR_Tuple(S,I,R)
