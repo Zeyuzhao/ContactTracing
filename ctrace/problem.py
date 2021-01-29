@@ -1,98 +1,36 @@
 import abc
 import random
-from typing import Dict, List, Tuple
-
 import networkx as nx
 import numpy as np
+
+from typing import Dict, List, Tuple
 from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Variable, Constraint, Objective
+
 from .round import D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective
 from .simulation import InfectionInfo
 
-
-# Is this abstraction even needed?
-class Problem:
-    def __init__(self, info: InfectionInfo):
+class MinExposedProgram:
+    def __init__(self, info: InfectionInfo, solver_id="GLOP"):
+        
+        self.result = None
         self.info = info
-        self.result = None
-
-    def recommend(self):
-        """Returns an n-sized set of individuals to quarantine"""
-        raise NotImplementedError
-
-# TODO: Why do we have classes - add additional capability and to conform to standard?
-
-# TODO: Is it good software practice to call methods after the fact?
-class MaxSaveMixin:
-    def max_save_objective(self):
-        """May only be called after recommend"""
-        if self.result is None:
-            raise ValueError("Must call recommend() before retrieving objective value")
-        raise NotImplementedError
-
-
-class MinExposedMixin:
-    def min_exposed_objective(self):
-        """Simulate the MinExposed Objective outline in the paper. May only be called after recommend"""
-        if self.result is None:
-            raise ValueError("Must call recommend() before retrieving objective value")
-        min_exposed_objective(self.info.G, self.info.SIR, self.info.transmission_rate, self.result)
-
-
-# TODO: Add a Mixin to allow for MinExposed tracking ability?
-class RandomSolver(MaxSaveMixin, MinExposedMixin, Problem):
-    def __init__(self, info):
-        super().__init__(info)
-        self.result = None
-
-    def recommend(self):
-        v1, _ = find_excluded_contours(self.info.G, self.info.SIR.I, self.info.SIR.R)
-        self.result = rand(v1, self.info.budget)
-        return self.result
-
-
-class DegreeSolver(MaxSaveMixin, MinExposedMixin, Problem):
-    def __init__(self, info):
-        super().__init__(info)
-        self.result = None
-
-    def recommend(self):
-        v1, v2 = find_excluded_contours(self.info.G, self.info.SIR.I, self.info.SIR.R)
-        self.result = degree(self.info.G, v1, v2, self.info.budget)
-        return self.result
-
-
-class WeightedSolver(MaxSaveMixin, MinExposedMixin, Problem):
-    def __init__(self, info):
-        super().__init__(info)
-        self.result = None
-
-    def recommend(self):
-        v1, v2 = find_excluded_contours(self.info.G, self.info.SIR.I,
-                                        self.info.SIR.R)  # Time impact of excluded_contours?
-        P, Q = pq_independent(self.info.G, self.info.SIR.I, v1, self.info.transmission_rate)  # Time impact of pq?
-        self.result = weighted(self.info.G, P, Q, v1, v2, self.info.budget)
-        return self.result
-
-
-# Should random, greedy, weighted go under Problem?
-class MinExposedProgram(MinExposedMixin, Problem):
-    def __init__(self, info: InfectionInfo, solver_id="SCIP"):
-        super().__init__(info)
         self.G = info.G
         self.SIR = info.SIR
-        self.contour1, self.contour2 = find_excluded_contours(self.info.G, self.info.SIR.I, self.info.SIR.R)
         self.budget = info.budget
         self.p = info.transmission_rate
+        self.solver = pywraplp.Solver.CreateSolver(solver_id)
+        
+        if self.solver is None:
+            raise ValueError("Solver failed to initialize!")
+            
+        # Compute V1, V2
+        self.contour1, self.contour2 = find_excluded_contours(self.info.G, self.info.SIR.I, self.info.SIR.R)
 
         # Compute P, Q from SIR
         self.P, self.Q = pq_independent(self.G, self.SIR.I, self.contour1, self.p)
-
-        self.solver = pywraplp.Solver.CreateSolver(solver_id)
-
-        if self.solver is None:
-            raise ValueError("Solver failed to initialize!")
+    
         # Partial evaluation storage
         self.partials = {}
 
@@ -229,15 +167,17 @@ class MinExposedProgram(MinExposedMixin, Problem):
 
     def get_solution(self):
         return self.quarantined_solution
-
-    def recommend(self):
-        raise NotImplementedError
+    
+    def min_exposed_objective(self):
+        """Simulate the MinExposed Objective outline in the paper. May only be called after recommend"""
+        if self.result is None:
+            raise ValueError("Must call recommend() before retrieving objective value")
+        min_exposed_objective(self.info.G, self.info.SIR, self.info.transmission_rate, self.result)
 
 
 class MinExposedLP(MinExposedProgram):
-    def __init__(self, info: InfectionInfo, rounder, solver_id=""):
+    def __init__(self, info: InfectionInfo, solver_id="GLOP"):
         super().__init__(info, solver_id)
-        self.rounder = rounder
 
     def init_variables(self):
         # Declare Fractional Variables
@@ -247,9 +187,6 @@ class MinExposedLP(MinExposedProgram):
         for v in self.contour2:
             self.X2[v] = self.solver.NumVar(0, 1, f"V2_x{v}")
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
-
-    def recommend(self):
-        return self.rounder(self)
 
 
 class MinExposedIP(MinExposedProgram):
@@ -264,8 +201,3 @@ class MinExposedIP(MinExposedProgram):
         for v in self.contour2:
             self.X2[v] = self.solver.NumVar(0, 1, f"V2_x{v}")
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
-
-    def recommend(self):
-        return self.solve_lp()
-
-
