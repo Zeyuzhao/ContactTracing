@@ -6,47 +6,51 @@ import numpy as np
 from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Variable, Constraint, Objective
 from .recommender import *
-from .utils import pq_independent, find_excluded_contours
+from .utils import pq_independent, find_excluded_contours, min_exposed_objective
 
 
 class InfectionInfo:
     """Encapsulates the current state of infection given to the agent"""
 
-    def __init__(self, G: nx.graph, sir, p):
+    def __init__(self, G: nx.graph, sir, p, budget):
         self.G = G
         self.sir = sir
-        self.budget = 0
+        self.budget = budget
         self.p = p
 
     def contours(self):
         return NotImplementedError
 
-
 # Is this abstraction even needed?
 class Problem:
     def __init__(self, info: InfectionInfo):
         self.info = info
+        self.result = None
 
     def recommend(self):
         """Returns an n-sized set of individuals to quarantine"""
         raise NotImplementedError
 
-# Why do we have classes - add additional capability and to conform to standard?
+# TODO: Why do we have classes - add additional capability and to conform to standard?
 
-# Is it good software practice to call methods after the fact?
-class MaxSaveMixin():
+# TODO: Is it good software practice to call methods after the fact?
+class MaxSaveMixin:
     def max_save_objective(self):
         """May only be called after recommend"""
         if self.result is None:
             raise ValueError("Must call recommend() before retrieving objective value")
         raise NotImplementedError
 
-class MinExposedMixin():
+
+class MinExposedMixin:
     def min_exposed_objective(self):
         """Simulate the MinExposed Objective outline in the paper. May only be called after recommend"""
         if self.result is None:
             raise ValueError("Must call recommend() before retrieving objective value")
-        raise NotImplementedError
+        contours = find_excluded_contours(self.info.G, self.info.sir.I, self.info.sir.R)
+
+        min_exposed_objective(self.info.G, self.info.sir, self.info.p, self.result)
+
 
 # TODO: Add a Mixin to allow for MinExposed tracking ability?
 class RandomSolver(MaxSaveMixin, MinExposedMixin, Problem):
@@ -59,6 +63,7 @@ class RandomSolver(MaxSaveMixin, MinExposedMixin, Problem):
         self.result = rand(v1, self.info.budget)
         return self.result
 
+
 class DegreeSolver(MaxSaveMixin, MinExposedMixin, Problem):
     def __init__(self, info):
         super().__init__(info)
@@ -68,6 +73,7 @@ class DegreeSolver(MaxSaveMixin, MinExposedMixin, Problem):
         v1, v2 = find_excluded_contours(self.info.G, self.info.sir.I, self.info.sir.R)
         self.result = degree(self.info.G, v1, v2, self.info.budget)
         return self.result
+
 
 class WeightedSolver(MaxSaveMixin, MinExposedMixin, Problem):
     def __init__(self, info):
@@ -81,8 +87,8 @@ class WeightedSolver(MaxSaveMixin, MinExposedMixin, Problem):
         self.result = weighted(self.info.G, P, Q, v1, v2, self.info.budget)
         return self.result
 
-# Should random, greedy, weighted go under Problem?
 
+# Should random, greedy, weighted go under Problem?
 class MinExposedProgram(MinExposedMixin, Problem):
     def __init__(self, info: InfectionInfo, solver_id):
         super().__init__(info)
@@ -270,3 +276,6 @@ class MinExposedIP(MinExposedProgram):
         for v in self.contour2:
             self.X2[v] = self.solver.NumVar(0, 1, f"V2_x{v}")
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
+
+    def recommend(self):
+        return self.rounder(self)
