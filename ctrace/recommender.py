@@ -6,6 +6,7 @@ import networkx as nx
 from .round import D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective
 
+#change them so it takes in a simulation_state parameter, preferably called state
 def rand(V_1, cost_constraint):
     sample = random.sample(V_1, min(cost_constraint, len(V_1)))
     sol = {}
@@ -58,7 +59,7 @@ def weighted(G, P, Q, V_1, V_2, cost_constraint):
             sol[u] = 0
     return -1, sol
 
-
+"""
 # returns rounded bits and objective value of those bits
 def dependent(problem: MinExposedLP):
     problem.solve_lp()
@@ -160,3 +161,4 @@ def optimized(problem: MinExposedLP, d: int):
     problem.solve_lp()
 
     return (problem.objective_value, problem.quarantined_solution)
+    """
