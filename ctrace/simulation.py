@@ -64,13 +64,14 @@ class SimulationState(gym.Env):
         # need to do post processing of I_known, but we don't know how they want this yet 
         
 
-class InfectionState:
+class InfectionInfo:
     
-    def __init__(self, G:nx.graph, SIR, transmission_rate:float):
+    def __init__(self, G:nx.graph, SIR, budget:int, transmission_rate:float):
         
         self.graph = G
         self.SIR = SIR
         self.transmission_rate = transmission_rate
+	self.budget = budget
         self.quarantined = ([],[],[])
 
     def step(self, to_quarantine):
