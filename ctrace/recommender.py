@@ -5,63 +5,40 @@ import networkx as nx
 
 from .round import D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective
+from .simulation import *
+from .problem import MinExposedLP
 
-#change them so it takes in a simulation_state parameter, preferably called state
-def rand(V_1, cost_constraint):
-    sample = random.sample(V_1, min(cost_constraint, len(V_1)))
-    sol = {}
-    for v in V_1:
-        if v in sample:
-            sol[v] = 1
-        else:
-            sol[v] = 0
-    return (-1, sol)
+def Random(state: SimulationState):
+    v1, _ = find_excluded_contours(state.SIR_known.G, state.SIR_known.SIR.I, state.SIR_known.SIR.R)
+    return set(random.sample(v1, min(state.SIR_real.budget, len(v1))))
 
 
-def degree(G, V_1, V_2, cost_constraint):
-    # calculate degree of each vertex in V_1
+def Degree(state: SimulationState):
+    v1, v2 = find_excluded_contours(state.SIR_known.G, state.SIR_known.SIR.I, state.SIR_known.SIR.R)
     degrees = []
-    for u in V_1:
-        count = 0
-        for v in set(G.neighbors(u)):
-            if v in V_2:
-                count += 1
-
+    for u in v1:
+        count = sum([1 for v in set(state.SIR_known.G.neighbors(u)) if v in v2])
         degrees.append((count, u))
-    degrees.sort()
-    degrees.reverse()
-    sol = {}
-    for i in range(len(V_1)):
-        if i < cost_constraint:
-            sol[degrees[i][1]] = 1
-        else:
-            sol[degrees[i][1]] = 0
-    return (-1, sol)
+    degrees.sort(reverse=True)
+    return {degrees[i][1] for i in range(min(state.SIR_real.budget,len(degrees)))}
 
 
-def weighted(G, P, Q, V_1, V_2, cost_constraint):
+def DegGreedy(state: SimulationState):
+    v1, v2 = find_excluded_contours(state.SIR_known.G, state.SIR_known.SIR.I, state.SIR_known.SIR.R)
+    P, Q = pq_independent(state.SIR_known.G, state.SIR_known.SIR.I, v1, state.SIR_known.transmission_rate)
     weights: List[Tuple[int, int]] = []
-    for u in V_1:
-        w_sum = 0
-        for v in set(G.neighbors(u)):
-            if v in V_2:
-                w_sum += Q[u][v]
+    for u in v1:
+        w_sum = sum([Q[u][v] for v in set(state.SIR_known.G.neighbors(u)) if v in v2])
         weights.append((P[u] * w_sum, u))
     # Get the top k (cost_constraint) V1s ranked by w_u = p_u * sum(q_uv for v in v2)
     weights.sort(reverse=True)
-    topK = weights[:cost_constraint]
-    topK = {i[1] for i in topK}
-    sol = {}
-    for u in V_1:
-        if u in topK:
-            sol[u] = 1
-        else:
-            sol[u] = 0
-    return -1, sol
+    return {i[1] for i in weights[:state.SIR_real.budget]}
 
-"""
-# returns rounded bits and objective value of those bits
-def dependent(problem: MinExposedLP):
+
+def DepRound(state: SimulationState):
+    
+    problem = MinExposedLP(state.SIR_known)
+    
     problem.solve_lp()
     probabilities = problem.get_variables()
     rounded = D_prime(np.array(probabilities))
@@ -72,7 +49,7 @@ def dependent(problem: MinExposedLP):
 
     problem.solve_lp()
 
-    return (problem.objective_value, problem.quarantined_solution)
+    return set([k for (k,v) in problem.quarantined_solution.items() if v==1])
 
 
 # returns rounded bits and objective value of those bits
@@ -161,4 +138,3 @@ def optimized(problem: MinExposedLP, d: int):
     problem.solve_lp()
 
     return (problem.objective_value, problem.quarantined_solution)
-    """
