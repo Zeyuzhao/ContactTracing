@@ -13,9 +13,7 @@ dependencies:
     - requests
     - pip
     - jupyter
-    - jupyterlab
     - tqdm
     - pip:
           - EoN
           - ortools
-          - shortuuid
