@@ -37,9 +37,7 @@ class MinExposedMixin:
         """Simulate the MinExposed Objective outline in the paper. May only be called after recommend"""
         if self.result is None:
             raise ValueError("Must call recommend() before retrieving objective value")
-        contours = find_excluded_contours(self.info.G, self.info.SIR.I, self.info.SIR.R)
-
-        min_exposed_objective(self.info.G, self.info.SIR, self.info.p, self.result)
+        min_exposed_objective(self.info.G, self.info.SIR, self.info.transmission_rate, self.result)
 
 
 # TODO: Add a Mixin to allow for MinExposed tracking ability?
@@ -73,14 +71,14 @@ class WeightedSolver(MaxSaveMixin, MinExposedMixin, Problem):
     def recommend(self):
         v1, v2 = find_excluded_contours(self.info.G, self.info.SIR.I,
                                         self.info.SIR.R)  # Time impact of excluded_contours?
-        P, Q = pq_independent(self.info.G, self.info.SIR.I, v1, self.info.p)  # Time impact of pq?
+        P, Q = pq_independent(self.info.G, self.info.SIR.I, v1, self.info.transmission_rate)  # Time impact of pq?
         self.result = weighted(self.info.G, P, Q, v1, v2, self.info.budget)
         return self.result
 
 
 # Should random, greedy, weighted go under Problem?
 class MinExposedProgram(MinExposedMixin, Problem):
-    def __init__(self, info: InfectionInfo, solver_id):
+    def __init__(self, info: InfectionInfo, solver_id="SCIP"):
         super().__init__(info)
         self.G = info.G
         self.SIR = info.SIR
@@ -237,7 +235,7 @@ class MinExposedProgram(MinExposedMixin, Problem):
 
 
 class MinExposedLP(MinExposedProgram):
-    def __init__(self, info: InfectionInfo, solver_id, rounder):
+    def __init__(self, info: InfectionInfo, rounder, solver_id=""):
         super().__init__(info, solver_id)
         self.rounder = rounder
 
