@@ -6,7 +6,6 @@ import EoN
 import networkx as nx
 import numpy as np
 from typing import Set
-<<<<<<< HEAD
 from collections import namedtuple
 
 from .utils import find_excluded_contours
