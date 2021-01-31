@@ -6,9 +6,11 @@ import gym
 import networkx as nx
 import numpy as np
 from typing import Set
+<<<<<<< HEAD
 from collections import namedtuple
 
 from .utils import find_excluded_contours
+import random
 from . import PROJECT_ROOT
 SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I", "R"])
 
@@ -23,7 +25,6 @@ class SimulationState(gym.Env):
         
     # returns a SimulationState object loaded from a file
     def load(self, G:nx.graph, file):
-        
         with open(PROJECT_ROOT / "data" / "SIR_Cache" / file, 'r') as infile:
             j = json.load(infile)
             
@@ -60,8 +61,8 @@ class SimulationState(gym.Env):
 
     # TODO: Adapt to indicators over entire Graph G
     def step(self, quarantine_known: Set[int]):
-        size = np.random.binomial(len(quarantine_known),self.compliance_rate)
-        quarantine_real = set(random.sample(quarantine_known, size))
+        # Sample each member independently with probability compliance_rate
+        quarantine_real = {i for i in quarantine_known if random.random() < self.compliance_rate}
         
         # moves the timestep forward by 1
         self.SIR_real.step(quarantine_real)
