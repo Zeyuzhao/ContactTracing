@@ -9,16 +9,26 @@ from typing import Set
 import random
 from . import PROJECT_ROOT
 from collections import namedtuple
+from typing import Set
 SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I", "R"])
 
 class SimulationState(gym.Env):
     
     def __init__(self, G:nx.graph, SIR_real: SIR_Tuple, SIR_known: SIR_Tuple, budget: int, transmission_rate:float, compliance_rate:float, global_rate:float):
         self.G = G
-        self.SIR_real: InfectionInfo = InfectionInfo(G, SIR_real, budget, transmission_rate)
-        self.SIR_known: InfectionInfo = InfectionInfo(G, SIR_known, budget, transmission_rate)
+        self.SIR_real = SIR_real
+        self.SIR_known = SIR_known
+
         self.compliance_rate = compliance_rate
         self.global_rate = global_rate
+        self.budget = budget
+        self.transmission_rate = transmission_rate
+    
+    @classmethod
+    def from_generate(cls, G, budget, transmission_rate, compliance_rate, global_rate):
+        SIR_real = cls.generate(G)
+        SIR_known = SIR_Tuple(list(G), [], [])
+        return cls(G, SIR_real, SIR_known, budget, transmission_rate, compliance_rate, global_rate)
         
     def load(self, G:nx.graph, file):
         with open(PROJECT_ROOT / "data" / "SIR_Cache" / file, 'r') as infile:
@@ -36,14 +46,14 @@ class SimulationState(gym.Env):
         
         to_save = {
             "G": self.SIR_real.G.name,
-            "S_real": self.SIR_real.SIR[0],
-            "I_real": self.SIR_real.SIR[1],
-            "R_real": self.SIR_real.SIR[2],
-            "S_known": self.SIR_known.SIR[0],
-            "I_known": self.SIR_known.SIR[1],
-            "R_known": self.SIR_known.SIR[2],
-            "budget": self.SIR_real.budget,
-            "transmission_rate": self.SIR_real.transmission_rate,
+            "S_real": self.SIR_real[0],
+            "I_real": self.SIR_real[1],
+            "R_real": self.SIR_real[2],
+            "S_known": self.SIR_known[0],
+            "I_known": self.SIR_known[1],
+            "R_known": self.SIR_known[2],
+            "budget": self.budget,
+            "transmission_rate": self.transmission_rate,
             "compliance_rate": self.compliance_rate,
             "global_rate": self.global_rate
         }
@@ -51,9 +61,20 @@ class SimulationState(gym.Env):
         with open(PROJECT_ROOT / "data" / "SIR_Cache" / file, 'w') as outfile:
             json.dump(to_save, outfile)
             
-    # equivalent to our previous initial function 
-    def generate(self, G:nx.graph, initial_infections:int):
-        raise NotImplementedError
+    # Need to call init before this?
+    @staticmethod
+    def generate(G:nx.graph, steps = 5, initial_infection_frac=0.0001):
+        full_data = EoN.basic_discrete_SIR(G=G, p=0.5, rho=initial_infection_frac,
+        tmin = 0, tmax=steps, return_full_data=True)
+
+        S = [k for (k, v) in full_data.get_statuses(
+        time=1).items() if v == 'S']
+        I = [k for (k, v) in full_data.get_statuses(
+        time=1).items() if v == 'I']
+        R = [k for (k, v) in full_data.get_statuses(
+        time=1).items() if v == 'R']
+        return SIR_Tuple(S, I, R)
+
 
     # TODO: Adapt to indicators over entire Graph G
     def step(self, quarantine_known: Set[int]):
