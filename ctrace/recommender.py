@@ -7,57 +7,38 @@ from .round import D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective
 
 #change them so it takes in a simulation_state parameter, preferably called state
-def rand(V_1, cost_constraint):
-    sample = random.sample(V_1, min(cost_constraint, len(V_1)))
-    sol = {}
-    for v in V_1:
-        if v in sample:
-            sol[v] = 1
-        else:
-            sol[v] = 0
-    return (-1, sol)
+
+def rand(state):
+    v1, _ = find_excluded_contours(state.SIR_known.G, state.SIR_known.SIR.I, state.SIR_known.SIR.R)
+    sample = random.sample(v1, min(state.SIR_real.budget, len(v1)))
+    sol = {v for v in v1 if v in sample}
+    return sol
 
 
-def degree(G, V_1, V_2, cost_constraint):
-    # calculate degree of each vertex in V_1
+def degree(state):
+    v1, v2 = find_excluded_contours(state.SIR_known.G, state.SIR_known.SIR.I, state.SIR_known.SIR.R)
     degrees = []
-    for u in V_1:
-        count = 0
-        for v in set(G.neighbors(u)):
-            if v in V_2:
-                count += 1
-
+    for u in v1:
+        count = sum([1 for v in set(state.SIR_known.G.neighbors(u)) if v in v2])
         degrees.append((count, u))
-    degrees.sort()
-    degrees.reverse()
-    sol = {}
-    for i in range(len(V_1)):
-        if i < cost_constraint:
-            sol[degrees[i][1]] = 1
-        else:
-            sol[degrees[i][1]] = 0
-    return (-1, sol)
+    degrees.sort(reverse=True)
+    sol = {degrees[i][1] for i in range(len(v1)) if i < state.SIR_real.budget}
+    return sol
 
 
-def weighted(G, P, Q, V_1, V_2, cost_constraint):
+def weighted(state):
+    v1, v2 = find_excluded_contours(state.SIR_known.G, state.SIR_known.SIR.I,
+                                    state.SIR_known.SIR.R)  # Time impact of excluded_contours?
+    P, Q = pq_independent(state.SIR_known.G, state.SIR_known.SIR.I, v1, state.SIR_known.transmission_rate)
     weights: List[Tuple[int, int]] = []
-    for u in V_1:
-        w_sum = 0
-        for v in set(G.neighbors(u)):
-            if v in V_2:
-                w_sum += Q[u][v]
+    for u in v1:
+        w_sum = sum([Q[u][v] for v in set(state.SIR_known.G.neighbors(u)) if v in v2])
         weights.append((P[u] * w_sum, u))
     # Get the top k (cost_constraint) V1s ranked by w_u = p_u * sum(q_uv for v in v2)
     weights.sort(reverse=True)
-    topK = weights[:cost_constraint]
-    topK = {i[1] for i in topK}
-    sol = {}
-    for u in V_1:
-        if u in topK:
-            sol[u] = 1
-        else:
-            sol[u] = 0
-    return -1, sol
+    topK = {i[1] for i in weights[:state.SIR_real.budget]}
+    sol = set([u for u in v1 if u in topK])
+    return sol
 
 """
 # returns rounded bits and objective value of those bits
