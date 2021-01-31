@@ -52,7 +52,7 @@ def union_neighbors(G: nx.Graph, initial: Set[int], excluded: Set[int]):
     total = set().union(*[G.neighbors(v) for v in initial])
     return total - excluded
 
-def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int]):
+def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate:float, snitch_rate:float):
     """Finds V1 and V2 from a graphs that does not consider the excluded set"""
     v1 = union_neighbors(G, set(infected) - set(excluded),
                          set(infected) | set(excluded))
