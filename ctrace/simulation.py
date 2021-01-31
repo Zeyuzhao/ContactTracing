@@ -2,7 +2,7 @@ import json
 import random
 
 import EoN
-import gym
+#import gym
 import networkx as nx
 import numpy as np
 from typing import Set
@@ -13,7 +13,7 @@ from . import PROJECT_ROOT
 from typing import Set
 SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I", "R"])
 
-class SimulationState(gym.Env):
+class SimulationState:
     
     def __init__(self, G:nx.graph, SIR_real: SIR_Tuple, SIR_known: SIR_Tuple, budget: int, transmission_rate:float, compliance_rate:float, global_rate:float, discovery_rate:float, snitch_rate:float):
         self.G = G
