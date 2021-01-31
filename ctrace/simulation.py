@@ -2,27 +2,37 @@ import json
 import random
 
 import EoN
-import gym
+#import gym
 import networkx as nx
 import numpy as np
 from typing import Set
-
-from . import PROJECT_ROOT
 from collections import namedtuple
+from .utils import find_excluded_contours
+import random
+from . import PROJECT_ROOT
+from typing import Set
 SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I", "R"])
 
-class SimulationState(gym.Env):
+class SimulationState:
     
-    def __init__(self, G:nx.graph, SIR_real: SIR_Tuple, SIR_known: SIR_Tuple, budget: int, transmission_rate:float, compliance_rate:float, global_rate:float):
+    def __init__(self, G:nx.graph, SIR_real: SIR_Tuple, SIR_known: SIR_Tuple, budget: int, transmission_rate:float, compliance_rate:float, global_rate:float, discovery_rate:float, snitch_rate:float):
         self.G = G
-        self.SIR_real: InfectionInfo = InfectionInfo(G, SIR_real, budget, transmission_rate)
-        self.SIR_known: InfectionInfo = InfectionInfo(G, SIR_known, budget, transmission_rate)
+        self.SIR_real = SIR_real
+        self.SIR_known = SIR_known
+
         self.compliance_rate = compliance_rate
         self.global_rate = global_rate
+        self.budget = budget
+        self.transmission_rate = transmission_rate
+    
+    @classmethod
+    def from_generate(cls, G, budget, transmission_rate, compliance_rate, global_rate):
+        SIR_real = cls.generate(G)
+        SIR_known = SIR_Tuple(list(G), [], [])
+        return cls(G, SIR_real, SIR_known, budget, transmission_rate, compliance_rate, global_rate)
         
-    #idk how to use json loading stuff, this is on you Zach, make it pretty please
+    # returns a SimulationState object loaded from a file
     def load(self, G:nx.graph, file):
-        
         with open(PROJECT_ROOT / "data" / "SIR_Cache" / file, 'r') as infile:
             j = json.load(infile)
             
@@ -38,14 +48,14 @@ class SimulationState(gym.Env):
         
         to_save = {
             "G": self.SIR_real.G.name,
-            "S_real": self.SIR_real.SIR[0],
-            "I_real": self.SIR_real.SIR[1],
-            "R_real": self.SIR_real.SIR[2],
-            "S_known": self.SIR_known.SIR[0],
-            "I_known": self.SIR_known.SIR[1],
-            "R_known": self.SIR_known.SIR[2],
-            "budget": self.SIR_real.budget,
-            "transmission_rate": self.SIR_real.transmission_rate,
+            "S_real": self.SIR_real[0],
+            "I_real": self.SIR_real[1],
+            "R_real": self.SIR_real[2],
+            "S_known": self.SIR_known[0],
+            "I_known": self.SIR_known[1],
+            "R_known": self.SIR_known[2],
+            "budget": self.budget,
+            "transmission_rate": self.transmission_rate,
             "compliance_rate": self.compliance_rate,
             "global_rate": self.global_rate
         }
@@ -53,35 +63,68 @@ class SimulationState(gym.Env):
         with open(PROJECT_ROOT / "data" / "SIR_Cache" / file, 'w') as outfile:
             json.dump(to_save, outfile)
             
-    # equivalent to our previous initial function 
-    def generate(self, G:nx.graph, initial_infections:int):
-        raise NotImplementedError
+    # Need to call init before this?
+    @staticmethod
+    def generate(G:nx.graph, steps = 5, initial_infection_frac=0.0001):
+        full_data = EoN.basic_discrete_SIR(G=G, p=0.5, rho=initial_infection_frac,
+        tmin = 0, tmax=steps, return_full_data=True)
+
+        S = [k for (k, v) in full_data.get_statuses(
+        time=1).items() if v == 'S']
+        I = [k for (k, v) in full_data.get_statuses(
+        time=1).items() if v == 'I']
+        R = [k for (k, v) in full_data.get_statuses(
+        time=1).items() if v == 'R']
+        return SIR_Tuple(S, I, R)
+
 
     # TODO: Adapt to indicators over entire Graph G
     def step(self, quarantine_known: Set[int]):
-        size = np.random.binomial(len(quarantine_known),self.compliance_rate)
-        quarantine_real = set(random.sample(quarantine_known, size))
+        # Sample each member independently with probability compliance_rate
+        quarantine_real = {i for i in quarantine_known if random.random() < self.compliance_rate}
         
         # moves the timestep forward by 1
         self.SIR_real.step(quarantine_real)
         self.SIR_known.step(quarantine_known)
         
-        # need to do post processing of I_known, but we don't know how they want this yet 
+        # post processing of I_known
+        to_remove = []
+        for node in self.SIR_known.SIR.I:
+            if node not in self.SIR_real.SIR.I:
+                to_remove.append(node)
+                
+        for node in to_remove:
+            self.SIR_known.SIR.I.remove(node)
+            self.SIR_known.SIR.S.append(node)
         
-
+        self.SIR_known.set_contours()
+        self.SIR_real.set_contours()
+        
+        # implements the global rate
+        for node in self.SIR_real.SIR.I - self.SIR_known.I:
+            if random.uniform(0,1) <= self.global_rate:
+                self.SIR_known.I.append(node)
+                self.SIR_known.S.remove(node)
+        
+        return InfectionInfo(G, self.SIR_known, self.budget, self.transmission_rate, 0, 0)
+                
 class InfectionInfo:
-    
-    def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, transmission_rate:float):
+    def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, transmission_rate:float, discovery_rate:float, snitch_rate:float):
         self.G = G
         self.SIR = SIR_Tuple(*SIR)
         self.transmission_rate = transmission_rate
         self.budget = budget
         self.quarantined = ([],[],[])
-
-    def step(self, to_quarantine):
+        self.discovery_rate = discovery_rate
+        self.snitch_rate = snitch_rate
         
-        #this might need to be edited slightly depending on if we are assuming SIR to be lists vs. sets
-        full_data = EoN.basic_discrete_SIR(G=self.G, p=self.transmission_rate, initial_infecteds=self.SIR[1], initial_recovereds=self.SIR[2] + [item for sublist in self.quarantined for item in sublist], tmin=0, tmax=1, return_full_data=True)
+        # initialize V1 and V2
+        self.set_contours()
+        
+    def step(self, to_quarantine):
+                
+        recovered = self.SIR[2] + self.quarantined[0] + self.quarantined[1] + self.quarantined[2]
+        full_data = EoN.basic_discrete_SIR(G=self.G, p=self.transmission_rate, initial_infecteds=self.SIR[1], initial_recovereds=recovered, tmin=0, tmax=1, return_full_data=True)
 
         S = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'S']
         I = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'I']
@@ -89,7 +132,8 @@ class InfectionInfo:
         
         # un-quarantine people from previous time step
         for node in self.quarantined[0]:
-            self.SIR[0].append(node)
+            S.append(node)
+            R.remove(node)
         
         # quarantine the new group
         for node in to_quarantine:
@@ -103,4 +147,12 @@ class InfectionInfo:
                 R.remove(node)
                 self.quarantined[2].append(node)
 
+        for node in I:
+            if node not in self.V1:
+                I.remove(node)
+                S.append(node)
+        
         self.SIR = SIR_Tuple(S,I,R)
+        
+    def set_contours(self):
+        (self.V1, self.V2) = find_excluded_contours(self.G, self.SIR[1], self.SIR[2] + self.quarantined[0] + self.quarantined[1] + self.quarantined[2], self.discovery_rate, self.snitch_rate)

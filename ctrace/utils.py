@@ -3,6 +3,7 @@ Utility Functions, such as contours and PQ
 """
 import json
 import math
+import random
 from collections import defaultdict
 from pathlib import Path
 from statistics import mean
@@ -52,12 +53,25 @@ def union_neighbors(G: nx.Graph, initial: Set[int], excluded: Set[int]):
     total = set().union(*[G.neighbors(v) for v in initial])
     return total - excluded
 
-def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int]):
+
+def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate: float, snitch_rate: float):
+    """Finds V1_known and V2_known from a graph without including elements in the excluded set"""
+    # probability calculation for v2_k: 1-(1-q)^k; let k = number of nodes in v1_k with an edge connecting to the node v
+    v1 = set().union(*[G.neighbors(v) for v in (set(infected)-set(excluded))]) - (set(infected)|set(excluded))
+    v1_k = {v for v in v1 if random.uniform(0,1) < discovery_rate}
+    v1_k_nbrs = set().union(*[G.neighbors(v) for v in v1_k]) - (set(infected)|set(excluded)|set(v1_k))
+    v2_k = {v for v in v1_k_nbrs
+            if random.uniform(0,1) < (1-((1-snitch_rate) ** len(set(G.neighbors(v)).intersection(v1_k))))}
+    return v1_k, v2_k
+
+
+def old_find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate:float, snitch_rate:float):
     """Finds V1 and V2 from a graphs that does not consider the excluded set"""
     v1 = union_neighbors(G, set(infected) - set(excluded),
                          set(infected) | set(excluded))
     v2 = union_neighbors(G, v1, set(v1) | set(infected) | set(excluded))
     return (v1, v2)
+
 
 def pq_independent(G: nx.Graph, I: Iterable[int], V1: Iterable[int], p: float):
     # Returns dictionary P, Q
@@ -320,3 +334,4 @@ def load_sir_path(path: Path, merge=False):
             data["I"] = list(set().union(*data["I_Queue"]))
             del data["I_Queue"]
         return data
+
