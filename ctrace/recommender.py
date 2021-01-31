@@ -8,31 +8,38 @@ from .utils import pq_independent, find_excluded_contours, min_exposed_objective
 from .simulation import *
 from .problem import MinExposedLP
 
+def NoIntervention(state: SimulationState):
+    return set()
+
+
 def Random(state: SimulationState):
-    v1, _ = find_excluded_contours(state.SIR_known.G, state.SIR_known.SIR.I, state.SIR_known.SIR.R)
-    return set(random.sample(v1, min(state.SIR_real.budget, len(v1))))
+    return set(random.sample(state.SIR_known.V1, min(state.SIR_known.budget, len(state.SIR_known.V1))))
 
 
 def Degree(state: SimulationState):
-    v1, v2 = find_excluded_contours(state.SIR_known.G, state.SIR_known.SIR.I, state.SIR_known.SIR.R)
-    degrees = []
-    for u in v1:
-        count = sum([1 for v in set(state.SIR_known.G.neighbors(u)) if v in v2])
+    info = state.SIR_known
+    
+    degrees: List[Tuple[int, int]] = []
+    for u in info.V1:
+        count = sum([1 for v in set(info.G.neighbors(u)) if v in info.V2])
         degrees.append((count, u))
+        
     degrees.sort(reverse=True)
-    return {degrees[i][1] for i in range(min(state.SIR_real.budget,len(degrees)))}
+    return {i[1] for i in degrees[:info.budget]}
 
 
 def DegGreedy(state: SimulationState):
-    v1, v2 = find_excluded_contours(state.SIR_known.G, state.SIR_known.SIR.I, state.SIR_known.SIR.R)
-    P, Q = pq_independent(state.SIR_known.G, state.SIR_known.SIR.I, v1, state.SIR_known.transmission_rate)
+    info = state.SIR_known
+
+    P, Q = pq_independent(info.G, info.SIR.I, info.V1, info.transmission_rate)
+    
     weights: List[Tuple[int, int]] = []
-    for u in v1:
-        w_sum = sum([Q[u][v] for v in set(state.SIR_known.G.neighbors(u)) if v in v2])
+    for u in info.V1:
+        w_sum = sum([Q[u][v] for v in set(info.G.neighbors(u)) if v in info.V2])
         weights.append((P[u] * w_sum, u))
-    # Get the top k (cost_constraint) V1s ranked by w_u = p_u * sum(q_uv for v in v2)
+
     weights.sort(reverse=True)
-    return {i[1] for i in weights[:state.SIR_real.budget]}
+    return {i[1] for i in weights[:info.budget]}
 
 
 def DepRound(state: SimulationState):
