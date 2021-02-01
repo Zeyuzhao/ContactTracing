@@ -53,12 +53,12 @@ def DepRound(state: SimulationState):
 
     # TODO: Maybe include objective value? Or delete the next section
     # sets variables so objective function value is correct
-    for i in range(len(rounded)):
-        problem.set_variable(i, rounded[i])
+#    for i in range(len(rounded)):
+#        problem.set_variable(i, rounded[i])
 
-    problem.solve_lp()
+#    problem.solve_lp()
 
-    return set([k for (k,v) in problem.quarantined_solution.items() if v==1])
+    return set([k for (k,v) in enumerate(rounded) if v==1])
 
 
 # returns rounded bits and objective value of those bits

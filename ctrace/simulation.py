@@ -81,9 +81,12 @@ class SimulationState:
         difference = [i for i in self.SIR_real.SIR.I if i not in self.SIR_known.SIR.I]
         for node in difference:
             if random.uniform(0,1) <= self.global_rate:
-                self.SIR_known.SIR.I.append(node)
-                self.SIR_known.SIR.S.remove(node)
-        
+                if node in self.SIR_known.SIR.S:
+                    self.SIR_known.SIR.I.append(node)
+                    self.SIR_known.SIR.S.remove(node)
+                else:
+                    self.SIR_known.quarantined[1].append(node)
+                    self.SIR_known.quarantined[0].remove(node)
         
         # updates the quarantined people
         quarantine_real = {i for i in quarantine_known if random.random() < self.compliance_rate}
