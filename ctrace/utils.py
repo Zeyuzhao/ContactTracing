@@ -65,14 +65,6 @@ def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], 
     return v1_k, v2_k
 
 
-def old_find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int]):
-    """Finds V1 and V2 from a graphs that does not consider the excluded set"""
-    v1 = union_neighbors(G, set(infected) - set(excluded),
-                         set(infected) | set(excluded))
-    v2 = union_neighbors(G, v1, set(v1) | set(infected) | set(excluded))
-    return (v1, v2)
-
-
 def pq_independent(G: nx.Graph, I: Iterable[int], V1: Iterable[int], p: float):
     # Returns dictionary P, Q
     # Calculate P, (1-P) ^ [number of neighbors in I]
