@@ -65,7 +65,7 @@ def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], 
     return v1_k, v2_k
 
 
-def old_find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate:float, snitch_rate:float):
+def old_find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate:float = 1, snitch_rate:float = 1):
     """Finds V1 and V2 from a graphs that does not consider the excluded set"""
     v1 = union_neighbors(G, set(infected) - set(excluded),
                          set(infected) | set(excluded))
