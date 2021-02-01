@@ -20,7 +20,7 @@ config["G"] = [load_graph(x) for x in config["G"]]
 in_schema = list(config.keys())
 out_schema = ["test"]
 
-TutorialOutput = namedtuple("TutorialOutput", ["test"])
+TutorialOutput = namedtuple("TutorialOutput", out_schema)
 def tutorial(G, p, budget, from_cache, method, **kwargs):
     return TutorialOutput(from_cache)
 
