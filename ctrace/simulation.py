@@ -46,8 +46,8 @@ class SimulationState:
             "S_known": self.SIR_known[0],
             "I_known": self.SIR_known[1],
             "R_known": self.SIR_known[2],
-            "budget": self.budget,
-            "transmission_rate": self.transmission_rate,
+            "budget": self.SIR_real.budget,
+            "transmission_rate": self.SIR_real.transmission_rate,
             "compliance_rate": self.compliance_rate,
             "global_rate": self.global_rate
         }
@@ -68,6 +68,7 @@ class SimulationState:
         
         self.SIR_real.SIR = SIR_Tuple(S,I,R)
         
+        
         # moves the known SIR forward by 1 timestep
         I = [i for i in self.SIR_known.V1 if i in self.SIR_real.SIR.I]
         S = [i for i in self.SIR_known.SIR.S if i not in I]
@@ -83,18 +84,19 @@ class SimulationState:
                 self.SIR_known.SIR.I.append(node)
                 self.SIR_known.SIR.S.remove(node)
         
+        
         # updates the quarantined people
         quarantine_real = {i for i in quarantine_known if random.random() < self.compliance_rate}
         self.SIR_real.update_quarantine(quarantine_real)
         self.SIR_known.update_quarantine(quarantine_known)
         
         
+        # resets the V1 and V2
         self.SIR_known.set_contours()
         self.SIR_real.set_contours()
-        
-
                 
 class InfectionInfo:
+    
     def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, transmission_rate:float, discovery_rate:float, snitch_rate:float):
         self.G = G
         self.SIR = SIR_Tuple(*SIR)
@@ -107,7 +109,6 @@ class InfectionInfo:
         # initialize V1 and V2
         self.set_contours()
         
-    
     def update_quarantine(self, to_quarantine):
         # un-quarantine people from previous time step
         for node in self.quarantined[0]:
@@ -127,7 +128,6 @@ class InfectionInfo:
             else:
                 self.SIR.R.remove(node)
                 self.quarantined[2].append(node)
-                
                 
     def set_contours(self):
         (self.V1, self.V2) = find_excluded_contours(self.G, self.SIR[1], self.SIR[2] + self.quarantined[0] + self.quarantined[1] + self.quarantined[2], self.discovery_rate, self.snitch_rate)
