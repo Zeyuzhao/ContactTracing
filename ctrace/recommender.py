@@ -46,17 +46,9 @@ def DegGreedy(state: SimulationState):
 def DepRound(state: SimulationState):
     
     problem = MinExposedLP(state.SIR_known)
-    
     problem.solve_lp()
     probabilities = problem.get_variables()
     rounded = D_prime(np.array(probabilities))
-
-    # TODO: Maybe include objective value? Or delete the next section
-    # sets variables so objective function value is correct
-#    for i in range(len(rounded)):
-#        problem.set_variable(i, rounded[i])
-
-#    problem.solve_lp()
 
     return set([k for (k,v) in enumerate(rounded) if v==1])
 
