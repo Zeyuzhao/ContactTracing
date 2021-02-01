@@ -77,7 +77,7 @@ def pq_independent(G: nx.Graph, I: Iterable[int], V1: Iterable[int], p: float):
     # Returns dictionary P, Q
     # Calculate P, (1-P) ^ [number of neighbors in I]
     P = {v: 1 - math.pow((1 - p), len(set(G.neighbors(v)) & set(I))) for v in V1}
-    Q = defaultdict(lambda: defaultdict(lambda: p))
+    Q = defaultdict(lambda: defaultdict(lambda: p)) # Q[-1][0] = p
     return P, Q
 
 def max_neighbors(G, V_1, V_2):
