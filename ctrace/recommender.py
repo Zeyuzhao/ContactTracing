@@ -16,26 +16,27 @@ def Random(state: SimulationState):
     return set(random.sample(state.SIR_known.V1, min(state.SIR_known.budget, len(state.SIR_known.V1))))
 
 
+# TODO: Test code! (Removed set)
 def Degree(state: SimulationState):
     info = state.SIR_known
     
     degrees: List[Tuple[int, int]] = []
     for u in info.V1:
-        count = sum([1 for v in set(info.G.neighbors(u)) if v in info.V2])
+        count = sum([1 for v in info.G.neighbors(u) if v in info.V2])
         degrees.append((count, u))
         
     degrees.sort(reverse=True)
     return {i[1] for i in degrees[:info.budget]}
 
 
+# TODO: Test code! V2 -> set V2
 def DegGreedy(state: SimulationState):
     info = state.SIR_known
-
     P, Q = pq_independent(info.G, info.SIR.I, info.V1, info.transmission_rate)
     
     weights: List[Tuple[int, int]] = []
     for u in info.V1:
-        w_sum = sum([Q[u][v] for v in set(info.G.neighbors(u)) if v in info.V2])
+        w_sum = sum([Q[u][v] for v in info.G.neighbors(u) if v in info.V2]) # V2 is a set!
         weights.append((P[u] * w_sum, u))
 
     weights.sort(reverse=True)
@@ -50,6 +51,7 @@ def DepRound(state: SimulationState):
     probabilities = problem.get_variables()
     rounded = D_prime(np.array(probabilities))
 
+    # TODO: Maybe include objective value? Or delete the next section
     # sets variables so objective function value is correct
     for i in range(len(rounded)):
         problem.set_variable(i, rounded[i])
