@@ -54,7 +54,7 @@ def union_neighbors(G: nx.Graph, initial: Set[int], excluded: Set[int]):
     return total - excluded
 
 
-def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate: float, snitch_rate: float):
+def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate:float = 1, snitch_rate:float = 1):
     """Finds V1_known and V2_known from a graph without including elements in the excluded set"""
     # probability calculation for v2_k: 1-(1-q)^k; let k = number of nodes in v1_k with an edge connecting to the node v
     v1 = set().union(*[G.neighbors(v) for v in (set(infected)-set(excluded))]) - (set(infected)|set(excluded))
@@ -65,19 +65,11 @@ def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], 
     return v1_k, v2_k
 
 
-def old_find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate:float, snitch_rate:float):
-    """Finds V1 and V2 from a graphs that does not consider the excluded set"""
-    v1 = union_neighbors(G, set(infected) - set(excluded),
-                         set(infected) | set(excluded))
-    v2 = union_neighbors(G, v1, set(v1) | set(infected) | set(excluded))
-    return (v1, v2)
-
-
 def pq_independent(G: nx.Graph, I: Iterable[int], V1: Iterable[int], p: float):
     # Returns dictionary P, Q
     # Calculate P, (1-P) ^ [number of neighbors in I]
     P = {v: 1 - math.pow((1 - p), len(set(G.neighbors(v)) & set(I))) for v in V1}
-    Q = defaultdict(lambda: defaultdict(lambda: p))
+    Q = defaultdict(lambda: defaultdict(lambda: p)) # Q[-1][0] = p
     return P, Q
 
 def max_neighbors(G, V_1, V_2):
