@@ -7,8 +7,8 @@ import numpy as np
 
 from typing import Set
 from collections import namedtuple
-from .utils import find_excluded_contours
 
+from .utils import find_excluded_contours
 from . import PROJECT_ROOT
 
 SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I", "R"])
@@ -35,7 +35,8 @@ class SimulationState:
             SIR_known = (j["S_known"], j["I_known"], j["R_known"])
             
             return SimulationState(G, SIR_real, SIR_known, j["transmission_rate"], j["compliance_rate"], j["global_rate"])
-
+    
+    # saves a SimulationState object to a file
     def save(self, file):
         
         to_save = {
@@ -87,6 +88,7 @@ class SimulationState:
                 else:
                     self.SIR_known.quarantined[1].append(node)
                     self.SIR_known.quarantined[0].remove(node)
+        
         
         # updates the quarantined people
         quarantine_real = {i for i in quarantine_known if random.random() < self.compliance_rate}
