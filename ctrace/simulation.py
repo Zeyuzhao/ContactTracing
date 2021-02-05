@@ -1,22 +1,21 @@
 #%%
 import json
 import random
-from enum import Enum, IntEnum
+import time
 
 import EoN
 import networkx as nx
 import numpy as np
+import gym
+from gym.utils import seeding
+from gym import spaces
 
+from enum import IntEnum
 from typing import Dict, Set, List, Any, TypeVar
 from collections import UserList, namedtuple, defaultdict
 
 # from .utils import find_excluded_contours
 from ctrace import PROJECT_ROOT
-import gym
-from gym.utils import seeding
-from gym import spaces
-
-SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I", "R"])
 
 
 # %%
@@ -27,10 +26,7 @@ class SIR:
     I = 1
     R = 2
 
-
 #%%
-
-from collections import UserList
 # TODO: Add testing?
 
 T = TypeVar('T', bound='PartitionSIR')
@@ -82,14 +78,22 @@ class PartitionSIR(UserList):
 # TODO: Create wrapper that tracks history?
 # TODO: Create wrapper that masks observation space
 # TODO: Build a statistics tracker wrapper
+# TODO: Create wrapper that tracks diffs in infection 
+# -> nodes can be infected longer than 1 timestep
 class InfectionEnv(gym.Env):
-    def __init__(self, G: nx.Graph):
+    def __init__(self, 
+        G: nx.Graph, 
+        transmission_rate=0.078, 
+        stale=1, 
+        delay=5, 
+        clusters=3,
+    ):
         self.G = G
         self.N = len(self.G)
 
         # Environment Parameters
-        self.transmission_rate = 0.078
-        self.stale = 1  # Delay of agent observation from real state
+        self.transmission_rate = transmission_rate
+        self.stale = stale  # Delay of agent observation from real state
 
         # IO Schema
         self.action_space = spaces.MultiBinary(self.N)
@@ -104,8 +108,8 @@ class InfectionEnv(gym.Env):
         self.time_step = 0
 
         # Initialization parameters
-        self.delay = 5  # Infection head start
-        self.clusters = 3
+        self.delay = delay  # Infection head start
+        self.clusters = clusters
 
         # Initialize SIR_Queue
         self.reset()
@@ -126,6 +130,7 @@ class InfectionEnv(gym.Env):
         self.SIR_History.append(obs)
 
         # Give the infection a head start
+        # TODO: Refactor into wrapper
         self.time_step = 0
         no_op = [0] * self.N
         for i in range(self.delay):
@@ -143,7 +148,6 @@ class InfectionEnv(gym.Env):
 
         I_count = obs['sir'].count(SIR.I)
         reward = I_count  # Number of people in infected
-
         # TODO: Test done condition!!!
         done = (I_count == 0) or self.time_step > self.total_time  
         # Info for tracking progress of simulation
@@ -173,14 +177,14 @@ class InfectionEnv(gym.Env):
             return_full_data=True
         )
         # Advance quarantined
+        # TODO: Extend to Multi-step quarantine (keep track of infection batches)
         for q, status in quarantine_dict.items():
             # I -> R
             if status == SIR.I:
                 quarantine_dict[q] = SIR.R
             # S -> S (nothing)
         
-        result_partition = PartitionSIR.from_dict_letters(self.N, 
-        full_data.get_statuses(time=1))
+        result_partition = PartitionSIR.from_dict_letters(self.N, full_data.get_statuses(time=1))
 
         # Move quarantine back into graph (undo the R state)
         for q, status, in quarantine_dict.items():
@@ -198,22 +202,6 @@ class InfectionEnv(gym.Env):
     def render(self, mode="human"):
         # Create an infection env for grid infection?
         raise NotImplementedError
-
-
-# %%
-
-class PartitionSet(List):
-    """Provide fast iteration, but slower membership?"""
-    def __init__(self, size, attrs):
-        super().__init__()
-        self.Types = IntEnum("_", attrs)
-
-    def __getitem__(self, item):
-        raise NotImplementedError
-
-    def __setitem__(self, key, value):
-        raise NotImplementedError
-
 
 # %%
 # TODO: Add testing
@@ -236,18 +224,17 @@ def setsToList(s, n=0, default=None):
 
 
 # %%
-import time
 
-#
-labels = np.random.randint(3, size=100000)
-start = time.time()
-sets = listToSets(labels)
-end = time.time()
-arr = setsToList(sets)
-end2 = time.time()
-print(f"arr to set: {end - start}")
-print(f"set to arr: {end2 - end}")
-print(f"Total Time: {end2 - start}")
+if __name__ == '__main__':
+    labels = np.random.randint(3, size=100000)
+    start = time.time()
+    sets = listToSets(labels)
+    end = time.time()
+    arr = setsToList(sets)
+    end2 = time.time()
+    print(f"arr to set: {end - start}")
+    print(f"set to arr: {end2 - end}")
+    print(f"Total Time: {end2 - start}")
 # arr to set: 0.02387404441833496
 # set to arr: 0.005036115646362305
 # Total Time: 0.028910160064697266
