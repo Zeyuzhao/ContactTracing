@@ -13,8 +13,6 @@ from gym import spaces
 from enum import IntEnum
 from typing import Dict, Set, List, Any, TypeVar
 from collections import UserList, namedtuple, defaultdict
-
-# from .utils import find_excluded_contours
 from ctrace import PROJECT_ROOT
 
 
@@ -53,6 +51,7 @@ class PartitionSIR(UserList):
         p = PartitionSIR(n)
         for k, v in d.items():
             p[k] = mapper[v]
+        return p
 
     def __getitem__(self, item: int) -> int:
         return self.data[item]
@@ -83,7 +82,7 @@ class PartitionSIR(UserList):
 class InfectionEnv(gym.Env):
     def __init__(self, 
         G: nx.Graph, 
-        transmission_rate=0.078, 
+        transmission_rate=0.1, 
         stale=1, 
         delay=5, 
         clusters=3,
@@ -170,8 +169,8 @@ class InfectionEnv(gym.Env):
         full_data = EoN.basic_discrete_SIR(
             G=self.G,
             p=self.transmission_rate,
-            initial_infecteds=partition.I,
-            initial_recovereds=partition.R,
+            initial_infecteds=list(partition.I),
+            initial_recovereds=list(partition.R),
             tmin=0,
             tmax=1,
             return_full_data=True
@@ -191,13 +190,14 @@ class InfectionEnv(gym.Env):
             result_partition[q] = status
         
         # Store results into SIR_History
-        self.SIR_History.append(result_partition.data)
+        self.SIR_History.append(np.array(result_partition.data))
         self.time_step += 1
 
 
-    def seed(self, seed=None):
+    def seed(self, seed=42):
         # Set seeds???
-        raise NotImplementedError
+        np.random.seed(seed)
+        random.seed(seed)
 
     def render(self, mode="human"):
         # Create an infection env for grid infection?
@@ -210,7 +210,6 @@ def listToSets(l):
     for i, e in enumerate(l):
         d[e].append(i)
     return d
-
 
 # TODO: Check if s forms partition?
 def setsToList(s, n=0, default=None):
