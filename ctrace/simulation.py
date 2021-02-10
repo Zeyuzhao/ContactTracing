@@ -1,4 +1,4 @@
-#%%
+# %%
 import json
 import random
 import time
@@ -24,10 +24,13 @@ class SIR:
     I = 1
     R = 2
 
-#%%
+
+# %%
 # TODO: Add testing?
 
 T = TypeVar('T', bound='PartitionSIR')
+
+
 class PartitionSIR(UserList):
     def __init__(self, size=0):
         # Stored internally as integers
@@ -40,7 +43,7 @@ class PartitionSIR(UserList):
         p = PartitionSIR()
         p.data = l.copy()
         return p
-    
+
     @classmethod
     def from_dict_letters(cls, n: int, d: Dict[int, str]) -> T:
         mapper = {
@@ -55,7 +58,7 @@ class PartitionSIR(UserList):
 
     def __getitem__(self, item: int) -> int:
         return self.data[item]
-    
+
     def __setitem__(self, key: int, value: int) -> None:
         self.data[key] = value
 
@@ -63,9 +66,11 @@ class PartitionSIR(UserList):
     @property
     def S(self):
         return (i for i, e in enumerate(self.data) if e == 0)
+
     @property
     def I(self):
         return (i for i, e in enumerate(self.data) if e == 1)
+
     @property
     def R(self):
         return (i for i, e in enumerate(self.data) if e == 2)
@@ -80,13 +85,13 @@ class PartitionSIR(UserList):
 # TODO: Create wrapper that tracks diffs in infection 
 # -> nodes can be infected longer than 1 timestep
 class InfectionEnv(gym.Env):
-    def __init__(self, 
-        G: nx.Graph, 
-        transmission_rate=0.1, 
-        stale=1, 
-        delay=5, 
-        clusters=3,
-    ):
+    def __init__(self,
+                 G: nx.Graph,
+                 transmission_rate=0.1,
+                 stale=1,
+                 delay=5,
+                 clusters=3,
+                 ):
         self.G = G
         self.N = len(self.G)
 
@@ -133,7 +138,7 @@ class InfectionEnv(gym.Env):
         self.time_step = 0
         no_op = [0] * self.N
         for i in range(self.delay):
-            self._step(no_op) # Let infection advance ahead delay steps
+            self._step(no_op)  # Let infection advance ahead delay steps
         return obs
 
     def step(self, action: List[int]):
@@ -148,11 +153,11 @@ class InfectionEnv(gym.Env):
         I_count = obs['sir'].count(SIR.I)
         reward = I_count  # Number of people in infected
         # TODO: Test done condition!!!
-        done = (I_count == 0) or self.time_step > self.total_time  
+        done = (I_count == 0) or self.time_step > self.total_time
         # Info for tracking progress of simulation
         info = {}
         return obs, reward, done, info
-    
+
     def _step(self, action: List[int]) -> None:
         # Retrieve current state.
         partition = PartitionSIR.from_list(self.SIR_History[-1])
@@ -162,7 +167,7 @@ class InfectionEnv(gym.Env):
         quarantine_dict = {i: partition[i] for i in action if action[i] == 1}
 
         # Move members into R (temporarily)
-        for q in quarantine_dict: 
+        for q in quarantine_dict:
             partition[q] = SIR.R  # 2
 
         # Run simulation
@@ -182,17 +187,16 @@ class InfectionEnv(gym.Env):
             if status == SIR.I:
                 quarantine_dict[q] = SIR.R
             # S -> S (nothing)
-        
+
         result_partition = PartitionSIR.from_dict_letters(self.N, full_data.get_statuses(time=1))
 
         # Move quarantine back into graph (undo the R state)
         for q, status, in quarantine_dict.items():
             result_partition[q] = status
-        
+
         # Store results into SIR_History
         self.SIR_History.append(np.array(result_partition.data))
         self.time_step += 1
-
 
     def seed(self, seed=42):
         # Set seeds???
@@ -203,6 +207,7 @@ class InfectionEnv(gym.Env):
         # Create an infection env for grid infection?
         raise NotImplementedError
 
+
 # %%
 # TODO: Add testing
 def listToSets(l):
@@ -210,6 +215,7 @@ def listToSets(l):
     for i, e in enumerate(l):
         d[e].append(i)
     return d
+
 
 # TODO: Check if s forms partition?
 def setsToList(s, n=0, default=None):
