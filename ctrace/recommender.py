@@ -6,7 +6,7 @@ import networkx as nx
 from .round import D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective
 from .simulation import *
-from .problem import MinExposedLP
+from .problem import MinExposedLP, MinExposedSAADiffusion
 
 def NoIntervention(state: SimulationState):
     return set()
@@ -50,6 +50,20 @@ def DepRound(state: SimulationState):
     probabilities = problem.get_variables()
     rounded = D_prime(np.array(probabilities))
 
+    return set([k for (k,v) in enumerate(rounded) if v==1])
+
+def SAADiffusionAgent(state: SimulationState):
+    problem = MinExposedSAADiffusion(state.SIR_known)
+    problem.solve_lp()
+    probabilities = problem.get_variables()
+    rounded = D_prime(np.array(probabilities))
+    return set([k for (k,v) in enumerate(rounded) if v==1])
+
+def SAADiffusionAgent(state: SimulationState):
+    problem = MinExposedSAACompliance(state.SIR_known)
+    problem.solve_lp()
+    probabilities = problem.get_variables()
+    rounded = D_prime(np.array(probabilities))
     return set([k for (k,v) in enumerate(rounded) if v==1])
 
 
