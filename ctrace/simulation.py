@@ -1,245 +1,138 @@
-# %%
 import json
 import random
-import time
 
 import EoN
 import networkx as nx
 import numpy as np
-import gym
-from gym.utils import seeding
-from gym import spaces
 
-from enum import IntEnum
-from typing import Dict, Set, List, Any, TypeVar
-from collections import UserList, namedtuple, defaultdict
-from ctrace import PROJECT_ROOT
+from typing import Set
+from collections import namedtuple
 
+from .utils import find_excluded_contours
+from . import PROJECT_ROOT
 
-# %%
+SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I", "R"])
 
-# Declare SIR Enum
-class SIR:
-    S = 0
-    I = 1
-    R = 2
-
-
-# %%
-# TODO: Add testing?
-
-T = TypeVar('T', bound='PartitionSIR')
-
-
-class PartitionSIR(UserList):
-    def __init__(self, size=0):
-        # Stored internally as integers
-        self._types = ["S", "I", "R"]
-        self.type = IntEnum("type", zip(self._types, range(3)))
-        self.data = [0] * size
-
-    @classmethod
-    def from_list(cls, l):
-        p = PartitionSIR()
-        p.data = l.copy()
-        return p
-
-    @classmethod
-    def from_dict_letters(cls, n: int, d: Dict[int, str]) -> T:
-        mapper = {
-            "S": 0,
-            "I": 1,
-            "R": 2,
-        }
-        p = PartitionSIR(n)
-        for k, v in d.items():
-            p[k] = mapper[v]
-        return p
-
-    def __getitem__(self, item: int) -> int:
-        return self.data[item]
-
-    def __setitem__(self, key: int, value: int) -> None:
-        self.data[key] = value
-
-    # TODO: Properties hardcoded - hacky solution
-    @property
-    def S(self):
-        return (i for i, e in enumerate(self.data) if e == 0)
-
-    @property
-    def I(self):
-        return (i for i, e in enumerate(self.data) if e == 1)
-
-    @property
-    def R(self):
-        return (i for i, e in enumerate(self.data) if e == 2)
-
-
-# %%
-
-# TODO: Create wrapper that corrupts Q
-# TODO: Create wrapper that tracks history?
-# TODO: Create wrapper that masks observation space
-# TODO: Build a statistics tracker wrapper
-# TODO: Create wrapper that tracks diffs in infection 
-# -> nodes can be infected longer than 1 timestep
-class InfectionEnv(gym.Env):
-    def __init__(self,
-                 G: nx.Graph,
-                 transmission_rate=0.1,
-                 stale=1,
-                 delay=5,
-                 clusters=3,
-                 ):
+class SimulationState:
+    
+    def __init__(self, G:nx.graph, SIR_real: SIR_Tuple, SIR_known: SIR_Tuple, budget: int, transmission_rate:float, compliance_rate:float, global_rate:float, discovery_rate:float, snitch_rate:float):
         self.G = G
-        self.N = len(self.G)
+        self.SIR_real: InfectionInfo = InfectionInfo(G, SIR_real, budget, transmission_rate, 1, 1)
+        self.SIR_known: InfectionInfo = InfectionInfo(G, SIR_known, budget, transmission_rate, discovery_rate, snitch_rate)
 
-        # Environment Parameters
-        self.transmission_rate = transmission_rate
-        self.stale = stale  # Delay of agent observation from real state
-
-        # IO Schema
-        self.action_space = spaces.MultiBinary(self.N)
-        self.observation_space = spaces.Dict({
-            'sir': spaces.MultiDiscrete([3] * self.N),  # An indicator variable for every vertex
-            'contours': spaces.MultiDiscrete([self.stale + 1] * self.N)  # Vertices in V1 and V2 to consider
-        })
-
-        # State information
-        self.SIR_History = []
-        self.quarantine_history = []
-        self.time_step = 0
-
-        # Initialization parameters
-        self.delay = delay  # Infection head start
-        self.clusters = clusters
-
-        # Initialize SIR_Queue
-        self.reset()
-
-    def reset(self):
-        if self.delay < self.stale:
-            raise ValueError("Delay must be longer than stale time")
-
-        # The state of infection over all time steps
-        self.SIR_History = []
-        self.quarantine_history = []
-        self.time_step = 0
-
-        # Generate the initial clusters
-        obs = np.zeros(self.N)
-        seeds = np.random.choice(self.N, self.clusters, replace=False)
-        obs[seeds] = 1
-        self.SIR_History.append(obs)
-
-        # Give the infection a head start
-        # TODO: Refactor into wrapper
-        self.time_step = 0
-        no_op = [0] * self.N
-        for i in range(self.delay):
-            self._step(no_op)  # Let infection advance ahead delay steps
-        return obs
-
-    def step(self, action: List[int]):
-        self._step(action)
-        # Retrieve SIR that is stale
-        obs = {
-            'sir': self.SIR_History[-(self.stale + 1)],
-            'contours': [0] * self.N,  # Contours are ignored
-            'time': self.time_step - self.delay,
+        self.compliance_rate = compliance_rate
+        self.global_rate = global_rate
+        
+    # returns a SimulationState object loaded from a file
+    def load(self, G:nx.graph, file):
+        with open(PROJECT_ROOT / "data" / "SIR_Cache" / file, 'r') as infile:
+            j = json.load(infile)
+            
+            if G.name != j['G']:
+                raise Exception("Graph and SIR not compatible")
+                
+            SIR_real = (j["S_real"], j["I_real"], j["R_real"])
+            SIR_known = (j["S_known"], j["I_known"], j["R_known"])
+            
+            return SimulationState(G, SIR_real, SIR_known, j["transmission_rate"], j["compliance_rate"], j["global_rate"])
+    
+    # saves a SimulationState object to a file
+    def save(self, file):
+        
+        to_save = {
+            "G": self.SIR_real.G.name,
+            "S_real": self.SIR_real[0],
+            "I_real": self.SIR_real[1],
+            "R_real": self.SIR_real[2],
+            "S_known": self.SIR_known[0],
+            "I_known": self.SIR_known[1],
+            "R_known": self.SIR_known[2],
+            "budget": self.SIR_real.budget,
+            "transmission_rate": self.SIR_real.transmission_rate,
+            "compliance_rate": self.compliance_rate,
+            "global_rate": self.global_rate
         }
+        
+        with open(PROJECT_ROOT / "data" / "SIR_Cache" / file, 'w') as outfile:
+            json.dump(to_save, outfile)
 
-        I_count = obs['sir'].count(SIR.I)
-        reward = I_count  # Number of people in infected
-        # TODO: Test done condition!!!
-        done = (I_count == 0) or self.time_step > self.total_time
-        # Info for tracking progress of simulation
-        info = {}
-        return obs, reward, done, info
-
-    def _step(self, action: List[int]) -> None:
-        # Retrieve current state.
-        partition = PartitionSIR.from_list(self.SIR_History[-1])
-
-        # Action -> a integer boolean array of quarantine members
-        # Map quarantine members to its state
-        quarantine_dict = {i: partition[i] for i in action if action[i] == 1}
-
-        # Move members into R (temporarily)
-        for q in quarantine_dict:
-            partition[q] = SIR.R  # 2
-
-        # Run simulation
-        full_data = EoN.basic_discrete_SIR(
-            G=self.G,
-            p=self.transmission_rate,
-            initial_infecteds=list(partition.I),
-            initial_recovereds=list(partition.R),
-            tmin=0,
-            tmax=1,
-            return_full_data=True
-        )
-        # Advance quarantined
-        # TODO: Extend to Multi-step quarantine (keep track of infection batches)
-        for q, status in quarantine_dict.items():
-            # I -> R
-            if status == SIR.I:
-                quarantine_dict[q] = SIR.R
-            # S -> S (nothing)
-
-        result_partition = PartitionSIR.from_dict_letters(self.N, full_data.get_statuses(time=1))
-
-        # Move quarantine back into graph (undo the R state)
-        for q, status, in quarantine_dict.items():
-            result_partition[q] = status
-
-        # Store results into SIR_History
-        self.SIR_History.append(np.array(result_partition.data))
-        self.time_step += 1
-
-    def seed(self, seed=42):
-        # Set seeds???
-        np.random.seed(seed)
-        random.seed(seed)
-
-    def render(self, mode="human"):
-        # Create an infection env for grid infection?
-        raise NotImplementedError
-
-
-# %%
-# TODO: Add testing
-def listToSets(l):
-    d = defaultdict(list)
-    for i, e in enumerate(l):
-        d[e].append(i)
-    return d
-
-
-# TODO: Check if s forms partition?
-def setsToList(s, n=0, default=None):
-    if n == 0:
-        n = sum([len(v) for _, v in s.items()])
-    arr = [default] * n
-    for k, v in s.items():
-        for x in v:
-            arr[x] = k
-    return arr
-
-
-# %%
-
-if __name__ == '__main__':
-    labels = np.random.randint(3, size=100000)
-    start = time.time()
-    sets = listToSets(labels)
-    end = time.time()
-    arr = setsToList(sets)
-    end2 = time.time()
-    print(f"arr to set: {end - start}")
-    print(f"set to arr: {end2 - end}")
-    print(f"Total Time: {end2 - start}")
-# arr to set: 0.02387404441833496
-# set to arr: 0.005036115646362305
-# Total Time: 0.028910160064697266
+    # TODO: Adapt to indicators over entire Graph G
+    def step(self, quarantine_known: Set[int]):
+        
+        # moves the real SIR forward by 1 timestep
+        recovered = self.SIR_real.SIR[2] + self.SIR_real.quarantined[0] + self.SIR_real.quarantined[1] + self.SIR_real.quarantined[2]
+        full_data = EoN.basic_discrete_SIR(G=self.G, p=self.SIR_real.transmission_rate, initial_infecteds=self.SIR_real.SIR[1], initial_recovereds=recovered, tmin=0, tmax=1, return_full_data=True)
+        
+        S = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'S']
+        I = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'I']
+        R = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'R']
+        
+        self.SIR_real.SIR = SIR_Tuple(S,I,R)
+        
+        
+        # moves the known SIR forward by 1 timestep
+        I = [i for i in self.SIR_known.V1 if i in self.SIR_real.SIR.I]
+        S = [i for i in self.SIR_known.SIR.S if i not in I]
+        R = self.SIR_known.SIR.R + self.SIR_known.SIR.I + self.SIR_known.quarantined[0] + self.SIR_known.quarantined[1] + self.SIR_known.quarantined[2]
+        
+        self.SIR_known.SIR = SIR_Tuple(S,I,R)
+        
+        
+        # implements the global rate
+        difference = [i for i in self.SIR_real.SIR.I if i not in self.SIR_known.SIR.I]
+        for node in difference:
+            if random.uniform(0,1) <= self.global_rate:
+                if node in self.SIR_known.SIR.S:
+                    self.SIR_known.SIR.I.append(node)
+                    self.SIR_known.SIR.S.remove(node)
+                else:
+                    self.SIR_known.quarantined[1].append(node)
+                    self.SIR_known.quarantined[0].remove(node)
+        
+        
+        # updates the quarantined people
+        quarantine_real = {i for i in quarantine_known if random.random() < self.compliance_rate}
+        self.SIR_real.update_quarantine(quarantine_real)
+        self.SIR_known.update_quarantine(quarantine_known)
+        
+        
+        # resets the V1 and V2
+        self.SIR_known.set_contours()
+        self.SIR_real.set_contours()
+                
+class InfectionInfo:
+    
+    def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, transmission_rate:float=1, discovery_rate:float=1, snitch_rate:float=1):
+        self.G = G
+        self.SIR = SIR_Tuple(*SIR)
+        self.transmission_rate = transmission_rate
+        self.budget = budget
+        self.quarantined = ([],[],[])
+        self.discovery_rate = discovery_rate
+        self.snitch_rate = snitch_rate
+        
+        # initialize V1 and V2
+        self.set_contours()
+        
+    def update_quarantine(self, to_quarantine):
+        # un-quarantine people from previous time step
+        for node in self.quarantined[0]:
+            self.SIR.S.append(node)
+            self.SIR.R.remove(node)
+            
+        self.quarantined = ([],[],[])
+        
+        # quarantine the new group
+        for node in to_quarantine:
+            if node in self.SIR.S:
+                self.SIR.S.remove(node)
+                self.quarantined[0].append(node)
+            elif node in self.SIR.I:
+                self.SIR.I.remove(node)
+                self.quarantined[1].append(node)
+            else:
+                self.SIR.R.remove(node)
+                self.quarantined[2].append(node)
+                
+    def set_contours(self):
+        (self.V1, self.V2) = find_excluded_contours(self.G, self.SIR[1], self.SIR[2] + self.quarantined[0] + self.quarantined[1] + self.quarantined[2], self.discovery_rate, self.snitch_rate)
