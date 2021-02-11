@@ -7,19 +7,17 @@ from .round import D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective
 from .simulation import *
 from .problem import MinExposedLP, MinExposedSAADiffusion
-
+from typing import *
 def NoIntervention(state: SimulationState):
     return set()
 
 
-def Random(state: SimulationState):
-    return set(random.sample(state.SIR_known.V1, min(state.SIR_known.budget, len(state.SIR_known.V1))))
+def Random(info: InfectionInfo):
+    return set(random.sample(info.V1, min(info.budget, len(info.V1))))
 
 
 # TODO: Test code! (Removed set)
-def Degree(state: SimulationState):
-    info = state.SIR_known
-    
+def Degree(info: InfectionInfo):
     degrees: List[Tuple[int, int]] = []
     for u in info.V1:
         count = sum([1 for v in info.G.neighbors(u) if v in info.V2])
@@ -30,8 +28,7 @@ def Degree(state: SimulationState):
 
 
 # TODO: Test code! V2 -> set V2
-def DegGreedy(state: SimulationState):
-    info = state.SIR_known
+def DegGreedy(info: InfectionInfo):
     P, Q = pq_independent(info.G, info.SIR.I, info.V1, info.transmission_rate)
     
     weights: List[Tuple[int, int]] = []
@@ -43,28 +40,48 @@ def DegGreedy(state: SimulationState):
     return {i[1] for i in weights[:info.budget]}
 
 
-def DepRound(state: SimulationState):
-    
-    problem = MinExposedLP(state.SIR_known)
+# TODO - Abstract away the rounding combo?
+def DepRound(info: InfectionInfo, debug=False):
+    problem = MinExposedLP(info)
     problem.solve_lp()
     probabilities = problem.get_variables()
     rounded = D_prime(np.array(probabilities))
 
-    return set([k for (k,v) in enumerate(rounded) if v==1])
+    action = set([problem.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
+    if debug:
+        return {
+            "problem": problem,
+            "action": action,
+        }
+    return action
 
-def SAADiffusionAgent(state: SimulationState):
-    problem = MinExposedSAADiffusion(state.SIR_known)
+def SAADiffusionAgent(info: InfectionInfo, debug=False):
+    problem = MinExposedSAADiffusion(info)
     problem.solve_lp()
     probabilities = problem.get_variables()
     rounded = D_prime(np.array(probabilities))
-    return set([k for (k,v) in enumerate(rounded) if v==1])
 
-def SAADiffusionAgent(state: SimulationState):
-    problem = MinExposedSAACompliance(state.SIR_known)
+    action = set([problem.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
+    if debug:
+        return {
+            "problem": problem,
+            "action": action,
+        }
+    return action
+
+def SAAComplianceAgent(info: InfectionInfo, debug=False):
+    problem = SAAComplianceAgent(info)
     problem.solve_lp()
     probabilities = problem.get_variables()
     rounded = D_prime(np.array(probabilities))
-    return set([k for (k,v) in enumerate(rounded) if v==1])
+
+    action = set([problem.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
+    if debug:
+        return {
+            "problem": problem,
+            "action": action,
+        }
+    return action
 
 
 # returns rounded bits and objective value of those bits

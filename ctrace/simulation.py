@@ -15,7 +15,7 @@ SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I", "R"])
 
 class SimulationState:
     
-    def __init__(self, G:nx.graph, SIR_real: SIR_Tuple, SIR_known: SIR_Tuple, budget: int, transmission_rate:float, compliance_rate:float, global_rate:float, discovery_rate:float, snitch_rate:float):
+    def __init__(self, G:nx.graph, SIR_real: SIR_Tuple, SIR_known: SIR_Tuple, budget: int, transmission_rate:float, compliance_rate:float=1, global_rate:float=0, discovery_rate:float=1, snitch_rate:float=1):
         self.G = G
         self.SIR_real: InfectionInfo = InfectionInfo(G, SIR_real, budget, transmission_rate, 1, 1)
         self.SIR_known: InfectionInfo = InfectionInfo(G, SIR_known, budget, transmission_rate, discovery_rate, snitch_rate)
