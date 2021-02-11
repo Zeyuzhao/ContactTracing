@@ -280,13 +280,19 @@ class MinExposedSAADiffusion(MinExposedProgram):
     def lp_objective_value(self):
         # Will raise error if not solved
         # Number of people exposed in V2
-        self.objective_value = 0
+        objective_value = 0
         for i in range(self.num_samples):
             for v in self.contour2:
-                self.objective_value += self.Y2[i][v].solution_value()
-        return self.objective_value / self.num_samples
+                objective_value += self.Y2[i][v].solution_value()
+        return objective_value / self.num_samples
+        
+    def lp_sample_objective_value(self, i):
+        objective_value = 0
+        for v in self.contour2:
+            objective_value += self.Y2[i][v].solution_value()
+        return objective_value
 
-class MinExposedSAADiffusion(MinExposedProgram):
+class MinExposedSAACompliance(MinExposedProgram):
     def __init__(self, info: InfectionInfo, solver_id="GLOP", num_samples=10, seed=42):
         self.result = None
         self.info = info
@@ -339,9 +345,8 @@ class MinExposedSAADiffusion(MinExposedProgram):
         """Initializes the constraints according to the relaxed LP formulation of MinExposed"""
 
         # X-Y are complements
-        for i in range(self.num_samples):
-            for u in self.contour1:
-                self.solver.Add(self.X1[i][u] + self.Y1[i][u] == 1)
+        for u in self.contour1:
+            self.solver.Add(self.X1[u] + self.Y1[u] == 1)
 
         # cost (number of people quarantined) must be within budget
         cost: Constraint = self.solver.Constraint(0, self.budget)
