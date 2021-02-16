@@ -15,15 +15,15 @@ print(f"Number of json files: {len(cache_paths)}")
 
 config = {
     "G" : ["montgomery"],
-    "budget": [1000],
+    "budget": [i for i in range(100,3010,10)],
     "transmission_rate": [0.078],
-    "compliance_rate": [i/100 for i in range(10, 101, 1)],
-    "global_rate":  [1],         #ranges are not currently inclusive of upper bound
+    "compliance_rate": [.65,.6,.55],
+    "global_rate":  [1],        
     "discovery_rate": [1],
     "snitch_rate":  [1],
     #QUESTION: For taking the cartesian product, would unnecessary computation happen since snitch+discovery rates should be the same?
     "from_cache": cache_paths,
-    "agent_name": ["Degree"]
+    "agent_name": ["DegGreedy"]
 }
 config["G"] = [load_graph(x) for x in config["G"]]
 
@@ -54,10 +54,10 @@ def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: float, compl
            I = list(I)'''
 
     state = SimulationState(G, (S, I, R), (S, I, R), budget, transmission_rate, compliance_rate, global_rate,
-                                                                                    discovery_rate, snitch_rate)
+                                                                                    discovery_rate, discovery_rate)
     agent = Random
-    if agent_name == "Degree":
-        agent = Degree
+    if agent_name == "DegGreedy":
+        agent = DegGreedy
 
     while len(state.SIR_real.SIR[1]) != 0:
         to_quarantine = agent(state)
@@ -69,25 +69,24 @@ def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: float, compl
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
 # Attempt at making schemas extensible - quite hacky right now
 # run.track_duration()
-#run.exec()
+run.exec()
 
-
+"""
 config = {
-    "G" : ["montgomery"],
+    "G" : [load_graph("montgomery"),],
     "budget": [i for i in range(100,1001,10)],
     "transmission_rate": [0.078],
     "compliance_rate": [1],
-    "global_rate":  [1],         #ranges are not currently inclusive of upper bound
-    "discovery_rate": [1],
+    "global_rate":  [0],
+    "discovery_rate": [.5,.6,.7,.8,.9,1],
     "snitch_rate":  [1],
     #QUESTION: For taking the cartesian product, would unnecessary computation happen since snitch+discovery rates should be the same?
     "from_cache": cache_paths,
     "agent_name": ["Degree"]
 }
-config["G"] = [load_graph(x) for x in config["G"]]
 
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
 run.exec()
-
+"""
 
 #%%

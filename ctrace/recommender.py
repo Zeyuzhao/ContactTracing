@@ -6,7 +6,7 @@ import networkx as nx
 from .round import D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective
 from .simulation import *
-from .problem import MinExposedLP
+from .problem import *
 
 def NoIntervention(state: SimulationState):
     return set()
@@ -50,7 +50,21 @@ def DepRound(state: SimulationState):
     probabilities = problem.get_variables()
     rounded = D_prime(np.array(probabilities))
 
-    return set([k for (k,v) in enumerate(rounded) if v==1])
+    return set([problem.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
+
+def SAA_Diffusion(state: SimulationState, debug=False, num_samples=10):
+    problem = MinExposedSAADiffusion(state.SIR_known, num_samples=num_samples)
+    problem.solve_lp()
+    probabilities = problem.get_variables()
+    rounded = D_prime(np.array(probabilities))
+
+    action = set([problem.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
+    if debug:
+        return {
+            "problem": problem,
+            "action": action,
+        }
+    return action
 
 
 # returns rounded bits and objective value of those bits
