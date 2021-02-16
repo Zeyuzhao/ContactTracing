@@ -96,7 +96,10 @@ class GridExecutor():
         """Uses in_schema and __str__ to return a formatted dict"""
         filtered = {}
         for key in self.in_schema:
-            filtered[key] = str(in_param[key])
+            if key == "agent":
+                filtered[key] = in_param[key].__name__
+            else:
+                filtered[key] = str(in_param[key])
         return filtered
 
     def output_param_formatter(self, out_param):
