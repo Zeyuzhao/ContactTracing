@@ -26,7 +26,6 @@ class MinExposedProgram:
         if self.solver is None:
             raise ValueError("Solver failed to initialize!")
             
-
         # Compute P, Q from SIR
         self.P, self.Q = pq_independent(self.G, self.SIR.I, self.contour1, self.p)
     
@@ -38,7 +37,6 @@ class MinExposedProgram:
         self.Y1: Dict[int, Variable] = {}
 
         # non-controllable - contour2
-        self.X2: Dict[int, Variable] = {}
         self.Y2: Dict[int, Variable] = {}
         self.init_variables()
 
@@ -55,8 +53,6 @@ class MinExposedProgram:
         # X-Y are complements
         for u in self.contour1:
             self.solver.Add(self.X1[u] + self.Y1[u] == 1)
-        for v in self.contour2:
-            self.solver.Add(self.X2[v] + self.Y2[v] == 1)
 
         # cost (number of people quarantined) must be within budget
         cost: Constraint = self.solver.Constraint(0, self.budget)
@@ -116,10 +112,7 @@ class MinExposedProgram:
             self.quarantine_raw[i] = self.quarantined_solution[u] = self.X1[u].solution_value()
             self.quarantine_map.append(u)
 
-        # Number of people exposed in V2
-        self.objective_value = 0
-        for v in self.contour2:
-            self.objective_value += self.Y2[v].solution_value()
+        self.objective_value = self.lp_objective_value()
 
         return self.quarantined_solution
 
@@ -167,6 +160,14 @@ class MinExposedProgram:
     def get_solution(self):
         return self.quarantined_solution
     
+    def lp_objective_value(self):
+        # Will raise error if not solved
+        # Number of people exposed in V2
+        objective_value = 0
+        for v in self.contour2:
+            objective_value += self.Y2[v].solution_value()
+        return objective_value
+
     def min_exposed_objective(self):
         """Simulate the MinExposed Objective outline in the paper. May only be called after recommend"""
         if self.result is None:
@@ -184,7 +185,6 @@ class MinExposedLP(MinExposedProgram):
             self.X1[u] = self.solver.NumVar(0, 1, f"V1_x{u}")
             self.Y1[u] = self.solver.NumVar(0, 1, f"V1_y{u}")
         for v in self.contour2:
-            self.X2[v] = self.solver.NumVar(0, 1, f"V2_x{v}")
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
 
 
@@ -198,5 +198,96 @@ class MinExposedIP(MinExposedProgram):
             self.X1[u] = self.solver.IntVar(0, 1, f"V1_x{u}")
             self.Y1[u] = self.solver.IntVar(0, 1, f"V1_y{u}")
         for v in self.contour2:
-            self.X2[v] = self.solver.NumVar(0, 1, f"V2_x{v}")
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
+
+class MinExposedSAADiffusion(MinExposedProgram):
+    def __init__(self, info: InfectionInfo, solver_id="GLOP", num_samples=10, seed=42):
+        self.result = None
+        self.info = info
+        self.G = info.G
+        self.SIR = info.SIR
+        self.budget = info.budget
+        self.p = info.transmission_rate
+        self.contour1, self.contour2 = self.info.V1, self.info.V2
+        self.solver = pywraplp.Solver.CreateSolver(solver_id)
+        self.num_samples = num_samples
+
+        random.seed(seed)
+
+        # A list of sets of edges between v1 and v2 that are actually sampled for iteration i
+        self.contour_edge_samples = [[] for i in range(self.num_samples)]
+
+        if self.solver is None:
+            raise ValueError("Solver failed to initialize!")
+
+        # Compute P, Q from SIR
+        self.P, self.Q = pq_independent(self.G, self.SIR.I, self.contour1, self.p)
+    
+        # Partial evaluation storage
+        self.partials = {}
+
+        # controllable - contour1
+        self.X1: Dict[int, Variable] = {}
+        self.Y1: Dict[int, Variable] = {}
+
+        # non-controllable - contour2 (over i samples)
+        self.Y2: List[Dict[int, Variable]] = [{} for i in range(self.num_samples)]
+        self.init_variables()
+
+        # Initialize constraints
+        self.init_constraints()
+
+    def init_variables(self):
+        """Declare variables as needed"""
+        for u in self.contour1:
+            self.X1[u] = self.solver.NumVar(0, 1, f"V1_x{u}")
+            self.Y1[u] = self.solver.NumVar(0, 1, f"V1_y{u}")
+        
+        for i in range(self.num_samples):
+            for v in self.contour2:
+                self.Y2[i][v] = self.solver.NumVar(0, 1, f"V2[{i}]_y{v}") 
+
+    def init_constraints(self):
+        """Initializes the constraints according to the relaxed LP formulation of MinExposed"""
+
+        # X-Y are complements
+        for u in self.contour1:
+            self.solver.Add(self.X1[u] + self.Y1[u] == 1)
+
+        # cost (number of people quarantined) must be within budget
+        cost: Constraint = self.solver.Constraint(0, self.budget)
+        for u in self.contour1:
+            cost.SetCoefficient(self.X1[u], 1)
+
+        # Y2[v] becomes a lower bound for the probability that vertex v is infected
+        # SAMPLING
+
+        for i in range(self.num_samples):
+            for u in self.contour1:
+                for v in self.G.neighbors(u):
+                    if v in self.contour2 and random.random() < self.p: # Sample with uniform probability
+                        self.contour_edge_samples[i].append((u, v))
+                        self.solver.Add(self.Y2[i][v] >= self.Y1[u])
+
+        # Objective: Minimize number of people exposed in contour2
+        num_exposed: Objective = self.solver.Objective()
+
+        for i in range(self.num_samples):
+            for v in self.contour2:
+                num_exposed.SetCoefficient(self.Y2[i][v], 1)
+        num_exposed.SetMinimization()
+
+    def lp_objective_value(self):
+        # Will raise error if not solved
+        # Number of people exposed in V2
+        objective_value = 0
+        for i in range(self.num_samples):
+            for v in self.contour2:
+                objective_value += self.Y2[i][v].solution_value()
+        return objective_value / self.num_samples
+        
+    def lp_sample_objective_value(self, i):
+        objective_value = 0
+        for v in self.contour2:
+            objective_value += self.Y2[i][v].solution_value()
+        return objective_value
