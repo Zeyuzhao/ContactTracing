@@ -23,9 +23,11 @@ from numbers import Number
 
 #%%
 G = nx.grid_2d_graph(20, 20)
+G.remove_nodes_from(uniform_sample(G.nodes(), 0.3))
 mapper = {n : i for i, n in enumerate(G.nodes())}
 pos = {i:(y,-x) for i, (x,y) in enumerate(G.nodes())}
 G = nx.relabel_nodes(G, mapper)
+
 # %%
 
 # Utility Functions
@@ -35,6 +37,9 @@ def random_sir(G):
     R = set(random.sample(nodes - I, 10))
     S = nodes - I - R
     return SIR_Tuple(list(S), list(I), list(R))
+
+def all_sus(G):
+    return SIR_Tuple(set(G.nodes), set(), set())
 
 def random_init(G, num_infected=5):
     nodes = set(G.nodes)
@@ -47,18 +52,19 @@ def grid_sir(G, ax, pos:Dict[int,Number]=None, sir=None,
 marked_nodes:List[int]=None, edges:List[int]=None, edge_color=None):
     # G should be in a 2d grid form!
     if sir is None:
-        sir = random_sir(G)
+        sir = all_sus(G)
 
     if marked_nodes is None:
         marked_nodes = []
         # marked = random.sample(set(G.nodes), 10)
+
     if edges is None:
         edges = []
 
     if edge_color is None:
-        edge_color = ["red"] * len(edges)
+        edge_color = ["black"] * len(edges)
 
-    if len(edges) != len(edge_colors):
+    if len(edges) != len(edge_color):
         raise ValueError("edges must match edge_colors")
 
     if pos is None:
@@ -99,6 +105,8 @@ def draw_single(G, **args):
     fig, ax = plt.subplots(figsize=(4,4))
     grid_sir(G, ax, **args)
 
+draw_single(G, pos=pos)
+
 # %%
 sir = random_init(G, num_infected=10)
 # Create infection state
@@ -111,11 +119,17 @@ problem = info["problem"]
 
 
 # %%
-sample_num = 1
+sample_num = 5
 v1_infected = problem.v1_samples[sample_num]
 edges = problem.edge_samples[sample_num][0], problem.edge_samples[sample_num][1]
 edge_colors = ["grey"] * len(edges[0]) + ["black"] * len(edges[1])
-draw_single(G, pos=pos, sir=sir, marked_nodes=v1_infected, edges=edges[0] + edges[1], edge_color=edge_colors)
+draw_single(G, pos=pos, sir=sir, marked_nodes=action, edges=edges[0] + edges[1], edge_color=edge_colors)
+# %%
+
+# %%
+
+# %%
+
 # %%
 
 # %%
