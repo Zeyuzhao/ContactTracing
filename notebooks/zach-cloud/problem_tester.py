@@ -16,6 +16,10 @@ from ctrace.problem import *
 import networkx as nx
 from dataclasses import dataclass
 
+from typing import Dict
+from numbers import Number
+
+
 
 #%%
 G = nx.grid_2d_graph(20, 20)
@@ -39,7 +43,8 @@ def random_init(G, num_infected=5):
     S = nodes - I - R
     return SIR_Tuple(list(S), list(I), list(R))
 
-def grid_sir(G, ax, pos=None, sir=None, marked_nodes=None, edges=None):
+def grid_sir(G, ax, pos:Dict[int,Number]=None, sir=None, 
+marked_nodes:List[int]=None, edges:List[int]=None, edge_color=None):
     # G should be in a 2d grid form!
     if sir is None:
         sir = random_sir(G)
@@ -50,12 +55,18 @@ def grid_sir(G, ax, pos=None, sir=None, marked_nodes=None, edges=None):
     if edges is None:
         edges = []
 
+    if edge_color is None:
+        edge_color = ["red"] * len(edges)
+
+    if len(edges) != len(edge_colors):
+        raise ValueError("edges must match edge_colors")
+
     if pos is None:
         pos = {(x, y): (y, -x) for (x,y) in G.nodes}
     
     node_size = [None] * len(G.nodes)
     node_color = [None] * len(G.nodes)
-    edge_color = [None] * len(G.nodes)
+    border_color = [None] * len(G.nodes)
     linewidths = [0] * len(G.nodes)
     for i in range(len(G.nodes)):
         # Handle SIR
@@ -71,22 +82,22 @@ def grid_sir(G, ax, pos=None, sir=None, marked_nodes=None, edges=None):
         
         # Handle Quarantine
         if i in marked_nodes:
-            edge_color[i] = "green"
-            linewidths[i] = 2
+            border_color[i] = "green"
+            linewidths[i] = 1
         else:
-            edge_color[i] = "black"
+            border_color[i] = "black"
             linewidths[i] = 1
     
     # Draw edges that are from I, V1, and V2
-    nodes = nx.draw_networkx_nodes(G, pos=pos, node_color=node_color, node_size=node_size, edgecolors=edge_color, linewidths=linewidths, ax=ax)
+    nodes = nx.draw_networkx_nodes(G, pos=pos, node_color=node_color, node_size=node_size, edgecolors=border_color, linewidths=linewidths, ax=ax)
 
     # TODO: Draw v1-v2 edges
-    edgelist = []
-    nx.draw_networkx_edges(G, pos=pos, edgelist=edges, width=[], ax=ax)
+    
+    nx.draw_networkx_edges(G, pos=pos, edgelist=edges, edge_color=edge_color, width=[], ax=ax)
 
-def draw_single(G, sir=None, marked=None, edges=None):
+def draw_single(G, **args):
     fig, ax = plt.subplots(figsize=(4,4))
-    grid_sir(G, ax, pos=pos, sir=sir, marked_nodes=marked, edges=edges)
+    grid_sir(G, ax, **args)
 
 # %%
 sir = random_init(G, num_infected=10)
@@ -98,12 +109,13 @@ info = SAADiffusionAgent(infection_info, debug=True)
 action = info["action"]
 problem = info["problem"]
 
-draw_single(G, sir=sir, marked=action)
-
 
 # %%
-edges = problem.contour_edge_samples[6]
-draw_single(G, sir=sir, marked=action, edges=edges)
+sample_num = 1
+v1_infected = problem.v1_samples[sample_num]
+edges = problem.edge_samples[sample_num][0], problem.edge_samples[sample_num][1]
+edge_colors = ["grey"] * len(edges[0]) + ["black"] * len(edges[1])
+draw_single(G, pos=pos, sir=sir, marked_nodes=v1_infected, edges=edges[0] + edges[1], edge_color=edge_colors)
 # %%
 
 # %%

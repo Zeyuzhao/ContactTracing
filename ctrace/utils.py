@@ -7,7 +7,7 @@ import random
 from collections import defaultdict
 from pathlib import Path
 from statistics import mean
-from typing import Set, Iterable, Tuple, List, Dict
+from typing import Set, Iterable, Tuple, List, Dict, Any
 
 import EoN
 import networkx as nx
@@ -18,7 +18,10 @@ from . import PROJECT_ROOT
 
 np.random.seed(42)
 
-np.random.seed(42)
+
+def uniform_sample(l: List[Any], p: float):
+    """Samples elements from l uniformly with probability p"""
+    return [x for x in l if random.random() < p]
 
 def find_contours(G: nx.Graph, infected):
     """Produces contour1 and contour2 from infected"""
