@@ -8,18 +8,55 @@ from ctrace.recommender import *
 from collections import namedtuple
 json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 
+G2 = nx.Graph()
+G2.NAME = "cville"
+nodes = {}
+rev_nodes = []
+
+file = open(PROJECT_ROOT / "data/raw/charlottesville.txt", "r")
+file.readline()
+lines = file.readlines()
+c = 0
+c_node=0
+ma = 0
+mi = 100000000
+
+for line in lines:
+
+    a = line.split()
+    u = int(a[1])
+    v = int(a[2])
+
+    if u in nodes.keys():
+        u = nodes[u]
+    else:
+        nodes[u] = c_node
+        rev_nodes.append(u)
+        u = c_node
+        c_node+=1        
+    
+    if v in nodes.keys():
+        v = nodes[v]
+    else:
+        nodes[v] = c_node
+        rev_nodes.append(v)
+        v = c_node
+        c_node+=1
+
+    G2.add_edge(u,v)
+
 config = {
-    "G" : ["montgomery"],
-    "budget": [i for i in range(100,3010,10)],
-    "transmission_rate": [0.078],
-    "compliance_rate": [.65,.6,.55],
+    "G" : [G2],
+    "budget": [i for i in range(100,3710,10)],
+    "transmission_rate": [0.06],
+    "compliance_rate": [i/100 for i in range(50,101,5)],
     "global_rate":  [1],        
     "discovery_rate": [1],
     "snitch_rate":  [1],
-    "from_cache": ["t7.json"],
-    "agent": [Degree]
+    "from_cache": ["a5.json"],
+    "agent": [DegGreedy]
 }
-config["G"] = [load_graph(x) for x in config["G"]]
+#config["G"] = [load_graph(x) for x in config["G"]]
 
 in_schema = list(config.keys())
 out_schema = ["infected_count_known", "infected_count_real"]
@@ -54,20 +91,19 @@ run.exec()
 
 """
 config = {
-    "G" : [load_graph("montgomery"),],
-    "budget": [i for i in range(100,1001,10)],
+    "G" : ["montgomery"],
+    "budget": [i for i in range(100,3410,10)],
     "transmission_rate": [0.078],
-    "compliance_rate": [1],
-    "global_rate":  [0],
-    "discovery_rate": [.5,.6,.7,.8,.9,1],
+    "compliance_rate": [i/100 for i in range(50,101,5)],
+    "global_rate":  [1],        
+    "discovery_rate": [1],
     "snitch_rate":  [1],
-    #QUESTION: For taking the cartesian product, would unnecessary computation happen since snitch+discovery rates should be the same?
-    "from_cache": ["t8.json"],
-    "agent_name": [Degree]
+    "from_cache": ["t7.json"],
+    "agent": [DegGreedy]
 }
+config["G"] = [load_graph(x) for x in config["G"]]
 
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
 run.exec()
 """
-
 #%%
