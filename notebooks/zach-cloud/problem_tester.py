@@ -20,10 +20,20 @@ from typing import Dict
 from numbers import Number
 
 
-
+random.seed(42)
 #%%
-G = nx.grid_2d_graph(20, 20)
-G.remove_nodes_from(uniform_sample(G.nodes(), 0.3))
+width=25
+G = nx.grid_2d_graph(width, width)
+G.add_edges_from([
+    ((x, y), (x+1, y+1))
+    for x in range(width-1)
+    for y in range(width-1)
+] + [
+    ((x+1, y), (x, y+1))
+    for x in range(width-1)
+    for y in range(width-1)
+])
+G.remove_nodes_from(uniform_sample(G.nodes(), 0.2))
 mapper = {n : i for i, n in enumerate(G.nodes())}
 pos = {i:(y,-x) for i, (x,y) in enumerate(G.nodes())}
 G = nx.relabel_nodes(G, mapper)
@@ -88,7 +98,7 @@ marked_nodes:List[int]=None, edges:List[int]=None, edge_color=None):
         
         # Handle Quarantine
         if i in marked_nodes:
-            border_color[i] = "green"
+            border_color[i] = "lawngreen"
             linewidths[i] = 1
         else:
             border_color[i] = "black"
@@ -105,12 +115,18 @@ def draw_single(G, **args):
     fig, ax = plt.subplots(figsize=(4,4))
     grid_sir(G, ax, **args)
 
-draw_single(G, pos=pos)
+def draw_multiple(G, args):
+    fig, ax = plt.subplots(1, len(args), figsize=(4 * len(args),4))
+    for i, config in enumerate(args):
+        grid_sir(G, ax[i], **config)
+    return fig, ax
+
+draw_single(G, pos=pos, edges=G.edges)
 
 # %%
-sir = random_init(G, num_infected=10)
+sir = random_init(G, num_infected=30)
 # Create infection state
-infection_info = InfectionInfo(G, sir, budget=10, transmission_rate=0.5)
+infection_info = InfectionInfo(G, sir, budget=50, transmission_rate=0.5)
 
 # %%
 info = SAADiffusionAgent(infection_info, debug=True)
@@ -119,13 +135,23 @@ problem = info["problem"]
 
 
 # %%
-sample_num = 5
-v1_infected = problem.v1_samples[sample_num]
-edges = problem.edge_samples[sample_num][0], problem.edge_samples[sample_num][1]
-edge_colors = ["grey"] * len(edges[0]) + ["black"] * len(edges[1])
-draw_single(G, pos=pos, sir=sir, marked_nodes=action, edges=edges[0] + edges[1], edge_color=edge_colors)
-# %%
+# sample_num = 0
+# v1_infected = problem.v1_samples[sample_num]
+# edges = problem.edge_samples[sample_num][0], problem.edge_samples[sample_num][1]
+# edge_colors = ["grey"] * len(edges[0]) + ["black"] * len(edges[1])
+# draw_single(G, pos=pos, sir=sir, marked_nodes=action, edges=edges[0] + edges[1], edge_color=edge_colors)
 
+args = []
+for sample_num in range(5):
+    v1_infected = problem.v1_samples[sample_num]
+    edges = problem.edge_samples[sample_num][0], problem.edge_samples[sample_num][1]
+    edge_colors = ["grey"] * len(edges[0]) + ["black"] * len(edges[1])
+    args.append({
+        "pos":pos, "sir":sir, "marked_nodes":action, "edges": edges[0] + edges[1], "edge_color":edge_colors
+    })
+fig, ax = draw_multiple(G, args)
+# %%
+fig.savefig("seq_diag_seed_42.svg")
 # %%
 
 # %%
