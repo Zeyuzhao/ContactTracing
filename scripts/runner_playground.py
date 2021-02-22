@@ -53,7 +53,7 @@ config = {
     "global_rate":  [1],        
     "discovery_rate": [1],
     "snitch_rate":  [1],
-    "from_cache": ["a5.json"],
+    "from_cache": ["a6.json"],
     "agent": [DegGreedy]
 }
 #config["G"] = [load_graph(x) for x in config["G"]]
