@@ -22,6 +22,8 @@ from numbers import Number
 
 random.seed(42)
 #%%
+
+# Create graph (with diagonal connections) to experiment on
 width=25
 G = nx.grid_2d_graph(width, width)
 G.add_edges_from([
@@ -123,6 +125,9 @@ def draw_multiple(G, args):
 
 draw_single(G, pos=pos, edges=G.edges)
 
+
+
+# Agent Evaluation Time
 # %%
 sir = random_init(G, num_infected=30)
 # Create infection state
