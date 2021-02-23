@@ -27,7 +27,7 @@ random.seed(42)
 #%%
 
 # Create graph (with diagonal connections) to experiment on
-width=25
+width=20
 G = nx.grid_2d_graph(width, width)
 G.add_edges_from([
     ((x, y), (x+1, y+1))

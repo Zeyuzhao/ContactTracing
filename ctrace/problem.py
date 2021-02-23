@@ -353,6 +353,10 @@ class MinExposedSAACompliance(MinExposedProgram):
         # A list of sets of edges between v1 and v2 that are actually sampled for iteration i
         self.non_compliant_samples = [set(uniform_sample(self.contour1,  1 - self.compliance_rate)) for i in range(self.num_samples)]
 
+        # Temporary test:
+        # contour1_list = sorted(list(self.contour1))
+        # self.non_compliant_samples = [{contour1_list[i] for i in range(30)} for i in range(self.num_samples)]
+    
     def init_variables(self):
         """Declare variables as needed"""
         for u in self.contour1:
