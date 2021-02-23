@@ -84,6 +84,7 @@ def SAAComplianceAgent(info: InfectionInfo, debug=False):
     return action
 
 
+
 # returns rounded bits and objective value of those bits
 def iterated(problem: MinExposedLP, d: int):
     problem.solve_lp()

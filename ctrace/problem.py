@@ -237,28 +237,26 @@ class MinExposedSAADiffusion(MinExposedProgram):
         # Collection of infected v1s ordered by sample id
         self.v1_samples = [set() for i in range(self.num_samples)]
 
-        # Sample edges for transmission
+        self.init_samples()
 
-        # I -> V1
+        self.init_variables()
+
+        # Initialize constraints
+        self.init_constraints()
+
+    def init_samples(self):
         for i in range(self.num_samples):
             for infected in self.SIR[1]:
                 for v1 in self.G.neighbors(infected):
                     if v1 in self.contour1 and random.random() < self.p: 
                         self.edge_samples[i][0].append((infected, v1))
                         self.v1_samples[i].add(v1)
-
-        # V1 -> V2 (Conditional on V1 being infected)
-        for i in range(self.num_samples):
+        # V1 -> V2 (Conditional on V1 being infected)for i in range(self.num_samples):
             for v1 in self.contour1:
                 if v1 in self.v1_samples[i]:
                     for v2 in self.G.neighbors(v1):
                         if v2 in self.contour2 and random.random() < self.p:
                             self.edge_samples[i][1].append((v1, v2))
-
-        self.init_variables()
-
-        # Initialize constraints
-        self.init_constraints()
 
     def init_variables(self):
         """Declare variables as needed"""
@@ -326,9 +324,6 @@ class MinExposedSAACompliance(MinExposedProgram):
 
         random.seed(seed)
 
-        # A list of sets of edges between v1 and v2 that are actually sampled for iteration i
-        self.non_compliant_samples = [set(uniform_sample(self.contour1,  1 - self.compliance_rate)) for i in range(self.num_samples)]
-
         if self.solver is None:
             raise ValueError("Solver failed to initialize!")
 
@@ -345,10 +340,18 @@ class MinExposedSAACompliance(MinExposedProgram):
         # non-controllable - contour 1 and contour2 (over i samples)
         self.Y1_samples: List[Dict[int, Variable]] = [{} for i in range(self.num_samples)]
         self.Y2_samples: List[Dict[int, Variable]] = [{} for i in range(self.num_samples)]
+        
+        # Sampled nodes
+        self.non_compliant_samples = []
+        self.init_samples()
         self.init_variables()
 
         # Initialize constraints
         self.init_constraints()
+
+    def init_samples(self):
+        # A list of sets of edges between v1 and v2 that are actually sampled for iteration i
+        self.non_compliant_samples = [set(uniform_sample(self.contour1,  1 - self.compliance_rate)) for i in range(self.num_samples)]
 
     def init_variables(self):
         """Declare variables as needed"""
@@ -374,6 +377,11 @@ class MinExposedSAACompliance(MinExposedProgram):
         for u in self.contour1:
             cost.SetCoefficient(self.X1[u], 1)
 
+        # People not asked to quarantine would not quarantine
+        for i in range(self.num_samples):
+            for u in self.contour1:
+                self.solver.Add(self.Y1_samples[i][u] >= self.Y1[u])
+
         # non-compliant contour1
         for i in range(self.num_samples):
             for u in self.contour1:
@@ -383,15 +391,32 @@ class MinExposedSAACompliance(MinExposedProgram):
 
         for i in range(self.num_samples):
             for u in self.contour1:
-                for v in self.G.neighbors(u):
+                for v in self.G.neighbors(u) and v in self.contour2:
                         self.solver.Add(self.Y2_samples[i][v] >= self.Y1_samples[i][u])
 
         # Objective: Minimize number of people exposed in contour2
+
+        # Optimizing for sum over different scenarios (or minimizing the average)
         num_exposed: Objective = self.solver.Objective()
         for i in range(self.num_samples):
             for v in self.contour2:
                 num_exposed.SetCoefficient(self.Y2[i][v], 1)
         num_exposed.SetMinimization()
+
+    def lp_objective_value(self):
+        # Will raise error if not solved
+        # Number of people exposed in V2
+        objective_value = 0
+        for i in range(self.num_samples):
+            for v in self.contour2:
+                objective_value += self.Y2[i][v].solution_value()
+        return objective_value / self.num_samples
+        
+    def lp_sample_objective_value(self, i):
+        objective_value = 0
+        for v in self.contour2:
+            objective_value += self.Y2[i][v].solution_value()
+        return objective_value
     
 class MinExposedSAAStructure():
     pass
