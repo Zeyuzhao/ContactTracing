@@ -310,7 +310,7 @@ class MinExposedSAADiffusion(MinExposedProgram):
         return objective_value
 
 class MinExposedSAACompliance(MinExposedProgram):
-    def __init__(self, info: InfectionInfo, solver_id="GLOP", compliance_rate=1, num_samples=10, seed=42):
+    def __init__(self, info: InfectionInfo, solver_id="GLOP", compliance_rate=0.5, num_samples=10, seed=42):
         self.result = None
         self.info = info
         self.G = info.G
@@ -391,7 +391,8 @@ class MinExposedSAACompliance(MinExposedProgram):
 
         for i in range(self.num_samples):
             for u in self.contour1:
-                for v in self.G.neighbors(u) and v in self.contour2:
+                for v in self.G.neighbors(u):
+                    if v in self.contour2:
                         self.solver.Add(self.Y2_samples[i][v] >= self.Y1_samples[i][u])
 
         # Objective: Minimize number of people exposed in contour2
@@ -400,7 +401,7 @@ class MinExposedSAACompliance(MinExposedProgram):
         num_exposed: Objective = self.solver.Objective()
         for i in range(self.num_samples):
             for v in self.contour2:
-                num_exposed.SetCoefficient(self.Y2[i][v], 1)
+                num_exposed.SetCoefficient(self.Y2_samples[i][v], 1)
         num_exposed.SetMinimization()
 
     def lp_objective_value(self):
@@ -409,15 +410,27 @@ class MinExposedSAACompliance(MinExposedProgram):
         objective_value = 0
         for i in range(self.num_samples):
             for v in self.contour2:
-                objective_value += self.Y2[i][v].solution_value()
+                objective_value += self.Y2_samples[i][v].solution_value()
         return objective_value / self.num_samples
         
     def lp_sample_objective_value(self, i):
         objective_value = 0
         for v in self.contour2:
-            objective_value += self.Y2[i][v].solution_value()
+            objective_value += self.Y2_samples[i][v].solution_value()
         return objective_value
     
 class MinExposedSAAStructure():
     pass
 
+
+
+def compute_border_edges(G, src, dest):
+    contour_edges = []
+    for i in src:
+        for j in G.neighbors(i):
+            if j in dest:
+                contour_edges.append((i, j))
+    return contour_edges
+
+def compute_contour_edges(G: nx.Graph, I, V1, V2):
+    return compute_border_edges(G, I, V1), compute_border_edges(G, V1, V2)

@@ -6,7 +6,7 @@ import networkx as nx
 from .round import D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective
 from .simulation import *
-from .problem import MinExposedLP, MinExposedSAADiffusion
+from .problem import MinExposedLP, MinExposedSAACompliance, MinExposedSAADiffusion
 from typing import *
 def NoIntervention(state: SimulationState):
     return set()
@@ -70,7 +70,7 @@ def SAADiffusionAgent(info: InfectionInfo, debug=False):
     return action
 
 def SAAComplianceAgent(info: InfectionInfo, debug=False):
-    problem = SAAComplianceAgent(info)
+    problem = MinExposedSAACompliance(info)
     problem.solve_lp()
     probabilities = problem.get_variables()
     rounded = D_prime(np.array(probabilities))

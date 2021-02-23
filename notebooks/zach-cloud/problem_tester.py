@@ -1,4 +1,7 @@
 #%%
+%load_ext autoreload
+
+%autoreload 2
 import networkx as nx
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -60,16 +63,25 @@ def random_init(G, num_infected=5):
     S = nodes - I - R
     return SIR_Tuple(list(S), list(I), list(R))
 
-def grid_sir(G, ax, pos:Dict[int,Number]=None, sir=None, 
-marked_nodes:List[int]=None, edges:List[int]=None, edge_color=None):
+def grid_sir(G, 
+    ax, 
+    pos:Dict[int,Number]=None, 
+    sir=None, 
+    quarantined_nodes:List[int]=None, 
+    non_compliant_nodes: List[int]=None, 
+    edges:List[int]=None, 
+    edge_color=None
+):
     # G should be in a 2d grid form!
     if sir is None:
         sir = all_sus(G)
 
-    if marked_nodes is None:
-        marked_nodes = []
+    if quarantined_nodes is None:
+        quarantined_nodes = []
         # marked = random.sample(set(G.nodes), 10)
 
+    if non_compliant_nodes is None:
+        non_compliant_nodes = []
     if edges is None:
         edges = []
 
@@ -90,16 +102,21 @@ marked_nodes:List[int]=None, edges:List[int]=None, edge_color=None):
         # Handle SIR
         if i in sir.S:
             node_size[i] = 10
-            node_color[i] = "black"
+            if i in non_compliant_nodes:
+                node_color[i] = "red"
+            else:
+                node_color[i] = "black"
         elif i in sir.I:
             node_size[i] = 50
             node_color[i] = "red"
         else:
-            node_size[i] = 50
+            node_size[i] = 10
             node_color[i] = "silver"
+
+        
         
         # Handle Quarantine
-        if i in marked_nodes:
+        if i in quarantined_nodes:
             border_color[i] = "lawngreen"
             linewidths[i] = 1
         else:
@@ -134,7 +151,7 @@ sir = random_init(G, num_infected=30)
 infection_info = InfectionInfo(G, sir, budget=50, transmission_rate=0.5)
 
 # %%
-info = SAADiffusionAgent(infection_info, debug=True)
+info = SAAComplianceAgent(infection_info, debug=True)
 action = info["action"]
 problem = info["problem"]
 
@@ -148,11 +165,11 @@ problem = info["problem"]
 
 args = []
 for sample_num in range(5):
-    v1_infected = problem.v1_samples[sample_num]
-    edges = problem.edge_samples[sample_num][0], problem.edge_samples[sample_num][1]
+    non_compliant_samples = problem.non_compliant_samples[sample_num]
+    edges = compute_contour_edges(problem.G, problem.SIR.I, problem.contour1, problem.contour2)
     edge_colors = ["grey"] * len(edges[0]) + ["black"] * len(edges[1])
     args.append({
-        "pos":pos, "sir":sir, "marked_nodes":action, "edges": edges[0] + edges[1], "edge_color":edge_colors
+        "pos":pos, "sir":sir, "quarantined_nodes":action, "non_compliant_nodes": non_compliant_samples, "edges": edges[0] + edges[1], "edge_color":edge_colors
     })
 fig, ax = draw_multiple(G, args)
 # %%
