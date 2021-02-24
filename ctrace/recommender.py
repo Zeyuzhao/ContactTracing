@@ -6,7 +6,7 @@ import networkx as nx
 from .round import D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective
 from .simulation import *
-from .problem import MinExposedLP, MinExposedSAACompliance, MinExposedSAADiffusion
+from .problem import MinExposedLP, MinExposedSAA, MinExposedSAACompliance, MinExposedSAADiffusion
 from typing import *
 def NoIntervention(state: SimulationState):
     return set()
@@ -43,6 +43,20 @@ def DegGreedy(info: InfectionInfo):
 # TODO - Abstract away the rounding combo?
 def DepRound(info: InfectionInfo, debug=False):
     problem = MinExposedLP(info)
+    problem.solve_lp()
+    probabilities = problem.get_variables()
+    rounded = D_prime(np.array(probabilities))
+
+    action = set([problem.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
+    if debug:
+        return {
+            "problem": problem,
+            "action": action,
+        }
+    return action
+
+def SAAAgent(info: InfectionInfo, debug=False, **args):
+    problem = MinExposedSAA(info, **args)
     problem.solve_lp()
     probabilities = problem.get_variables()
     rounded = D_prime(np.array(probabilities))

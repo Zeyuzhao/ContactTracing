@@ -25,8 +25,6 @@ from numbers import Number
 
 
 random.seed(42)
-#%%
-
 # %%
 
 # Utility Functions
@@ -49,7 +47,7 @@ def random_init(G, num_infected=5):
 
 def grid_sir(G, 
     ax, 
-    pos:Dict[int,Number]=None, 
+    pos:Dict[int,Number], 
     sir=None, 
     quarantined_nodes:List[int]=None, 
     non_compliant_nodes: List[int]=None, 
@@ -76,7 +74,7 @@ def grid_sir(G,
         raise ValueError("edges must match edge_colors")
 
     if pos is None:
-        pos = {(x, y): (y, -x) for (x,y) in G.nodes}
+        pos = {x: x["pos"] for x in G.nodes}
     
     node_size = [None] * len(G.nodes)
     node_color = [None] * len(G.nodes)
@@ -97,8 +95,6 @@ def grid_sir(G,
             node_size[i] = 10
             node_color[i] = "silver"
 
-        
-        
         # Handle Quarantine
         if i in quarantined_nodes:
             border_color[i] = "lawngreen"
@@ -142,10 +138,8 @@ mapper = {n : i for i, n in enumerate(G.nodes())}
 pos = {i:(y,-x) for i, (x,y) in enumerate(G.nodes())}
 G = nx.relabel_nodes(G, mapper)
 
-
 sir = random_init(G, num_infected=30)
-G.add_edges_from(uniform_sample(list(itertools.product(sir.I, sir.I)), 1/width))
-
+# G.add_edges_from(uniform_sample(list(itertools.product(sir.I, sir.I)), 1/width))
 draw_single(G, pos=pos, edges=G.edges)
 
 
@@ -157,7 +151,8 @@ draw_single(G, pos=pos, edges=G.edges)
 infection_info = InfectionInfo(G, sir, budget=50, transmission_rate=0.5)
 
 # %%
-info = SAAComplianceAgent(infection_info, debug=True)
+num_samples = 3
+info = SAAAgent(infection_info, debug=True, num_samples=num_samples, transmission_rate=1, compliance_rate=1, structure_rate=0, seed=42)
 action = info["action"]
 problem = info["problem"]
 
@@ -170,9 +165,10 @@ problem = info["problem"]
 # draw_single(G, pos=pos, sir=sir, marked_nodes=action, edges=edges[0] + edges[1], edge_color=edge_colors)
 
 args = []
-for sample_num in range(5):
-    non_compliant_samples = problem.non_compliant_samples[sample_num]
-    edges = compute_contour_edges(problem.G, problem.SIR.I, problem.contour1, problem.contour2)
+for sample_num in range(num_samples):
+    non_compliant_samples = problem.sample_data[sample_num]["non_compliant"]
+    relevant_v1 = problem.sample_data[sample_num]["relevant_v1"]
+    edges = problem.sample_data[sample_num]["border_edges"]
     edge_colors = ["grey"] * len(edges[0]) + ["black"] * len(edges[1])
     args.append({
         "pos":pos, "sir":sir, "quarantined_nodes":action, "non_compliant_nodes": non_compliant_samples, "edges": edges[0] + edges[1], "edge_color":edge_colors
