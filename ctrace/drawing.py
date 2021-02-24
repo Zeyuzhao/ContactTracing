@@ -1,16 +1,9 @@
-#%%
-%load_ext autoreload
-
-%autoreload 2
 import networkx as nx
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 import random
-import math
-import EoN
 import seaborn as sns
-import time
 
 from ctrace.simulation import *
 from ctrace.dataset import *
@@ -18,13 +11,11 @@ from ctrace.recommender import *
 from ctrace.problem import *
 from ctrace.utils import *
 import networkx as nx
-from dataclasses import dataclass
 
 from typing import Dict
 from numbers import Number
 
 random.seed(42)
-# %%
 
 # Utility Functions
 def random_sir(G):
@@ -44,14 +35,14 @@ def random_init(G, num_infected=5):
     S = nodes - I - R
     return SIR_Tuple(list(S), list(I), list(R))
 
-def grid_sir(G, 
+def grid_sir(G: nx.Graph, 
     ax, 
     pos:Dict[int,Number], 
     sir=None, 
-    quarantined_nodes:List[int]=None, 
-    non_compliant_nodes: List[int]=None,
-    exposed_nodes: List[int]=None,
-    edges:List[int]=None, 
+    quarantined_nodes:List[int]=[], 
+    non_compliant_nodes: List[int]=[],
+    exposed_nodes: List[int]=[],
+    edges:List[int]=[], 
     edge_color=None,
     **args,
 ):
@@ -68,8 +59,9 @@ def grid_sir(G,
 
     if exposed_nodes is None:
         exposed_nodes = []
+
     if edges is None:
-        edges = []
+        edges = G.edges
 
     if edge_color is None:
         edge_color = ["black"] * len(edges)
@@ -110,14 +102,28 @@ def grid_sir(G,
             linewidths[i] = 1
     
     # Draw edges that are from I, V1, and V2
-    nodes = nx.draw_networkx_nodes(G, pos=pos, node_color=node_color, node_size=node_size, edgecolors=border_color, linewidths=linewidths, ax=ax)
-
-    # TODO: Draw v1-v2 edges
+    nodes = nx.draw_networkx_nodes(
+        G, 
+        pos=pos, 
+        node_color=node_color, 
+        node_size=node_size, 
+        edgecolors=border_color, 
+        linewidths=linewidths, 
+        ax=ax
+    )
     
-    nx.draw_networkx_edges(G, pos=pos, edgelist=edges, edge_color=edge_color, width=[], ax=ax)
+    nx.draw_networkx_edges(
+        G, 
+        pos=pos, 
+        edgelist=edges, 
+        edge_color=edge_color, 
+        width=[], 
+        ax=ax
+    )
 
 def draw_single(G, **args):
     fig, ax = plt.subplots(figsize=(4,4))
+    ax.set_title(args["title"])
     grid_sir(G, ax, **args)
 
 def draw_multiple(G, args):
@@ -135,85 +141,3 @@ def draw_multiple_grid(G, args, a, b):
         ax[x, y].set_title(config["title"])
         grid_sir(G, ax[x, y], **config)
     return fig, ax
-#%%
-# Create graph (with diagonal connections) to experiment on
-width=20
-G = nx.grid_2d_graph(width, width)
-G.add_edges_from([
-    ((x, y), (x+1, y+1))
-    for x in range(width-1)
-    for y in range(width-1)
-] + [
-    ((x+1, y), (x, y+1))
-    for x in range(width-1)
-    for y in range(width-1)
-])
-G.remove_nodes_from(uniform_sample(G.nodes(), 0.2))
-mapper = {n : i for i, n in enumerate(G.nodes())}
-pos = {i:(y,-x) for i, (x,y) in enumerate(G.nodes())}
-G = nx.relabel_nodes(G, mapper)
-
-sir = random_init(G, num_infected=30)
-# G.add_edges_from(uniform_sample(list(itertools.product(sir.I, sir.I)), 1/width))
-draw_single(G, pos=pos, edges=G.edges)
-
-
-
-# Agent Evaluation Time
-# %%
-
-# Create infection state
-infection_info = InfectionInfo(G, sir, budget=50, transmission_rate=0.5)
-
-# %%
-sample_dim = (2, 2)
-num_samples = sample_dim[0] * sample_dim[1]
-info = SAAAgent(
-    infection_info, 
-    debug=True,
-    agent="GUROBI",
-    num_samples=num_samples, 
-    transmission_rate=0.5, 
-    compliance_rate=0.8, 
-    structure_rate=0, 
-    seed=42,
-)
-action = info["action"]
-problem = info["problem"]
-
-
-# %%
-# sample_num = 0
-# v1_infected = problem.v1_samples[sample_num]
-# edges = problem.edge_samples[sample_num][0], problem.edge_samples[sample_num][1]
-# edge_colors = ["grey"] * len(edges[0]) + ["black"] * len(edges[1])
-# draw_single(G, pos=pos, sir=sir, marked_nodes=action, edges=edges[0] + edges[1], edge_color=edge_colors)
-
-args = []
-for sample_num in range(num_samples):
-    z_value = problem.variable_solutions["sample_variables"][sample_num]["z"]
-    non_compliant_samples = problem.sample_data[sample_num]["non_compliant"]
-    relevant_v1 = problem.sample_data[sample_num]["relevant_v1"]
-    edges = problem.sample_data[sample_num]["border_edges"]
-    exposed_v2 = problem.exposed_v2[sample_num]
-    edge_colors = ["black"] * len(edges[0]) + ["grey"] * len(edges[1])
-    args.append({
-        "title": f"Graph[{sample_num}]: MinExposed {z_value}",
-        "pos": pos, 
-        "sir":sir, 
-        "quarantined_nodes":action, 
-        "non_compliant_nodes": non_compliant_samples, 
-        "exposed_nodes": exposed_v2, 
-        "edges": edges[0] + edges[1], 
-        "edge_color":edge_colors
-    })
-fig, ax = draw_multiple_grid(G, args, *sample_dim)
-# %%
-fig.savefig("seq_diag_seed_42.svg")
-# %%
-
-# %%
-
-# %%
-
-# %%

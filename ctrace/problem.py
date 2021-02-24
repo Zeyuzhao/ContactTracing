@@ -116,8 +116,12 @@ class MinExposedProgram:
 
         self.objective_value = self.lp_objective_value()
 
+        self._post_solve_handler()
         return self.quarantined_solution
 
+    def _post_solve_handler():
+        """Called after solve executes"""
+        pass
     def get_variables(self):
         """Returns array representation of indicator variables"""
         return self.quarantine_raw
@@ -333,12 +337,36 @@ class MinExposedSAA(MinExposedProgram):
         # Combine using given lp_objective
         self.lp_objective()
     
+    def _post_solve_handler(self):
+        """Set variable solutions by examining solution value"""
+
+        # Compute variable_solutions
+        self.variable_solutions: Dict[str, Any] = {}
+        self.variable_solutions["X1"] = {u: self.X1[u].solution_value() for u in self.contour1}
+        self.variable_solutions["Y1"] = {u: self.Y1[u].solution_value() for u in self.contour1}
+        self.variable_solutions["sample_variables"] = [{} for _ in range(self.num_samples)]
+        for i in range(self.num_samples):
+            sample_solution = {}
+            sample_solution["Y1"] = {u: self.sample_variables[i]["Y1"][u].solution_value() for u in self.contour1}
+            sample_solution["Y2"] = {u: self.sample_variables[i]["Y2"][u].solution_value() for u in self.contour2}
+            sample_solution["z"] = self.sample_variables[i]["z"].solution_value()
+            self.variable_solutions["sample_variables"][i] = sample_solution
+        self.variable_solutions["Z"] = self.Z.solution_value()
+
+        # Compute target statistics
+        self.exposed_v2 = [[] for _ in range(self.num_samples)]
+        for i in range(self.num_samples):
+            self.exposed_v2[i] = [u for u, v in self.variable_solutions["sample_variables"][i]["Y2"].items() if is_close(1, v, 0.05)]
+            if not is_close(self.variable_solutions["sample_variables"][i]["z"], len(self.exposed_v2[i]), frac=0.05):
+                print(f"Warning: Difference exposed and selected")
+            # assert is_close(self.variable_solutions["sample_variables"][i]["z"], len(self.exposed_v2[i]), frac=0.05)
+        
     # Delegation
     def lp_objective(self):
         # Sum across all z_i intermediate sample objectives
-        return self.mean_lp_objective()
+        return self.max_lp_objective()
     def lp_objective_value(self):
-        return self.mean_lp_objective_value()
+        return self.max_lp_objective_value()
 
     # Max aggregation 
     def max_lp_objective(self):
@@ -352,7 +380,9 @@ class MinExposedSAA(MinExposedProgram):
         if i is not None:
             return self.sample_variables[i]["z"].solution_value()
         max_objective = self.Z.solution_value()
-        assert is_close(max_objective, max([self.sample_variables[i]["z"].solution_value() for i in range(self.num_samples)]))
+        computed_max_objective = max([self.sample_variables[i]["z"].solution_value() for i in range(self.num_samples)])
+        if is_close(max_objective, computed_max_objective):
+            print(f"Warning: {abs(max_objective - computed_max_objective)}")
         return max_objective
 
     # Mean aggegation
@@ -601,8 +631,10 @@ class MinExposedSAAStructure():
     pass
 
 
-def is_close(a, b, tol=0.001):
-    return abs(b - a) <= tol
+def is_close(a, b, tol=0.001, frac=None):
+    if tol:
+        return abs(b - a) <= tol
+    return abs(b - a) <= a * frac
 
 def compute_border_edges(G, src, dest):
     contour_edges = []
