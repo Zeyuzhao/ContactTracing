@@ -1,11 +1,13 @@
 import abc
 import random
+import itertools
 import networkx as nx
 import numpy as np
 
 from typing import Dict, List, Tuple
 from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Variable, Constraint, Objective
+from statistics import mean
 
 from .round import D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective, uniform_sample
@@ -187,7 +189,6 @@ class MinExposedLP(MinExposedProgram):
         for v in self.contour2:
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
 
-
 class MinExposedIP(MinExposedProgram):
     def __init__(self, info: InfectionInfo, solver_id="GUROBI"):
         super().__init__(info, solver_id)
@@ -199,6 +200,167 @@ class MinExposedIP(MinExposedProgram):
             self.Y1[u] = self.solver.IntVar(0, 1, f"V1_y{u}")
         for v in self.contour2:
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
+
+class MinExposedSAA(MinExposedProgram):
+    def __init__(self, info: InfectionInfo, solver_id="GLOP", num_samples=10, compliance_rate=1, structure_rate=0, seed=42):
+        random.seed(seed)
+        
+        self.result = None
+        self.info = info
+
+        # Set problem structure
+        self.G: nx.Graph = info.G
+        self.SIR = info.SIR
+        self.budget = info.budget
+        self.contour1, self.contour2 = self.info.V1, self.info.V2
+        self.solver = pywraplp.Solver.CreateSolver(solver_id)
+        # self.contour_unknown = set(self.G.nodes) - set(self.SIR[1]) - set(self.contour1) - set(self.contour2)
+        
+        # Set SAA parameters - affects the samples.
+        self.num_samples = num_samples
+
+        # Conditional probability that edge can carry disease
+        self.p = info.transmission_rate
+        # Probability that V1 node observes quarantine
+        self.q = compliance_rate
+        # Probability to include edge in ((V1 x V2) - E)
+        self.s = structure_rate
+        
+        self.sample_data = [{} for _ in range(self.num_samples)]
+        self.init_samples()
+        
+        # Partial evaluation storage - applies only to controllable variables (X1)
+        self.partials = {}
+        # Controllable - contour1
+        self.X1: Dict[int, Variable] = {}
+        self.Y1: Dict[int, Variable] = {}
+        self.Z = None
+        # Non-controllable variables - over series.
+        self.sample_variables =[{} for _ in range(self.num_samples)]
+        self.init_variables()
+        self.init_constraints()
+        
+
+    def init_samples(self):
+        # Transmission Sampling
+        for i in range(self.num_samples):
+
+            # STRUCTURAL
+            # Structural edges are sampled into existance.
+            # Currently - structural edges must be in (I x V1) and (V1 x V2)
+            structural_edges = ([], [])
+            structural_edges[0] = uniform_sample(list(itertools.product(self.SIR[1], self.contour1)), self.s)
+            structural_edges[1] = uniform_sample(list(itertools.product(self.contour1, self.contour2)), self.s)
+            self.sample_data[i]["structural_edges"] = structural_edges
+            
+            # Expanded network (with sampled structural edges)
+            GE = self.G.copy()
+            GE.add_edges_from(structural_edges[0] + structural_edges[1])
+
+            # DIFFUSION
+            # Implementation Notes:
+            # 1) Will use the graph obtained from structural uncertainty sampling
+            # 2) border_edges[1] indicates infectious edges from u in V1 -> v in V2. 
+            # Any edge here represents a binding constraint: 
+            # Infectious edges (_, u) and (u, v) are sampled
+
+            self.sample_data[i]["border_edges"] = ([], [])
+            # sampled independently from I_border with transmission probability
+            I_border = compute_border_edges(GE, self.SIR[1], self.contour1)
+            I_border_sample = uniform_sample(I_border, self.p)
+            self.sample_data[i]["border_edges"][0] = I_border_sample
+
+            # relevant_v1 -> set of v1 nodes "infected" by sampled edges
+            relevant_v1 = {b for (_,b) in I_border_sample}
+            self.sample_data[i]["relevant_v1"] = relevant_v1
+            assert relevant_v1.issubset(self.contour1)
+
+            # V1_border - conditional on relevant_v1s only (sampled with transmission probability)
+            V1_border = compute_border_edges(GE, relevant_v1, self.contour2)
+            V1_border_sample = uniform_sample(V1_border, self.p)
+            self.sample_data[i]["border_edges"][1] = V1_border_sample
+
+            # COMPLIANCE
+            self.sample_data[i]["non_compliant"] = set(uniform_sample(self.contour1,  1 - self.compliance_rate))
+
+    def init_variables(self):
+        for u in self.contour1:
+            self.X1[u] = self.solver.NumVar(0, 1, f"V1_x{u}")
+            self.Y1[u] = self.solver.NumVar(0, 1, f"V1_y{u}")
+        
+        for i in range(self.num_samples):
+            variables = {}
+            variables[i]["Y1"] = [self.solver.NumVar(0, 1, f"V1[{i}]_y{u}") for u in self.contour1]
+            variables[i]["Y2"] = [self.solver.NumVar(0, 1, f"V2[{i}]_y{v}") for v in self.contour2]
+            variables[i]["z"] = self.solver.NumVar(0, self.solver.infinity(), f"z[{i}]")
+            self.sample_variables[i] = variables
+
+    def init_constraints(self):
+        
+        # Def of X-Y: complement booleans
+        for u in self.contour1:
+            self.solver.Add(self.X1[u] + self.Y1[u] == 1)
+
+        # cost (number of people quarantined) must be within budget
+        cost: Constraint = self.solver.Constraint(0, self.budget)
+        for u in self.contour1:
+            cost.SetCoefficient(self.X1[u], 1)
+
+        # <============== TODO: =================> 
+
+        # People not asked to quarantine would not quarantine
+        for i in range(self.num_samples):
+            for u in self.contour1:
+                self.solver.Add(self.sample_variables[i]["Y1"][u] >= self.Y1[u])
+
+        # non-compliant contour1
+        for i in range(self.num_samples):
+            for u in self.contour1:
+                if u in self.non_compliant_samples[i]:
+                    self.solver.Add(self.sample_variables[i]["Y1"][u] >= 1)
+
+        # Link sample Y1s with sample Y2s
+        for i in range(self.num_samples):
+            for (u, v) in self.sample_data[i]["border_edges"][1]:
+                self.solver.Add(self.sample_variables[i]["Y2"][v] >= self.sample_variables[i]["Y1"][u])
+        
+        # Definition of z
+        for i in range(self.num_samples):
+            self.solver.Add(sum(self.sample_variables[i].values()) == self.sample_variables[i]["z"])
+        # Combine using given lp_objective
+        self.lp_objective()
+    
+    def lp_objective(self):
+        # Sum across all z_i intermediate sample objectives
+        return self.mean_lp_objective()
+    def lp_objective_value(self):
+        return self.mean_lp_objective_value()
+
+    def max_lp_objective(self):
+        pass
+
+    def max_lp_objective_value(self):
+        pass
+
+    def mean_lp_objective(self):
+        # Objective: Minimize number of people exposed in contour2
+        num_exposed: Objective = self.solver.Objective()
+        for i in range(self.num_samples):
+            num_exposed.SetCoefficient(self.sample_variables[i]["z"], 1)
+        num_exposed.SetMinimization()
+
+    def mean_lp_objective_value(self, i = None):
+                # Will raise error if not solved
+        # Number of people exposed in V2
+        if i is not None:
+            return self._mean_lp_objective_value(i)
+        return mean([self._mean_lp_objective_value(i) for i in range(self.num_samples)])
+
+    def _mean_lp_objective_value(self, i):
+        objective_value = 0
+        for v in self.contour2:
+            objective_value += self.sample_variables[i]["Y2"][v].solution_value()
+        return objective_value
 
 class MinExposedSAADiffusion(MinExposedProgram):
     def __init__(self, info: InfectionInfo, solver_id="GLOP", num_samples=10, seed=42):
@@ -246,17 +408,18 @@ class MinExposedSAADiffusion(MinExposedProgram):
 
     def init_samples(self):
         for i in range(self.num_samples):
+            # I -> V1 sampling
             for infected in self.SIR[1]:
                 for v1 in self.G.neighbors(infected):
                     if v1 in self.contour1 and random.random() < self.p: 
                         self.edge_samples[i][0].append((infected, v1))
                         self.v1_samples[i].add(v1)
-        # V1 -> V2 (Conditional on V1 being infected)for i in range(self.num_samples):
+            # V1 -> V2 (Conditional on V1 being infected) for i in range(self.num_samples):
             for v1 in self.contour1:
                 if v1 in self.v1_samples[i]:
                     for v2 in self.G.neighbors(v1):
                         if v2 in self.contour2 and random.random() < self.p:
-                            self.edge_samples[i][1].append((v1, v2))
+                            self.edge_samples[i][1].append((v1, v2))        
 
     def init_variables(self):
         """Declare variables as needed"""
