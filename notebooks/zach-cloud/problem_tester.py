@@ -16,6 +16,7 @@ from ctrace.simulation import *
 from ctrace.dataset import *
 from ctrace.recommender import *
 from ctrace.problem import *
+from ctrace.utils import *
 import networkx as nx
 from dataclasses import dataclass
 
@@ -25,23 +26,6 @@ from numbers import Number
 
 random.seed(42)
 #%%
-
-# Create graph (with diagonal connections) to experiment on
-width=20
-G = nx.grid_2d_graph(width, width)
-G.add_edges_from([
-    ((x, y), (x+1, y+1))
-    for x in range(width-1)
-    for y in range(width-1)
-] + [
-    ((x+1, y), (x, y+1))
-    for x in range(width-1)
-    for y in range(width-1)
-])
-G.remove_nodes_from(uniform_sample(G.nodes(), 0.2))
-mapper = {n : i for i, n in enumerate(G.nodes())}
-pos = {i:(y,-x) for i, (x,y) in enumerate(G.nodes())}
-G = nx.relabel_nodes(G, mapper)
 
 # %%
 
@@ -140,13 +124,35 @@ def draw_multiple(G, args):
         grid_sir(G, ax[i], **config)
     return fig, ax
 
+#%%
+# Create graph (with diagonal connections) to experiment on
+width=20
+G = nx.grid_2d_graph(width, width)
+G.add_edges_from([
+    ((x, y), (x+1, y+1))
+    for x in range(width-1)
+    for y in range(width-1)
+] + [
+    ((x+1, y), (x, y+1))
+    for x in range(width-1)
+    for y in range(width-1)
+])
+G.remove_nodes_from(uniform_sample(G.nodes(), 0.2))
+mapper = {n : i for i, n in enumerate(G.nodes())}
+pos = {i:(y,-x) for i, (x,y) in enumerate(G.nodes())}
+G = nx.relabel_nodes(G, mapper)
+
+
+sir = random_init(G, num_infected=30)
+G.add_edges_from(uniform_sample(list(itertools.product(sir.I, sir.I)), 1/width))
+
 draw_single(G, pos=pos, edges=G.edges)
 
 
 
 # Agent Evaluation Time
 # %%
-sir = random_init(G, num_infected=30)
+
 # Create infection state
 infection_info = InfectionInfo(G, sir, budget=50, transmission_rate=0.5)
 
