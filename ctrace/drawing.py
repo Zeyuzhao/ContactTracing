@@ -28,12 +28,35 @@ def random_sir(G):
 def all_sus(G):
     return SIR_Tuple(set(G.nodes), set(), set())
 
-def random_init(G, num_infected=5):
+def random_init(G, num_infected=5, seed=42):
+    random.seed(seed)
     nodes = set(G.nodes)
     I = set(random.sample(nodes, num_infected))
     R = set()
     S = nodes - I - R
     return SIR_Tuple(list(S), list(I), list(R))
+
+def grid_2d(width, seed=42, diagonals=True, sparsity=0.2, global_rate=0):
+    random.seed(seed)
+    G = nx.grid_2d_graph(width, width)
+
+    if diagonals:
+        G.add_edges_from([
+            ((x, y), (x+1, y+1))
+            for x in range(width-1)
+            for y in range(width-1)
+        ] + [
+            ((x+1, y), (x, y+1))
+            for x in range(width-1)
+            for y in range(width-1)
+        ])
+    G.remove_nodes_from(uniform_sample(G.nodes(), sparsity))
+    mapper = {n : i for i, n in enumerate(G.nodes())}
+    pos = {i:(y,-x) for i, (x,y) in enumerate(G.nodes())}
+    G = nx.relabel_nodes(G, mapper)
+    G.add_edges_from(uniform_sample(list(itertools.product(G.nodes, G.nodes)), global_rate))
+    return G, pos
+
 
 def grid_sir(G: nx.Graph, 
     ax, 
@@ -121,23 +144,20 @@ def grid_sir(G: nx.Graph,
         ax=ax
     )
 
-def draw_single(G, **args):
+def draw_single(G, title=None, **args):
     fig, ax = plt.subplots(figsize=(4,4))
-    ax.set_title(args["title"])
+    ax.set_title(title, fontsize=8)
     grid_sir(G, ax, **args)
 
 def draw_multiple(G, args):
-    fig, ax = plt.subplots(1, len(args), figsize=(4 * len(args),4))
-    for i, config in enumerate(args):
-        ax[i].set_title(config["title"])
-        grid_sir(G, ax[i], **config)
-    return fig, ax
+    draw_multiple_grid(G, args, 1, len(args))
 
 def draw_multiple_grid(G, args, a, b):
     fig, ax = plt.subplots(a, b, figsize=(4 * a, 4 * b))
-    assert a * b == len(args)
 
+    # for a,b in itertools.product(range(a), range(b)):
+    #     ax[a, b].set_axis_off()
     for i, ((x, y), config) in enumerate(zip(itertools.product(range(a), range(b)), args)):
-        ax[x, y].set_title(config["title"])
+        ax[x, y].set_title(config.get("title"), fontsize=8)
         grid_sir(G, ax[x, y], **config)
     return fig, ax
