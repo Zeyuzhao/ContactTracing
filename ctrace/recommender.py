@@ -55,12 +55,30 @@ def DepRound(info: InfectionInfo, debug=False):
         }
     return action
 
-def SAAAgent(info: InfectionInfo, debug=True, **args):
+def SAAAgent(
+    info: InfectionInfo, 
+    debug=True, 
+    num_samples=10,
+    transmission_rate=0.75, 
+    compliance_rate=0.8, 
+    structure_rate=0, 
+    seed=42,
+    solver_id="GUROBI",
+):
     """Args are needed!"""
-    problem = MinExposedSAA.from_infection_info(info, **args)
+    problem = MinExposedSAA.create(
+        info.G,
+        SIR=info.SIR,
+        budget=info.budget, 
+        num_samples=num_samples, 
+        transmission_rate=transmission_rate, 
+        compliance_rate=compliance_rate, 
+        structure_rate=structure_rate, 
+        seed=seed,
+        solver_id=solver_id,
+    )
     problem.solve_lp()
     probabilities = problem.get_variables()
-
     rounded = D_prime(np.array(probabilities))
     action = set([problem.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
     if debug:
