@@ -236,7 +236,7 @@ class MinExposedSAA(MinExposedProgram):
         aggregation_method="max", # "max" | "mean"
         solver_id="GUROBI", # "GUORBI" | "GLOP" | "SCIP"
     ):
-        random.seed(seed)
+        self.seed = seed
         self.result = None
         # Set problem structure
         self.G: nx.Graph = G
@@ -309,7 +309,6 @@ class MinExposedSAA(MinExposedProgram):
         """
         Creates a new MinExposedSAA problem with sample data
         transmission, compliance, structure, num_samples and seed are not used       
-        solver_id="GLOP", 
         """
         # TODO: [transmission, compliance, structure, num_samples, seed] uniquely determine sample_data
         problem = cls(G, SIR, budget, solver_id=solver_id, num_samples=len(sample_data))
@@ -321,8 +320,8 @@ class MinExposedSAA(MinExposedProgram):
 
     def init_samples(self):
         # Transmission Sampling
+        random.seed(self.seed)
         for i in range(self.num_samples):
-
             # STRUCTURAL
             # Structural edges are sampled into existance.
             # Currently - structural edges must be in (I x V1) and (V1 x V2)
@@ -513,234 +512,6 @@ class ObjectiveMixin():
         raise NotImplementedError
     def lp_objective_value():
         raise NotImplementedError
-
-class MinExposedSAADiffusion(MinExposedProgram):
-    def __init__(self, info: InfectionInfo, solver_id="GLOP", num_samples=10, seed=42):
-        self.result = None
-        self.info = info
-        self.G = info.G
-        self.SIR = info.SIR
-        self.budget = info.budget
-        self.p = info.transmission_rate
-        self.contour1, self.contour2 = self.info.V1, self.info.V2
-        self.solver = pywraplp.Solver.CreateSolver(solver_id)
-        self.num_samples = num_samples
-
-        random.seed(seed)
-
-        if self.solver is None:
-            raise ValueError("Solver failed to initialize!")
-
-        # Compute P, Q from SIR
-        self.P, self.Q = pq_independent(self.G, self.SIR.I, self.contour1, self.p)
-    
-        # Partial evaluation storage
-        self.partials = {}
-
-        # controllable - contour1
-        self.X1: Dict[int, Variable] = {}
-        self.Y1: Dict[int, Variable] = {}
-
-        # non-controllable - contour2 (over i samples)
-        self.Y2: List[Dict[int, Variable]] = [{} for i in range(self.num_samples)]
-
-        # A collection of edges ordered by sample id and layer.
-        # There are two layers - I -> V1, and V1 -> V2 edges.
-        self.edge_samples = [([], []) for i in range(self.num_samples)]
-
-        # Collection of infected v1s ordered by sample id
-        self.v1_samples = [set() for i in range(self.num_samples)]
-
-        self.init_samples()
-
-        self.init_variables()
-
-        # Initialize constraints
-        self.init_constraints()
-
-    def init_samples(self):
-        for i in range(self.num_samples):
-            # I -> V1 sampling
-            for infected in self.SIR[1]:
-                for v1 in self.G.neighbors(infected):
-                    if v1 in self.contour1 and random.random() < self.p: 
-                        self.edge_samples[i][0].append((infected, v1))
-                        self.v1_samples[i].add(v1)
-            # V1 -> V2 (Conditional on V1 being infected) for i in range(self.num_samples):
-            for v1 in self.contour1:
-                if v1 in self.v1_samples[i]:
-                    for v2 in self.G.neighbors(v1):
-                        if v2 in self.contour2 and random.random() < self.p:
-                            self.edge_samples[i][1].append((v1, v2))        
-
-    def init_variables(self):
-        """Declare variables as needed"""
-        for u in self.contour1:
-            self.X1[u] = self.solver.NumVar(0, 1, f"V1_x{u}")
-            self.Y1[u] = self.solver.NumVar(0, 1, f"V1_y{u}")
-        
-        for i in range(self.num_samples):
-            for v in self.contour2:
-                self.Y2[i][v] = self.solver.NumVar(0, 1, f"V2[{i}]_y{v}") 
-
-    def init_constraints(self):
-        """Initializes the constraints according to the relaxed LP formulation of MinExposed"""
-
-        # X-Y are complements
-        for u in self.contour1:
-            self.solver.Add(self.X1[u] + self.Y1[u] == 1)
-
-        # cost (number of people quarantined) must be within budget
-        cost: Constraint = self.solver.Constraint(0, self.budget)
-        for u in self.contour1:
-            cost.SetCoefficient(self.X1[u], 1)
-
-        # Y2[v] becomes a lower bound for the probability that vertex v is infected
-        # Using edge_samples from V1->V2
-        for i in range(self.num_samples):
-            for (u, v) in self.edge_samples[i][1]:
-                self.solver.Add(self.Y2[i][v] >= self.Y1[u])
-
-        # Objective: Minimize number of people exposed in contour2
-        num_exposed: Objective = self.solver.Objective()
-
-        for i in range(self.num_samples):
-            for v in self.contour2:
-                num_exposed.SetCoefficient(self.Y2[i][v], 1)
-        num_exposed.SetMinimization()
-
-    def lp_objective_value(self):
-        # Will raise error if not solved
-        # Number of people exposed in V2
-        objective_value = 0
-        for i in range(self.num_samples):
-            for v in self.contour2:
-                objective_value += self.Y2[i][v].solution_value()
-        return objective_value / self.num_samples
-        
-    def lp_sample_objective_value(self, i):
-        objective_value = 0
-        for v in self.contour2:
-            objective_value += self.Y2[i][v].solution_value()
-        return objective_value
-
-class MinExposedSAACompliance(MinExposedProgram):
-    def __init__(self, info: InfectionInfo, solver_id="GLOP", compliance_rate=0.5, num_samples=10, seed=42):
-        self.result = None
-        self.info = info
-        self.G = info.G
-        self.SIR = info.SIR
-        self.budget = info.budget
-        self.p = info.transmission_rate
-        self.contour1, self.contour2 = self.info.V1, self.info.V2
-        self.solver = pywraplp.Solver.CreateSolver(solver_id)
-        self.num_samples = num_samples
-        self.compliance_rate = compliance_rate
-
-        random.seed(seed)
-
-        if self.solver is None:
-            raise ValueError("Solver failed to initialize!")
-
-        # Compute P, Q from SIR
-        self.P, self.Q = pq_independent(self.G, self.SIR.I, self.contour1, self.p)
-    
-        # Partial evaluation storage
-        self.partials = {}
-
-        # controllable - contour1
-        self.X1: Dict[int, Variable] = {}
-        self.Y1: Dict[int, Variable] = {}
-
-        # non-controllable - contour 1 and contour2 (over i samples)
-        self.Y1_samples: List[Dict[int, Variable]] = [{} for i in range(self.num_samples)]
-        self.Y2_samples: List[Dict[int, Variable]] = [{} for i in range(self.num_samples)]
-        
-        # Sampled nodes
-        self.non_compliant_samples = []
-        self.init_samples()
-        self.init_variables()
-
-        # Initialize constraints
-        self.init_constraints()
-
-    def init_samples(self):
-        # A list of sets of edges between v1 and v2 that are actually sampled for iteration i
-        self.non_compliant_samples = [set(uniform_sample(self.contour1,  1 - self.compliance_rate)) for i in range(self.num_samples)]
-
-        # Temporary test:
-        # contour1_list = sorted(list(self.contour1))
-        # self.non_compliant_samples = [{contour1_list[i] for i in range(30)} for i in range(self.num_samples)]
-    
-    def init_variables(self):
-        """Declare variables as needed"""
-        for u in self.contour1:
-            self.X1[u] = self.solver.NumVar(0, 1, f"V1_x{u}")
-            self.Y1[u] = self.solver.NumVar(0, 1, f"V1_y{u}")
-
-        for i in range(self.num_samples):
-            for v in self.contour1:
-                self.Y1_samples[i][v] = self.solver.NumVar(0, 1, f"V1[{i}]_x{v}")
-            for v in self.contour2:
-                self.Y2_samples[i][v] = self.solver.NumVar(0, 1, f"V2[{i}]_y{v}")
-
-    def init_constraints(self):
-        """Initializes the constraints according to the relaxed LP formulation of MinExposed"""
-
-        # X-Y are complements in contour1
-        for u in self.contour1:
-            self.solver.Add(self.X1[u] + self.Y1[u] == 1)
-
-        # cost (number of people quarantined) must be within budget
-        cost: Constraint = self.solver.Constraint(0, self.budget)
-        for u in self.contour1:
-            cost.SetCoefficient(self.X1[u], 1)
-
-        # People not asked to quarantine would not quarantine
-        for i in range(self.num_samples):
-            for u in self.contour1:
-                self.solver.Add(self.Y1_samples[i][u] >= self.Y1[u])
-
-        # non-compliant contour1
-        for i in range(self.num_samples):
-            for u in self.contour1:
-                if u in self.non_compliant_samples[i]:
-                    self.solver.Add(self.Y1_samples[i][u] >= 1)
-
-
-        for i in range(self.num_samples):
-            for u in self.contour1:
-                for v in self.G.neighbors(u):
-                    if v in self.contour2:
-                        self.solver.Add(self.Y2_samples[i][v] >= self.Y1_samples[i][u])
-
-        # Objective: Minimize number of people exposed in contour2
-
-        # Optimizing for sum over different scenarios (or minimizing the average)
-        num_exposed: Objective = self.solver.Objective()
-        for i in range(self.num_samples):
-            for v in self.contour2:
-                num_exposed.SetCoefficient(self.Y2_samples[i][v], 1)
-        num_exposed.SetMinimization()
-
-    def lp_objective_value(self):
-        # Will raise error if not solved
-        # Number of people exposed in V2
-        objective_value = 0
-        for i in range(self.num_samples):
-            for v in self.contour2:
-                objective_value += self.Y2_samples[i][v].solution_value()
-        return objective_value / self.num_samples
-        
-    def lp_sample_objective_value(self, i):
-        objective_value = 0
-        for v in self.contour2:
-            objective_value += self.Y2_samples[i][v].solution_value()
-        return objective_value
-    
-class MinExposedSAAStructure():
-    pass
-
 
 def is_close(a, b, tol=0.001, frac=None):
     if tol:
