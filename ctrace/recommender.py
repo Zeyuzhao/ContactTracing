@@ -68,6 +68,7 @@ def SAAAgent(info: InfectionInfo, debug=False, **args):
             "action": action,
         }
     return action
+      
 
 def SAADiffusionAgent(info: InfectionInfo, debug=False):
     problem = MinExposedSAADiffusion(info)

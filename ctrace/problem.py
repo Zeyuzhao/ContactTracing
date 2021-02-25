@@ -9,9 +9,9 @@ from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Variable, Constraint, Objective, Solver
 from statistics import mean
 
-from .round import D_prime
+from .round import D, D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective, uniform_sample
-from .simulation import InfectionInfo
+from .simulation import InfectionInfo, SIR_Tuple
 
 class MinExposedProgram:
     def __init__(self, info: InfectionInfo, solver_id="GLOP"):
@@ -206,20 +206,33 @@ class MinExposedIP(MinExposedProgram):
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
 
 class MinExposedSAA(MinExposedProgram):
-    def __init__(self, info: InfectionInfo, solver_id="GLOP", num_samples=10, transmission_rate=1, compliance_rate=1, structure_rate=0, seed=42):
+    def __init__(self, 
+        G: nx.Graph,
+        SIR: SIR_Tuple,
+        budget: int, 
+        solver_id="GLOP", 
+        num_samples=10, 
+        transmission_rate=1, 
+        compliance_rate=1, 
+        structure_rate=0, 
+        seed=42
+    ):
         random.seed(seed)
-        
         self.result = None
-        self.info = info
-
         # Set problem structure
-        self.G: nx.Graph = info.G
-        self.SIR = info.SIR
-        self.budget = info.budget
-        self.contour1, self.contour2 = self.info.V1, self.info.V2
+        self.G: nx.Graph = G
+        self.SIR = SIR
+        self.budget = budget
+
+        # Compute contours
+        self.contour1, self.contour2 = find_excluded_contours(G, SIR.I, SIR.R)
+
+        # Solver
         self.solver: Solver = pywraplp.Solver.CreateSolver(solver_id)
-        # self.contour_unknown = set(self.G.nodes) - set(self.SIR[1]) - set(self.contour1) - set(self.contour2)
-        
+
+        if self.solver is None:
+            raise ValueError("Solver failed to initialize")
+
         # Set SAA parameters - affects the samples.
         self.num_samples = num_samples
 
@@ -227,9 +240,10 @@ class MinExposedSAA(MinExposedProgram):
         self.p = transmission_rate
         # Probability that V1 node observes quarantine
         self.q = compliance_rate
-        # Probability to include edge in ((V1 x V2) - E)
+        # Probability to include edge in (I x V1) and (V1 x V2)
         self.s = structure_rate
         
+        # Sample Data
         self.sample_data = [{} for _ in range(self.num_samples)]
         self.init_samples()
         
@@ -242,9 +256,20 @@ class MinExposedSAA(MinExposedProgram):
         self.sample_variables: List[Dict[str, Union[Variable, Dict[int, Variable]]]] = [{} for _ in range(self.num_samples)]
         # Aggregate Variable - either sum or max
         self.Z: Variable = None
-        self.init_variables()
+
+        if solver_id == "GUROBI":
+            self.init_integer_variables()
+        else:
+            self.init_variables()
+
         self.init_constraints()
-        
+    
+
+    def load_sample(cls, sample_data, **args) -> "MinExposedSAA":
+        pass
+
+    def from_infection_info(cls, info, **args) -> "MinExposedSAA":
+        pass
 
     def init_samples(self):
         # Transmission Sampling
@@ -292,6 +317,20 @@ class MinExposedSAA(MinExposedProgram):
         for u in self.contour1:
             self.X1[u] = self.solver.NumVar(0, 1, f"V1_x{u}")
             self.Y1[u] = self.solver.NumVar(0, 1, f"V1_y{u}")
+        
+        for i in range(self.num_samples):
+            variables = {}
+            variables["Y1"] = {u: self.solver.NumVar(0, 1, f"V1[{i}]_y{u}") for u in self.contour1}
+            variables["Y2"] = {v: self.solver.NumVar(0, 1, f"V2[{i}]_y{v}") for v in self.contour2}
+            variables["z"] = self.solver.NumVar(0, self.solver.infinity(), f"z[{i}]")
+            self.sample_variables[i] = variables
+
+        self.Z = self.solver.NumVar(0, self.solver.infinity(), f"Z")
+
+    def init_integer_variables(self):
+        for u in self.contour1:
+            self.X1[u] = self.solver.IntVar(0, 1, f"V1_x{u}")
+            self.Y1[u] = self.solver.IntVar(0, 1, f"V1_y{u}")
         
         for i in range(self.num_samples):
             variables = {}
@@ -402,6 +441,12 @@ class MinExposedSAA(MinExposedProgram):
         mean_objective = self.Z.solution_value() / self.num_samples
         assert is_close(mean_objective, mean([self.sample_variables[i]["z"].solution_value() for i in range(self.num_samples)]))
         return mean_objective
+
+class ObjectiveMixin():
+    def lp_objective():
+        raise NotImplementedError
+    def lp_objective_value():
+        raise NotImplementedError
 
 class MinExposedSAADiffusion(MinExposedProgram):
     def __init__(self, info: InfectionInfo, solver_id="GLOP", num_samples=10, seed=42):

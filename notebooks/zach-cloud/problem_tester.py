@@ -17,163 +17,27 @@ from ctrace.dataset import *
 from ctrace.recommender import *
 from ctrace.problem import *
 from ctrace.utils import *
+from ctrace.drawing import *
+
 import networkx as nx
-from dataclasses import dataclass
-
-from typing import Dict
-from numbers import Number
-
-random.seed(42)
-# %%
-
-# Utility Functions
-def random_sir(G):
-    nodes = set(G.nodes)
-    I = set(random.sample(nodes, 10))
-    R = set(random.sample(nodes - I, 10))
-    S = nodes - I - R
-    return SIR_Tuple(list(S), list(I), list(R))
-
-def all_sus(G):
-    return SIR_Tuple(set(G.nodes), set(), set())
-
-def random_init(G, num_infected=5):
-    nodes = set(G.nodes)
-    I = set(random.sample(nodes, num_infected))
-    R = set()
-    S = nodes - I - R
-    return SIR_Tuple(list(S), list(I), list(R))
-
-def grid_sir(G, 
-    ax, 
-    pos:Dict[int,Number], 
-    sir=None, 
-    quarantined_nodes:List[int]=None, 
-    non_compliant_nodes: List[int]=None,
-    exposed_nodes: List[int]=None,
-    edges:List[int]=None, 
-    edge_color=None,
-    **args,
-):
-    # G should be in a 2d grid form!
-    if sir is None:
-        sir = all_sus(G)
-
-    if quarantined_nodes is None:
-        quarantined_nodes = []
-        # marked = random.sample(set(G.nodes), 10)
-
-    if non_compliant_nodes is None:
-        non_compliant_nodes = []
-
-    if exposed_nodes is None:
-        exposed_nodes = []
-    if edges is None:
-        edges = []
-
-    if edge_color is None:
-        edge_color = ["black"] * len(edges)
-
-    if len(edges) != len(edge_color):
-        raise ValueError("edges must match edge_colors")
-
-    if pos is None:
-        pos = {x: x["pos"] for x in G.nodes}
-    
-    node_size = [None] * len(G.nodes)
-    node_color = [None] * len(G.nodes)
-    border_color = [None] * len(G.nodes)
-    linewidths = [0] * len(G.nodes)
-    for i in range(len(G.nodes)):
-        # Handle SIR
-        if i in sir.S:
-            node_size[i] = 10
-            if i in non_compliant_nodes:
-                node_color[i] = "red"
-            elif i in exposed_nodes:
-                node_color[i] = "yellow"
-            else:
-                node_color[i] = "black"
-        elif i in sir.I:
-            node_size[i] = 50
-            node_color[i] = "red"
-        else:
-            node_size[i] = 10
-            node_color[i] = "silver"
-
-        # Handle Quarantine
-        if i in quarantined_nodes:
-            border_color[i] = "tab:blue"
-            linewidths[i] = 1
-        else:
-            border_color[i] = "black"
-            linewidths[i] = 1
-    
-    # Draw edges that are from I, V1, and V2
-    nodes = nx.draw_networkx_nodes(G, pos=pos, node_color=node_color, node_size=node_size, edgecolors=border_color, linewidths=linewidths, ax=ax)
-
-    # TODO: Draw v1-v2 edges
-    
-    nx.draw_networkx_edges(G, pos=pos, edgelist=edges, edge_color=edge_color, width=[], ax=ax)
-
-def draw_single(G, **args):
-    fig, ax = plt.subplots(figsize=(4,4))
-    grid_sir(G, ax, **args)
-
-def draw_multiple(G, args):
-    fig, ax = plt.subplots(1, len(args), figsize=(4 * len(args),4))
-    for i, config in enumerate(args):
-        ax[i].set_title(config["title"])
-        grid_sir(G, ax[i], **config)
-    return fig, ax
-
-def draw_multiple_grid(G, args, a, b):
-    fig, ax = plt.subplots(a, b, figsize=(4 * a, 4 * b))
-    assert a * b == len(args)
-
-    for i, ((x, y), config) in enumerate(zip(itertools.product(range(a), range(b)), args)):
-        ax[x, y].set_title(config["title"])
-        grid_sir(G, ax[x, y], **config)
-    return fig, ax
 #%%
 # Create graph (with diagonal connections) to experiment on
-width=20
-G = nx.grid_2d_graph(width, width)
-G.add_edges_from([
-    ((x, y), (x+1, y+1))
-    for x in range(width-1)
-    for y in range(width-1)
-] + [
-    ((x+1, y), (x, y+1))
-    for x in range(width-1)
-    for y in range(width-1)
-])
-G.remove_nodes_from(uniform_sample(G.nodes(), 0.2))
-mapper = {n : i for i, n in enumerate(G.nodes())}
-pos = {i:(y,-x) for i, (x,y) in enumerate(G.nodes())}
-G = nx.relabel_nodes(G, mapper)
-
-sir = random_init(G, num_infected=30)
-# G.add_edges_from(uniform_sample(list(itertools.product(sir.I, sir.I)), 1/width))
-draw_single(G, pos=pos, edges=G.edges)
-
-
-
-# Agent Evaluation Time
-# %%
+G, pos = grid_2d(20, seed=42)
+sir = random_init(G, num_infected=30, seed=42)
 
 # Create infection state
-infection_info = InfectionInfo(G, sir, budget=50, transmission_rate=0.5)
+infection_info = InfectionInfo(G, sir, budget=50, transmission_rate=0)
+draw_single(G, pos=pos, sir=sir, edges=G.edges, title="Graph Struct")
 
-# %%
+#%%
 sample_dim = (2, 2)
 num_samples = sample_dim[0] * sample_dim[1]
 info = SAAAgent(
     infection_info, 
     debug=True,
-    agent="GUROBI",
+    solver_id="GUROBI",
     num_samples=num_samples, 
-    transmission_rate=0.5, 
+    transmission_rate=0.75, 
     compliance_rate=0.8, 
     structure_rate=0, 
     seed=42,
@@ -181,24 +45,27 @@ info = SAAAgent(
 action = info["action"]
 problem = info["problem"]
 
+#%%
+# Test for randomness
 
-# %%
-# sample_num = 0
-# v1_infected = problem.v1_samples[sample_num]
-# edges = problem.edge_samples[sample_num][0], problem.edge_samples[sample_num][1]
-# edge_colors = ["grey"] * len(edges[0]) + ["black"] * len(edges[1])
-# draw_single(G, pos=pos, sir=sir, marked_nodes=action, edges=edges[0] + edges[1], edge_color=edge_colors)
-
+problem
+#%%
+# Visualization
 args = []
 for sample_num in range(num_samples):
-    z_value = problem.variable_solutions["sample_variables"][sample_num]["z"]
+    # Sample Data
     non_compliant_samples = problem.sample_data[sample_num]["non_compliant"]
     relevant_v1 = problem.sample_data[sample_num]["relevant_v1"]
+
     edges = problem.sample_data[sample_num]["border_edges"]
-    exposed_v2 = problem.exposed_v2[sample_num]
     edge_colors = ["black"] * len(edges[0]) + ["grey"] * len(edges[1])
+
+    # Key statistics
+    exposed_v2 = problem.exposed_v2[sample_num]
+    z_value = problem.variable_solutions["sample_variables"][sample_num]["z"]
+
     args.append({
-        "title": f"Graph[{sample_num}]: MinExposed {z_value}",
+        "title": f"Graph[{sample_num}]: MinExposed {z_value:.3f}",
         "pos": pos, 
         "sir":sir, 
         "quarantined_nodes":action, 
@@ -207,7 +74,7 @@ for sample_num in range(num_samples):
         "edges": edges[0] + edges[1], 
         "edge_color":edge_colors
     })
-fig, ax = draw_multiple_grid(G, args, *sample_dim)
+fig, ax = draw_multiple_grid(G, args, *(3,3))
 # %%
 fig.savefig("seq_diag_seed_42.svg")
 # %%
