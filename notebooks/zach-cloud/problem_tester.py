@@ -23,32 +23,54 @@ import networkx as nx
 #%%
 # Create graph (with diagonal connections) to experiment on
 G, pos = grid_2d(20, seed=42)
-sir = random_init(G, num_infected=30, seed=42)
+SIR = random_init(G, num_infected=30, seed=42)
 
 # Create infection state
-infection_info = InfectionInfo(G, sir, budget=50, transmission_rate=0)
-draw_single(G, pos=pos, sir=sir, edges=G.edges, title="Graph Struct")
+budget=50
+infection_info = InfectionInfo(G, SIR, budget, transmission_rate=0)
+draw_single(G, pos=pos, sir=SIR, edges=G.edges, title="Graph Struct")
 
 #%%
 sample_dim = (2, 2)
 num_samples = sample_dim[0] * sample_dim[1]
-info = SAAAgent(
-    infection_info, 
-    debug=True,
-    solver_id="GUROBI",
-    num_samples=num_samples, 
-    transmission_rate=0.75, 
+info = SAAAgentGurobi(
+    G=G,
+    SIR=SIR,
+    budget=budget,
+    num_samples=num_samples,
+    transmission_rate=0.8, 
     compliance_rate=0.8, 
     structure_rate=0, 
     seed=42,
+    solver_id="GUROBI",
 )
 action = info["action"]
 problem = info["problem"]
 
+
+# info = MinExposedSAA.create(
+#     G,
+#     SIR=SIR,
+#     budget=budget, 
+#     num_samples=num_samples, 
+#     transmission_rate=0.75, 
+#     compliance_rate=0.8, 
+#     structure_rate=0, 
+#     seed=42,
+#     solver_id="GUROBI",
+# )
 #%%
 # Test for randomness
 
-problem
+problem2 = MinExposedSAA.load_sample(G, SIR, budget, problem.sample_data, solver_id="GUROBI")
+problem2.solve_lp()
+
+probabilities2 = problem2.get_variables()
+# Run assertion is Gurobi is used - checks if all values are 0 or 1
+assert all(is_close(p, 0) or is_close(p, 1) for p in probabilities2)
+action2 = set([problem2.quarantine_map[k] for (k,v) in enumerate(probabilities2) if v==1])
+
+print(action ^ action2)
 #%%
 # Visualization
 args = []
@@ -67,14 +89,14 @@ for sample_num in range(num_samples):
     args.append({
         "title": f"Graph[{sample_num}]: MinExposed {z_value:.3f}",
         "pos": pos, 
-        "sir":sir, 
+        "sir":SIR, 
         "quarantined_nodes":action, 
         "non_compliant_nodes": non_compliant_samples, 
         "exposed_nodes": exposed_v2, 
         "edges": edges[0] + edges[1], 
         "edge_color":edge_colors
     })
-fig, ax = draw_multiple_grid(G, args, *(3,3))
+fig, ax = draw_multiple_grid(G, args, *sample_dim)
 # %%
 fig.savefig("seq_diag_seed_42.svg")
 # %%

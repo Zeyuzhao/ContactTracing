@@ -3,15 +3,29 @@ import random
 import itertools
 import networkx as nx
 import numpy as np
+import rich
+import logging
 
 from typing import Any, Dict, List, Tuple, Union
+from copy import deepcopy
 from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Variable, Constraint, Objective, Solver
 from statistics import mean
+from rich.logging import RichHandler
 
 from .round import D, D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective, uniform_sample
 from .simulation import InfectionInfo, SIR_Tuple
+
+# Experimental logging features:
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
+formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+file_handler = logging.FileHandler('problem.log')
+file_handler.setFormatter(formatter)
+
+logger.addHandler(file_handler)
 
 class MinExposedProgram:
     def __init__(self, info: InfectionInfo, solver_id="GLOP"):
@@ -23,6 +37,9 @@ class MinExposedProgram:
         self.budget = info.budget
         self.p = info.transmission_rate
         self.contour1, self.contour2 = self.info.V1, self.info.V2
+
+        # Check contours are sorted
+        
         self.solver: Solver = pywraplp.Solver.CreateSolver(solver_id)
 
         if self.solver is None:
@@ -209,13 +226,13 @@ class MinExposedSAA(MinExposedProgram):
     def __init__(self, 
         G: nx.Graph,
         SIR: SIR_Tuple,
-        budget: int, 
-        solver_id="GLOP", 
-        num_samples=10, 
+        budget: int,
         transmission_rate=1, 
         compliance_rate=1, 
         structure_rate=0, 
-        seed=42
+        num_samples=10, 
+        seed=42,
+        solver_id="GLOP",
     ):
         random.seed(seed)
         self.result = None
@@ -223,15 +240,8 @@ class MinExposedSAA(MinExposedProgram):
         self.G: nx.Graph = G
         self.SIR = SIR
         self.budget = budget
-
         # Compute contours
         self.contour1, self.contour2 = find_excluded_contours(G, SIR.I, SIR.R)
-
-        # Solver
-        self.solver: Solver = pywraplp.Solver.CreateSolver(solver_id)
-
-        if self.solver is None:
-            raise ValueError("Solver failed to initialize")
 
         # Set SAA parameters - affects the samples.
         self.num_samples = num_samples
@@ -245,7 +255,6 @@ class MinExposedSAA(MinExposedProgram):
         
         # Sample Data
         self.sample_data = [{} for _ in range(self.num_samples)]
-        self.init_samples()
         
         # Partial evaluation storage - applies only to controllable variables (X1)
         self.partials = {}
@@ -257,19 +266,51 @@ class MinExposedSAA(MinExposedProgram):
         # Aggregate Variable - either sum or max
         self.Z: Variable = None
 
-        if solver_id == "GUROBI":
-            self.init_integer_variables()
-        else:
-            self.init_variables()
-
-        self.init_constraints()
+        # Solver
+        self.solver_id=solver_id
+        self.solver: Solver = pywraplp.Solver.CreateSolver(solver_id)
+        if self.solver is None:
+            raise ValueError("Solver failed to initialize")
     
+    @classmethod
+    def create(cls, 
+        G: nx.Graph,
+        SIR: SIR_Tuple,
+        budget: int,
+        **args,
+    ) -> "MinExposedSAA":
+        """Creates a new MinExposedSAA problem with sampling"""
+        problem = cls(G, SIR, budget, **args)
+        problem.init_samples()
+        problem.init_variables()
+        problem.init_constraints()
+        return problem
 
-    def load_sample(cls, sample_data, **args) -> "MinExposedSAA":
-        pass
+    @classmethod
+    def from_infection_info(cls, info: InfectionInfo, **args) -> "MinExposedSAA":
+        """Only use G, SIR, and budget from infection_info"""
+        problem = cls.create(info.G, info.SIR, info.budget, **args)
+        return problem
 
-    def from_infection_info(cls, info, **args) -> "MinExposedSAA":
-        pass
+    @classmethod
+    def load_sample(cls, 
+        G: nx.Graph,
+        SIR: SIR_Tuple,
+        budget: int,
+        sample_data: Dict[str, Any],
+        solver_id: str = "GLOP",
+    ) -> "MinExposedSAA":
+        """
+        Creates a new MinExposedSAA problem with sample data
+        transmission, compliance, structure, num_samples and seed are not used       
+        solver_id="GLOP", 
+        """
+        problem = cls(G, SIR, budget, solver_id, num_samples=len(sample_data))
+        problem.sample_data = sample_data
+        problem.init_variables()
+        problem.init_constraints()
+        # TODO: assert sample_data does not change
+        return problem
 
     def init_samples(self):
         # Transmission Sampling
@@ -314,6 +355,13 @@ class MinExposedSAA(MinExposedProgram):
             self.sample_data[i]["non_compliant"] = set(uniform_sample(self.contour1,  1 - self.q))
 
     def init_variables(self):
+        if self.solver_id.upper() == "GUROBI":
+            self.init_frac_variables()
+            print("Integer Solving ...")
+        else:
+            self.init_int_variables()
+
+    def init_frac_variables(self):
         for u in self.contour1:
             self.X1[u] = self.solver.NumVar(0, 1, f"V1_x{u}")
             self.Y1[u] = self.solver.NumVar(0, 1, f"V1_y{u}")
@@ -327,7 +375,7 @@ class MinExposedSAA(MinExposedProgram):
 
         self.Z = self.solver.NumVar(0, self.solver.infinity(), f"Z")
 
-    def init_integer_variables(self):
+    def init_int_variables(self):
         for u in self.contour1:
             self.X1[u] = self.solver.IntVar(0, 1, f"V1_x{u}")
             self.Y1[u] = self.solver.IntVar(0, 1, f"V1_y{u}")
@@ -396,16 +444,18 @@ class MinExposedSAA(MinExposedProgram):
         self.exposed_v2 = [[] for _ in range(self.num_samples)]
         for i in range(self.num_samples):
             self.exposed_v2[i] = [u for u, v in self.variable_solutions["sample_variables"][i]["Y2"].items() if is_close(1, v, 0.05)]
-            if not is_close(self.variable_solutions["sample_variables"][i]["z"], len(self.exposed_v2[i]), frac=0.05):
-                print(f"Warning: Difference exposed and selected")
+            
+            z = self.variable_solutions["sample_variables"][i]["z"]
+            if not is_close(z, len(self.exposed_v2[i]), frac=0.05):
+                print(f'Warning: z: {z} | computed: {len(self.exposed_v2[i])}')
             # assert is_close(self.variable_solutions["sample_variables"][i]["z"], len(self.exposed_v2[i]), frac=0.05)
         
     # Delegation
     def lp_objective(self):
         # Sum across all z_i intermediate sample objectives
-        return self.max_lp_objective()
+        return self.mean_lp_objective()
     def lp_objective_value(self):
-        return self.max_lp_objective_value()
+        return self.mean_lp_objective_value()
 
     # Max aggregation 
     def max_lp_objective(self):
@@ -681,6 +731,8 @@ def is_close(a, b, tol=0.001, frac=None):
         return abs(b - a) <= tol
     return abs(b - a) <= a * frac
 
+def is_sorted(l: List):
+    return all(l[i] <= l[i+1] for i in range(len(l)-1))
 def compute_border_edges(G, src, dest):
     contour_edges = []
     for i in src:

@@ -6,7 +6,7 @@ import networkx as nx
 from .round import D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective
 from .simulation import *
-from .problem import MinExposedLP, MinExposedSAA, MinExposedSAACompliance, MinExposedSAADiffusion
+from .problem import MinExposedLP, MinExposedSAA, MinExposedSAACompliance, MinExposedSAADiffusion, is_close
 from typing import *
 def NoIntervention(state: SimulationState):
     return set()
@@ -55,12 +55,13 @@ def DepRound(info: InfectionInfo, debug=False):
         }
     return action
 
-def SAAAgent(info: InfectionInfo, debug=False, **args):
-    problem = MinExposedSAA(info, **args)
+def SAAAgent(info: InfectionInfo, debug=True, **args):
+    """Args are needed!"""
+    problem = MinExposedSAA.from_infection_info(info, **args)
     problem.solve_lp()
     probabilities = problem.get_variables()
-    rounded = D_prime(np.array(probabilities))
 
+    rounded = D_prime(np.array(probabilities))
     action = set([problem.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
     if debug:
         return {
@@ -68,7 +69,22 @@ def SAAAgent(info: InfectionInfo, debug=False, **args):
             "action": action,
         }
     return action
-      
+
+def SAAAgentGurobi(debug=True, **args):
+    """Args are needed!"""
+    problem = MinExposedSAA.create(**args)
+    problem.solve_lp()
+    probs = problem.get_variables()
+
+    # Run assertion is Gurobi is used - checks if all values are 0 or 1
+    assert all(is_close(p, 0) or is_close(p, 1) for p in probs)
+    action = set([problem.quarantine_map[k] for (k,v) in enumerate(probs) if is_close(v, 1)])
+    if debug:
+        return {
+            "problem": problem,
+            "action": action,
+        }
+    return action
 
 def SAADiffusionAgent(info: InfectionInfo, debug=False):
     problem = MinExposedSAADiffusion(info)
