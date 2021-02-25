@@ -232,7 +232,8 @@ class MinExposedSAA(MinExposedProgram):
         structure_rate=0, 
         num_samples=10, 
         seed=42,
-        solver_id="GLOP",
+        aggregation_method="max", # "max" | "mean"
+        solver_id="GUROBI", # "GUORBI" | "GLOP" | "SCIP"
     ):
         random.seed(seed)
         self.result = None
@@ -266,6 +267,9 @@ class MinExposedSAA(MinExposedProgram):
         # Aggregate Variable - either sum or max
         self.Z: Variable = None
 
+        # Aggregation method
+        self.aggregation_method = aggregation_method
+
         # Solver
         self.solver_id=solver_id
         self.solver: Solver = pywraplp.Solver.CreateSolver(solver_id)
@@ -288,9 +292,10 @@ class MinExposedSAA(MinExposedProgram):
 
     @classmethod
     def from_infection_info(cls, info: InfectionInfo, **args) -> "MinExposedSAA":
-        """Only use G, SIR, and budget from infection_info"""
-        problem = cls.create(info.G, info.SIR, info.budget, **args)
-        return problem
+        """Only use G and SIR from infection_info"""
+        raise NotImplementedError
+        # problem = cls.create(info.G, info.SIR, **args)
+        # return problem
 
     @classmethod
     def load_sample(cls, 
@@ -305,7 +310,7 @@ class MinExposedSAA(MinExposedProgram):
         transmission, compliance, structure, num_samples and seed are not used       
         solver_id="GLOP", 
         """
-        problem = cls(G, SIR, budget, solver_id, num_samples=len(sample_data))
+        problem = cls(G, SIR, budget, solver_id=solver_id, num_samples=len(sample_data))
         problem.sample_data = sample_data
         problem.init_variables()
         problem.init_constraints()
@@ -356,10 +361,10 @@ class MinExposedSAA(MinExposedProgram):
 
     def init_variables(self):
         if self.solver_id.upper() == "GUROBI":
-            self.init_frac_variables()
+            self.init_int_variables()
             print("Integer Solving ...")
         else:
-            self.init_int_variables()
+            self.init_frac_variables()
 
     def init_frac_variables(self):
         for u in self.contour1:
@@ -453,9 +458,18 @@ class MinExposedSAA(MinExposedProgram):
     # Delegation
     def lp_objective(self):
         # Sum across all z_i intermediate sample objectives
-        return self.mean_lp_objective()
+        if self.aggregation_method == "mean":
+            return self.mean_lp_objective()
+        elif self.aggregation_method == "max":
+            return self.max_lp_objective()
+        raise ValueError(f"Invalid Aggregation Method: {self.aggregation_method}")
+
     def lp_objective_value(self):
-        return self.mean_lp_objective_value()
+        if self.aggregation_method == "mean":
+            return self.mean_lp_objective_value()
+        elif self.aggregation_method == 'max':
+            return self.max_lp_objective_value()
+        raise ValueError(f"Invalid Aggregation Method: {self.aggregation_method}")
 
     # Max aggregation 
     def max_lp_objective(self):

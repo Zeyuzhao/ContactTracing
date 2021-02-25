@@ -22,12 +22,18 @@ from ctrace.drawing import *
 import networkx as nx
 #%%
 # Create graph (with diagonal connections) to experiment on
-G, pos = grid_2d(20, seed=42)
-SIR = random_init(G, num_infected=30, seed=42)
+
+seed=42
+G, pos = grid_2d(20, seed=seed)
+SIR = random_init(G, num_infected=20, seed=seed)
+budget=50
+transmission_rate=0.8 
+compliance_rate=0.8 
+structure_rate=0
+
 
 # Create infection state
-budget=50
-infection_info = InfectionInfo(G, SIR, budget, transmission_rate=0)
+# infection_info = InfectionInfo(G, SIR, budget=0, transmission_rate=0)
 draw_single(G, pos=pos, sir=SIR, edges=G.edges, title="Graph Struct")
 
 #%%
@@ -38,27 +44,17 @@ info = SAAAgentGurobi(
     SIR=SIR,
     budget=budget,
     num_samples=num_samples,
-    transmission_rate=0.8, 
-    compliance_rate=0.8, 
-    structure_rate=0, 
-    seed=42,
+    transmission_rate=transmission_rate, 
+    compliance_rate=compliance_rate, 
+    structure_rate=structure_rate, 
+    seed=seed,
     solver_id="GUROBI",
 )
 action = info["action"]
 problem = info["problem"]
 
-
-# info = MinExposedSAA.create(
-#     G,
-#     SIR=SIR,
-#     budget=budget, 
-#     num_samples=num_samples, 
-#     transmission_rate=0.75, 
-#     compliance_rate=0.8, 
-#     structure_rate=0, 
-#     seed=42,
-#     solver_id="GUROBI",
-# )
+print(problem.get_variables())
+print(action)
 #%%
 # Test for randomness
 
@@ -70,7 +66,10 @@ probabilities2 = problem2.get_variables()
 assert all(is_close(p, 0) or is_close(p, 1) for p in probabilities2)
 action2 = set([problem2.quarantine_map[k] for (k,v) in enumerate(probabilities2) if v==1])
 
-print(action ^ action2)
+print(problem2.get_variables())
+print(action2)
+print("DIFF ACTION:", action ^ action2)
+
 #%%
 # Visualization
 args = []
@@ -87,7 +86,7 @@ for sample_num in range(num_samples):
     z_value = problem.variable_solutions["sample_variables"][sample_num]["z"]
 
     args.append({
-        "title": f"Graph[{sample_num}]: MinExposed {z_value:.3f}",
+        "title": f"Graph[{sample_num}]: LP.{problem.aggregation_method}: {z_value:.3f}",
         "pos": pos, 
         "sir":SIR, 
         "quarantined_nodes":action, 
