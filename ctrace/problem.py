@@ -162,7 +162,8 @@ class MinExposedProgram:
 
     def set_variable_id(self, id: int, value: int):
         """
-        Sets the ith V1 indicator by node id to value
+        Sets the ith X1 indicator by node id to value
+        Quarantine: 1
         Parameters
         ----------
         id
@@ -310,6 +311,7 @@ class MinExposedSAA(MinExposedProgram):
         transmission, compliance, structure, num_samples and seed are not used       
         solver_id="GLOP", 
         """
+        # TODO: [transmission, compliance, structure, num_samples, seed] uniquely determine sample_data
         problem = cls(G, SIR, budget, solver_id=solver_id, num_samples=len(sample_data))
         problem.sample_data = sample_data
         problem.init_variables()

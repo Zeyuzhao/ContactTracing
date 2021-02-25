@@ -28,17 +28,17 @@ G, pos = grid_2d(20, seed=seed)
 SIR = random_init(G, num_infected=20, seed=seed)
 budget=50
 transmission_rate=0.8 
-compliance_rate=0.8 
+compliance_rate=0.8
 structure_rate=0
-
 
 # Create infection state
 # infection_info = InfectionInfo(G, SIR, budget=0, transmission_rate=0)
 draw_single(G, pos=pos, sir=SIR, edges=G.edges, title="Graph Struct")
 
 #%%
-sample_dim = (2, 2)
+sample_dim = (3, 3)
 num_samples = sample_dim[0] * sample_dim[1]
+num_samples = 100
 info = SAAAgentGurobi(
     G=G,
     SIR=SIR,
@@ -71,31 +71,105 @@ print(action2)
 print("DIFF ACTION:", action ^ action2)
 
 #%%
+# Examine performance of greedy with respect to LP
+
+
+info = InfectionInfo(G, SIR, budget, transmission_rate)
+# actions -> set of node ids
+greed_action = DegGreedy(info)
+
+# grader
+gseed = 1011
+gproblem_greedy = MinExposedSAA.create(
+    G=G,
+    SIR=SIR,
+    budget=budget,
+    transmission_rate=transmission_rate, 
+    compliance_rate=compliance_rate, 
+    structure_rate=structure_rate,
+    num_samples=num_samples,
+    seed=gseed,
+    solver_id="GUROBI",
+)
+for node in greed_action:   
+    gproblem_greedy.set_variable_id(node, 1)
+sol = gproblem_greedy.solve_lp()
+
+gproblem_minex = MinExposedSAA.create(
+    G=G,
+    SIR=SIR,
+    budget=budget,
+    transmission_rate=transmission_rate, 
+    compliance_rate=compliance_rate, 
+    structure_rate=structure_rate,
+    num_samples=num_samples,
+    seed=gseed,
+    solver_id="GUROBI",
+)
+for node in action:
+    gproblem_minex.set_variable_id(node, 1)
+sol = gproblem_minex.solve_lp()
+
+# assert gproblem_minex.objective_value == problem.objective_value
+
+
+print(f"Evaluation Seed: {gseed}")
+print(f"Greedy Objective: {gproblem_greedy.objective_value}")
+print(f"SAA Objective: {gproblem_minex.objective_value}")
+
+
+# Run evaluations over more instances:
+def SAAEval(problem: MinExposedSAA, action, seed):
+    evaluator = MinExposedSAA.create(
+        G=problem.G,
+        SIR=problem.SIR,
+        budget=problem.budget,
+        transmission_rate=problem.p, 
+        compliance_rate=problem.q, 
+        structure_rate=problem.s,
+        num_samples=problem.num_samples,
+        seed=seed,
+        solver_id="GUROBI",
+    )
+    for node in action:
+        evaluator.set_variable_id(node, 1)
+    evaluator.solve_lp()
+    return evaluator
+
+
+[problem.variable_solutions["sample_variables"][i]["z"] for i in problem.num_samples]
+#%%
 # Visualization
-args = []
-for sample_num in range(num_samples):
-    # Sample Data
-    non_compliant_samples = problem.sample_data[sample_num]["non_compliant"]
-    relevant_v1 = problem.sample_data[sample_num]["relevant_v1"]
 
-    edges = problem.sample_data[sample_num]["border_edges"]
-    edge_colors = ["black"] * len(edges[0]) + ["grey"] * len(edges[1])
+def viz_saa(problem: MinExposedSAA):
+    args = []
+    for sample_num in range(num_samples):
+        # Sample Data
+        non_compliant_samples = problem.sample_data[sample_num]["non_compliant"]
+        relevant_v1 = problem.sample_data[sample_num]["relevant_v1"]
 
-    # Key statistics
-    exposed_v2 = problem.exposed_v2[sample_num]
-    z_value = problem.variable_solutions["sample_variables"][sample_num]["z"]
+        edges = problem.sample_data[sample_num]["border_edges"]
+        edge_colors = ["black"] * len(edges[0]) + ["grey"] * len(edges[1])
 
-    args.append({
-        "title": f"Graph[{sample_num}]: LP.{problem.aggregation_method}: {z_value:.3f}",
-        "pos": pos, 
-        "sir":SIR, 
-        "quarantined_nodes":action, 
-        "non_compliant_nodes": non_compliant_samples, 
-        "exposed_nodes": exposed_v2, 
-        "edges": edges[0] + edges[1], 
-        "edge_color":edge_colors
-    })
-fig, ax = draw_multiple_grid(G, args, *sample_dim)
+        # Key statistics
+        exposed_v2 = problem.exposed_v2[sample_num]
+        z_value = problem.variable_solutions["sample_variables"][sample_num]["z"]
+
+        args.append({
+            "title": f"Graph[{sample_num}]: LP.{problem.aggregation_method}: {z_value:.3f}",
+            "pos": pos, 
+            "sir":SIR, 
+            "quarantined_nodes":action, 
+            "non_compliant_nodes": non_compliant_samples, 
+            "exposed_nodes": exposed_v2, 
+            "edges": edges[0] + edges[1], 
+            "edge_color":edge_colors
+        })
+    fig, ax = draw_multiple_grid(G, args, *sample_dim)
+    return fig, ax
+
+fig, ax = viz_saa(gproblem_greedy)
+fig, ax = viz_saa(gproblem_minex)
 # %%
 fig.savefig("seq_diag_seed_42.svg")
 # %%
