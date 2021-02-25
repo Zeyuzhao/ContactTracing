@@ -73,6 +73,7 @@ print("DIFF ACTION:", action ^ action2)
 #%%
 # Examine performance of greedy with respect to LP
 
+# TODO: REDO THIS!!!
 
 info = InfectionInfo(G, SIR, budget, transmission_rate)
 # actions -> set of node ids
@@ -110,9 +111,6 @@ for node in action:
     gproblem_minex.set_variable_id(node, 1)
 sol = gproblem_minex.solve_lp()
 
-# assert gproblem_minex.objective_value == problem.objective_value
-
-
 print(f"Evaluation Seed: {gseed}")
 print(f"Greedy Objective: {gproblem_greedy.objective_value}")
 print(f"SAA Objective: {gproblem_minex.objective_value}")
@@ -136,8 +134,7 @@ def SAAEval(problem: MinExposedSAA, action, seed):
     evaluator.solve_lp()
     return evaluator
 
-
-[problem.variable_solutions["sample_variables"][i]["z"] for i in problem.num_samples]
+[problem.variable_solutions["sample_variables"][i]["z"] for i in range(problem.num_samples)]
 #%%
 # Visualization
 
@@ -172,10 +169,3 @@ fig, ax = viz_saa(gproblem_greedy)
 fig, ax = viz_saa(gproblem_minex)
 # %%
 fig.savefig("seq_diag_seed_42.svg")
-# %%
-
-# %%
-
-# %%
-
-# %%
