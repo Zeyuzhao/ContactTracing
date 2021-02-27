@@ -1,5 +1,6 @@
 #%%
 import networkx as nx
+import pandas as pd
 from ctrace.runner import *
 from ctrace.dataset import load_graph
 from ctrace.dataset import load_sir
@@ -8,42 +9,60 @@ from ctrace.recommender import *
 from collections import namedtuple
 json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 
-G2 = nx.Graph()
-G2.NAME = "cville"
-nodes = {}
-rev_nodes = []
+def readData():
+    G = nx.Graph()
+    G.NAME = "cville"
+    nodes = {}
+    rev_nodes = []
+    cnode_to_labels = {}
 
-file = open(PROJECT_ROOT / "data/raw/charlottesville.txt", "r")
-file.readline()
-lines = file.readlines()
-c = 0
-c_node=0
-ma = 0
-mi = 100000000
-
-for line in lines:
-
-    a = line.split()
-    u = int(a[1])
-    v = int(a[2])
-
-    if u in nodes.keys():
-        u = nodes[u]
-    else:
-        nodes[u] = c_node
-        rev_nodes.append(u)
-        u = c_node
-        c_node+=1        
+    file = open(PROJECT_ROOT / "data/raw/charlottesville.txt", "r")
+    file.readline()
+    lines = file.readlines()
+    c = 0
+    c_node=0
+    #ma = 0
+    #mi = 100000000
     
-    if v in nodes.keys():
-        v = nodes[v]
-    else:
-        nodes[v] = c_node
-        rev_nodes.append(v)
-        v = c_node
-        c_node+=1
+    labels_df = pd.read_csv(PROJECT_ROOT/"data/raw/cville/cville_labels.txt")
+    labels_df = labels_df[["pid", "hid"]]
+    labels_dict = {}
+    for index, ids in labels_df.iterrows():
+        labels_dict[ids["pid"].item()] = ids["hid"].item()
+    
+    for line in lines:
 
-    G2.add_edge(u,v)
+        a = line.split()
+        u = int(a[1])
+        v = int(a[2])
+
+        if u in nodes.keys():
+            u = nodes[u]
+        else:
+            nodes[u] = c_node
+            rev_nodes.append(u)
+            cnode_to_labels[c_node] = labels_dict[u];
+            u = c_node
+            c_node+=1        
+
+        if v in nodes.keys():
+            v = nodes[v]
+        else:
+            nodes[v] = c_node
+            rev_nodes.append(v)
+            cnode_to_labels[c_node] = labels_dict[v];
+            v = c_node
+            c_node+=1
+
+        G.add_edge(u,v)
+    
+    nx.set_node_attributes(G, cnode_to_labels, 'hid')
+    
+    return G;
+
+
+G2 = readData();
+
 
 config = {
     "G" : [G2],
