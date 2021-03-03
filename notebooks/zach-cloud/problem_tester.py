@@ -1,7 +1,7 @@
 #%%
-%load_ext autoreload
-
-%autoreload 2
+# %load_ext autoreload
+#
+# %autoreload 2
 import networkx as nx
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -15,6 +15,7 @@ import time
 from ctrace.simulation import *
 from ctrace.dataset import *
 from ctrace.recommender import *
+
 from ctrace.problem import *
 from ctrace.utils import *
 from ctrace.drawing import *
@@ -24,7 +25,8 @@ import networkx as nx
 # Create graph (with diagonal connections) to experiment on
 
 seed=42
-G, pos = grid_2d(20, seed=seed)
+G, pos = grid_2d(30, seed=seed)
+
 SIR = random_init(G, num_infected=20, seed=seed)
 budget=50
 transmission_rate=0.8 
@@ -38,7 +40,7 @@ draw_single(G, pos=pos, sir=SIR, edges=G.edges, title="Graph Struct")
 #%%
 sample_dim = (3, 3)
 num_samples = sample_dim[0] * sample_dim[1]
-num_samples = 100
+num_samples = 10
 info = SAAAgentGurobi(
     G=G,
     SIR=SIR,
@@ -58,7 +60,7 @@ print(action)
 #%%
 # Test for randomness
 
-problem2 = MinExposedSAA.load_sample(G, SIR, budget, problem.sample_data, solver_id="GUROBI")
+problem2 = MinExposedSAA.load_sample(G, SIR, budget, problem.sample_data, solver_id="GUROBI_LP")
 problem2.solve_lp()
 
 probabilities2 = problem2.get_variables()
@@ -90,7 +92,7 @@ gproblem_greedy = MinExposedSAA.create(
     structure_rate=structure_rate,
     num_samples=num_samples,
     seed=gseed,
-    solver_id="GUROBI",
+    solver_id="GUROBI_LP",
 )
 for node in greed_action:   
     gproblem_greedy.set_variable_id(node, 1)
@@ -105,7 +107,7 @@ gproblem_minex = MinExposedSAA.create(
     structure_rate=structure_rate,
     num_samples=num_samples,
     seed=gseed,
-    solver_id="GUROBI",
+    solver_id="GUROBI_LP",
 )
 for node in action:
     gproblem_minex.set_variable_id(node, 1)
@@ -165,7 +167,7 @@ def viz_saa(problem: MinExposedSAA):
     fig, ax = draw_multiple_grid(G, args, *sample_dim)
     return fig, ax
 
-fig, ax = viz_saa(gproblem_greedy)
-fig, ax = viz_saa(gproblem_minex)
+# fig, ax = viz_saa(gproblem_greedy)
+# fig, ax = viz_saa(gproblem_minex)
 # %%
-fig.savefig("seq_diag_seed_42.svg")
+# fig.savefig("seq_diag_seed_42.svg")
