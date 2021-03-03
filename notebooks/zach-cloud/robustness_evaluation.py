@@ -57,7 +57,7 @@ def grader(
 # solver_id = "GUROBI_LP"
 
 
-CONFIG = {
+config = {
     "G": ['montgomery'],
     "from_cache": [f't{i}.json' for i in range(7, 17)],
     "transmission_rate": [0.078],
@@ -68,7 +68,7 @@ CONFIG = {
     "num_samples": [5, 10, 20, 40, 80],
 }
 
-CONFIG = {
+config = {
     "G": ['montgomery'],
     "from_cache": [f't{i}.json' for i in range(7, 8)],
     "transmission_rate": [0.078],
@@ -78,11 +78,12 @@ CONFIG = {
     "num_objectives": [1],
     "num_samples": [1],
 }
-CONFIG["G"] = [load_graph(g) for g in CONFIG["G"]]
+config["G"] = [load_graph(g) for g in config["G"]]
 
 # Truncate G
-CONFIG["G"][0] = CONFIG["G"][0].remove_nodes_from([i for i in range(int(len(CONFIG["G"][0].nodes) * 9/10))])
-in_schema = list(CONFIG.keys())
+config["G"][0].remove_nodes_from([i for i in range(int(len(config["G"][0].nodes) * 50 / 100))])
+
+in_schema = list(config.keys())
 out_schema = ["infected_v2"]
 TrackerInfo = namedtuple("TrackerInfo", out_schema)
 
@@ -101,6 +102,10 @@ def robust_experiment(
 ):
     raw_sir = load_sir(from_cache, merge=True)
     SIR = SIR_Tuple(raw_sir["S"], raw_sir["I"], raw_sir["R"])
+
+
+    # TODO: TEMP SOLUTION!!!
+    SIR = random_init(G, num_infected=100, seed=None)
     info = InfectionInfo(G, SIR, budget, transmission_rate)
     if method == "robust":
         action = SAAAgent(
@@ -114,8 +119,7 @@ def robust_experiment(
         # Running the objective multiple times?
         objs = [grader(G, SIR, budget, transmission_rate,
                        compliance_rate, action) for _ in range(num_objectives)]
-
-    if method == "greedy":
+    elif method == "greedy":
         # Generate Greedy action
         info = InfectionInfo(G, SIR, budget, transmission_rate)
         # actions -> set of node ids
@@ -123,12 +127,12 @@ def robust_experiment(
         objs = [grader(G, SIR, budget, transmission_rate,
                        compliance_rate, action) for _ in range(num_objectives)]
     else:
-        raise ValueError("Invalid method: must be one the values")
+        raise ValueError(f"Invalid method ({method}): must be one the values")
     return TrackerInfo(mean(objs))
 
 
 run = GridExecutorLinear.init_multiple(
-    CONFIG, in_schema, out_schema, func=robust_experiment, trials=5)
+    config, in_schema, out_schema, func=robust_experiment, trials=5)
 
 # print(f"First 5 trials: {run.expanded_config[:10]}")
 print(f"Number of trials: {len(run.expanded_config)}")
