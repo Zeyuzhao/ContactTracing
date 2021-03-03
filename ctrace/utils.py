@@ -261,7 +261,7 @@ def load_graph(dataset_name, graph_folder=None):
     G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int)
 
     # Set name of graphs
-    G.G["name"] = dataset_name
+    G.graph["name"] = dataset_name
     return G
 
 def load_graph_cville(fp = "undirected_albe_1.90.txt"):

@@ -62,8 +62,8 @@ def SAAAgent(
     transmission_rate=0.75, 
     compliance_rate=0.8, 
     structure_rate=0, 
-    seed=42,
-    solver_id="GUROBI",
+    seed=None,
+    solver_id="GUROBI_LP",
 ):
     """Args are needed!"""
     problem = MinExposedSAA.create(
@@ -104,33 +104,6 @@ def SAAAgentGurobi(debug=True, **args):
         }
     return action
 
-def SAADiffusionAgent(info: InfectionInfo, debug=False):
-    problem = MinExposedSAADiffusion(info)
-    problem.solve_lp()
-    probabilities = problem.get_variables()
-    rounded = D_prime(np.array(probabilities))
-
-    action = set([problem.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
-    if debug:
-        return {
-            "problem": problem,
-            "action": action,
-        }
-    return action
-
-def SAAComplianceAgent(info: InfectionInfo, debug=False):
-    problem = MinExposedSAACompliance(info)
-    problem.solve_lp()
-    probabilities = problem.get_variables()
-    rounded = D_prime(np.array(probabilities))
-
-    action = set([problem.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
-    if debug:
-        return {
-            "problem": problem,
-            "action": action,
-        }
-    return action
 
 
 
