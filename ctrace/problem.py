@@ -326,8 +326,9 @@ class MinExposedSAA(MinExposedProgram):
             # Structural edges are sampled into existance.
             # Currently - structural edges must be in (I x V1) and (V1 x V2)
             structural_edges = [[], []]
-            structural_edges[0] = uniform_sample(list(itertools.product(self.SIR[1], self.contour1)), self.s)
-            structural_edges[1] = uniform_sample(list(itertools.product(self.contour1, self.contour2)), self.s)
+            # TODO: UNDISABLE structural edges???
+            # structural_edges[0] = uniform_sample(list(itertools.product(self.SIR[1], self.contour1)), self.s)
+            # structural_edges[1] = uniform_sample(list(itertools.product(self.contour1, self.contour2)), self.s)
             self.sample_data[i]["structural_edges"] = structural_edges
             
             # Expanded network (with sampled structural edges)
@@ -452,8 +453,8 @@ class MinExposedSAA(MinExposedProgram):
             self.exposed_v2[i] = [u for u, v in self.variable_solutions["sample_variables"][i]["Y2"].items() if is_close(1, v, 0.05)]
             
             z = self.variable_solutions["sample_variables"][i]["z"]
-            if not is_close(z, len(self.exposed_v2[i]), frac=0.05):
-                print(f'Warning: z: {z} | computed: {len(self.exposed_v2[i])}')
+            # if not is_close(z, len(self.exposed_v2[i]), frac=0.05):
+            #     print(f'Warning: z: {z} | computed: {len(self.exposed_v2[i])}')
             # assert is_close(self.variable_solutions["sample_variables"][i]["z"], len(self.exposed_v2[i]), frac=0.05)
         
     # Delegation
@@ -484,9 +485,9 @@ class MinExposedSAA(MinExposedProgram):
         if i is not None:
             return self.sample_variables[i]["z"].solution_value()
         max_objective = self.Z.solution_value()
-        computed_max_objective = max([self.sample_variables[i]["z"].solution_value() for i in range(self.num_samples)])
-        if is_close(max_objective, computed_max_objective):
-            print(f"Warning: {abs(max_objective - computed_max_objective)}")
+        # computed_max_objective = max([self.sample_variables[i]["z"].solution_value() for i in range(self.num_samples)])
+        # if not is_close(max_objective, computed_max_objective):
+        #     print(f"Warning: {abs(max_objective - computed_max_objective)}")
         return max_objective
 
     # Mean aggegation
