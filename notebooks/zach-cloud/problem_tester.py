@@ -60,7 +60,7 @@ print(action)
 #%%
 # Test for randomness
 
-problem2 = MinExposedSAA.load_sample(G, SIR, budget, problem.sample_data, solver_id="GUROBI_LP")
+problem2 = MinExposedSAA.load_sample(G, SIR, budget, problem.sample_data, solver_id="GUROBI")
 problem2.solve_lp()
 
 probabilities2 = problem2.get_variables()
@@ -167,7 +167,7 @@ def viz_saa(problem: MinExposedSAA):
     fig, ax = draw_multiple_grid(G, args, *sample_dim)
     return fig, ax
 
-# fig, ax = viz_saa(gproblem_greedy)
-# fig, ax = viz_saa(gproblem_minex)
+fig, ax = viz_saa(gproblem_greedy)
+fig, ax = viz_saa(gproblem_minex)
 # %%
 # fig.savefig("seq_diag_seed_42.svg")
