@@ -14,6 +14,7 @@ from ctrace.drawing import *
 import networkx as nx
 
 
+
 def grader(
     G,
     SIR,
@@ -57,16 +58,16 @@ def grader(
 # solver_id = "GUROBI_LP"
 
 
-config = {
-    "G": ['montgomery'],
-    "from_cache": [f't{i}.json' for i in range(7, 10)],
-    "transmission_rate": [0.078],
-    "compliance_rate": [0.5, 0.6, 0.7, 0.8, 0.9],
-    "budget": [500, 600, 700, 800],
-    "method": ["robust", "greedy"],
-    "num_objectives": [1],
-    "num_samples": [10, 20, 40, 80],
-}
+# config = {
+#     "G": ['montgomery'],
+#     "from_cache": [f't{i}.json' for i in range(7, 10)],
+#     "transmission_rate": [0.078],
+#     "compliance_rate": [0.5, 0.6, 0.7, 0.8, 0.9],
+#     "budget": [500, 600, 700, 800],
+#     "method": ["robust", "greedy"],
+#     "num_objectives": [1],
+#     "num_samples": [10, 20, 40],
+# }
 
 # config = {
 #     "G": ['montgomery'],
@@ -79,10 +80,6 @@ config = {
 #     "num_samples": [10],
 # }
 config["G"] = [load_graph(g) for g in config["G"]]
-
-# Truncate G
-# config["G"][0].remove_nodes_from([i for i in range(int(len(config["G"][0].nodes) * 50 / 100))])
-
 in_schema = list(config.keys())
 out_schema = ["infected_v2"]
 TrackerInfo = namedtuple("TrackerInfo", out_schema)
@@ -130,13 +127,42 @@ def robust_experiment(
     return TrackerInfo(mean(objs))
 
 
-run = GridExecutorParallel.init_multiple(
-    config, in_schema, out_schema, func=robust_experiment, trials=5)
+# config = {
+#     "G": ['montgomery'],
+#     "from_cache": [f't{i}.json' for i in range(7, 8)],
+#     "transmission_rate": [0.078],
+#     "compliance_rate": [0.5],
+#     "budget": [500],
+#     "method": ["robust"],
+#     "num_objectives": [1],
+#     "num_samples": [10],
+# }
+config = {
+    "G": ['montgomery'],
+    "from_cache": [f't{i}.json' for i in range(7, 10)],
+    "transmission_rate": [0.078],
+    "compliance_rate": [0.5, 0.6, 0.7, 0.8, 0.9],
+    "budget": [500, 600, 700, 800],
+    "method": ["robust", "greedy"],
+    "num_objectives": [1],
+    "num_samples": [10, 20, 40],
+}
+
+
+config["G"] = [load_graph(g) for g in config["G"]]
+in_schema = list(config.keys())
+out_schema = ["infected_v2"]
+TrackerInfo = namedtuple("TrackerInfo", out_schema)
+
+run = GridExecutorLinear.init_multiple(
+    config, in_schema, out_schema, func=robust_experiment, trials=10)
 
 # print(f"First 5 trials: {run.expanded_config[:10]}")
 print(f"Number of trials: {len(run.expanded_config)}")
 # %%
 run.exec()
+
+
 # %%
 
 # %%
