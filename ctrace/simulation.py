@@ -27,24 +27,24 @@ class SimulationState:
         edge_to_compliance = {}
         if partial_compliance:
             for node in G.nodes():
-                node_to_compliance[node] = compliance_array[node]
+                node_to_compliance[node] = compliance_rate[node]
                 for nghbr in G.neighbors(node):
                     forward = node<nghbr
                     tuple = (node, nghbr)
                     if not forward:
                         tuple = (nghbr, node)
                     if tuple in edge_to_compliance:
-                        compliance_edge = [(0 if random.random()>compliance_array[node] else 1, transmission_rate)]
+                        compliance_edge = [(0 if random.random()>compliance_rate[node] else 1, transmission_rate)]
                         if forward:
                             edge_to_compliance[tuple] = compliance_edge + edge_to_compliance[tuple] 
                         else:
                             edge_to_compliance[tuple] = edge_to_compliance[tuple] + compliance_edge
                     else:
-                        edge_to_compliance[tuple] = [(0 if random.random()>compliance_array[node] else 1, transmission_rate)]
+                        edge_to_compliance[tuple] = compliance_edge
         else:
             for node in G.nodes():
-                node_to_compliance[node] = compliance_array[node]
-                compliance_edge = [(0 if random.random()>compliance_array[node] else 1, transmission_rate)]
+                node_to_compliance[node] = compliance_rate[node]
+                compliance_edge = [(0 if random.random()>compliance_rate[node] else 1, transmission_rate)]
                 for nghbr in G.neighbors(node):
                     forward = node<nghbr
                     tuple = (node, nghbr)
