@@ -19,42 +19,20 @@ class SimulationState:
         self.G = G
         '''
         Compliance is an array of compliance rates per node (by index). Compliance edge weightings are binary {0, 1}. Partial_compliance indicates whether all edges of a given node should be the same.
-        The edges are a list of two tuples, where the first element of each tuple is compliance and the second is transmission.
-        The first tuple is the edge from the smaller node to the larger node. The second tuple is the edge from the larger node to the smaller node.
-        [(compliance_rate_u, transmission_rate), (compliance_rate_v, transmission_rate)] (where u<v)
+        The edges are a dict of {u: (compliance, transmission), v:(compliance, transmission)} where u means u-->v and v means v-->u
         '''
         node_to_compliance = {}
         edge_to_compliance = {}
-        if partial_compliance:
-            for node in G.nodes():
-                node_to_compliance[node] = compliance_rate[node]
-                for nghbr in G.neighbors(node):
-                    forward = node<nghbr
-                    tuple = (node, nghbr)
-                    if not forward:
-                        tuple = (nghbr, node)
-                    if tuple in edge_to_compliance:
-                        compliance_edge = [(0 if random.random()>compliance_rate[node] else 1, transmission_rate)]
-                        if forward:
-                            edge_to_compliance[tuple] = compliance_edge + edge_to_compliance[tuple] 
-                        else:
-                            edge_to_compliance[tuple] = edge_to_compliance[tuple] + compliance_edge
-                    else:
-                        edge_to_compliance[tuple] = compliance_edge
-        else:
-            for node in G.nodes():
-                node_to_compliance[node] = compliance_rate[node]
-                compliance_edge = [(0 if random.random()>compliance_rate[node] else 1, transmission_rate)]
-                for nghbr in G.neighbors(node):
-                    forward = node<nghbr
-                    tuple = (node, nghbr)
-                    if not forward:
-                        tuple = (nghbr, node)
-                    if tuple in edge_to_compliance:
-                        if forward: edge_to_compliance[tuple] = compliance_edge + edge_to_compliance[tuple]
-                        else: edge_to_compliance[tuple] = edge_to_compliance[tuple] + compliance_edge
-                    else:
-                        edge_to_compliance[tuple] = compliance_edge
+        compliance_edge = 0
+        for node in G.nodes():
+            node_to_compliance[node] = compliance_rate[node]
+            if not partial_compliance: compliance_edge = (0 if random.random()>compliance_rate[node] else 1, transmission_rate)
+            for nbr in G.neighbors(node):
+                order = (node,nbr)
+                if node>nbr: order = (nbr, node)
+                if partial_compliance: compliance_edge = (0 if random.random()>compliance_rate[node] else 1, transmission_rate)
+                if order not in edge_to_compliance: edge_to_compliance[order] = {node: compliance_edge}
+                else: edge_to_compliance[order][node] = compliance_edge
         
         nx.set_node_attributes(G, node_to_compliance, 'compliance_rate')
         nx.set_edge_attributes(G, edge_to_compliance, 'compliance_transmission')
