@@ -1,0 +1,1967 @@
+<?xml version="1.0" standalone="no"?><!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd"><svg version="1.1" width="1200" height="1468" onload="init(evt)" viewBox="0 0 1200 1468" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <!--Flame graph stack visualization. See https://github.com/brendangregg/FlameGraph for latest version, and http://www.brendangregg.com/flamegraphs.html for examples.-->
+    <!--NOTES: -->
+    <defs>
+        <linearGradient id="background" y1="0" y2="1" x1="0" x2="0">
+            <stop stop-color="#eeeeee" offset="5%"/>
+            <stop stop-color="#eeeeb0" offset="95%"/>
+        </linearGradient>
+    </defs>
+    <style type="text/css">
+text { font-family:"mono"; font-size:16px; fill:rgb(0,0,0); }
+#title { text-anchor:middle; font-size:21px; }
+#search { opacity:0.1; cursor:pointer; }
+#search:hover, #search.show { opacity:1; }
+#subtitle { text-anchor:middle; font-color:rgb(160,160,160); }
+#unzoom { cursor:pointer; }
+#frames > *:hover { stroke:black; stroke-width:0.5; cursor:pointer; }
+.hide { display:none; }
+.parent { opacity:0.5; }
+</style>
+    <script type="text/ecmascript">
+        <![CDATA[var nametype = 'Function:';
+var fontsize = 16;
+var fontwidth = 0.59;
+var xpad = 10;
+var inverted = true;
+var searchcolor = 'rgb(230,0,230)';
+var fluiddrawing = true;
+var truncate_text_right = false;]]>
+        <![CDATA["use strict";
+var details, searchbtn, unzoombtn, matchedtxt, svg, searching, frames;
+function init(evt) {
+    details = document.getElementById("details").firstChild;
+    searchbtn = document.getElementById("search");
+    unzoombtn = document.getElementById("unzoom");
+    matchedtxt = document.getElementById("matched");
+    svg = document.getElementsByTagName("svg")[0];
+    frames = document.getElementById("frames");
+    searching = 0;
+
+    // Use GET parameters to restore a flamegraph's state.
+    var restore_state = function() {
+        var params = get_params();
+        if (params.x && params.y)
+            zoom(find_group(document.querySelector('[x="' + params.x + '"][y="' + params.y + '"]')));
+        if (params.s)
+            search(params.s);
+    };
+
+    if (fluiddrawing) {
+        // Make width dynamic so the SVG fits its parent's width.
+        svg.removeAttribute("width");
+        // Edge requires us to have a viewBox that gets updated with size changes.
+        var isEdge = /Edge\/\d./i.test(navigator.userAgent);
+        if (!isEdge) {
+          svg.removeAttribute("viewBox");
+        }
+        var update_for_width_change = function() {
+            if (isEdge) {
+                svg.attributes.viewBox.value = "0 0 " + svg.width.baseVal.value + " " + svg.height.baseVal.value;
+            }
+
+            // Keep consistent padding on left and right of frames container.
+            frames.attributes.width.value = svg.width.baseVal.value - xpad * 2;
+
+            // Text truncation needs to be adjusted for the current width.
+            var el = frames.children;
+            for(var i = 0; i < el.length; i++) {
+                update_text(el[i]);
+            }
+
+            // Keep search elements at a fixed distance from right edge.
+            var svgWidth = svg.width.baseVal.value;
+            searchbtn.attributes.x.value = svgWidth - xpad - 100;
+            matchedtxt.attributes.x.value = svgWidth - xpad - 100;
+        };
+        window.addEventListener('resize', function() {
+            update_for_width_change();
+        });
+        // This needs to be done asynchronously for Safari to work.
+        setTimeout(function() {
+            unzoom();
+            update_for_width_change();
+            restore_state();
+        }, 0);
+    } else {
+        restore_state();
+    }
+}
+// event listeners
+window.addEventListener("click", function(e) {
+    var target = find_group(e.target);
+    if (target) {
+        if (target.nodeName == "a") {
+            if (e.ctrlKey === false) return;
+            e.preventDefault();
+        }
+        if (target.classList.contains("parent")) unzoom();
+        zoom(target);
+
+        // set parameters for zoom state
+        var el = target.querySelector("rect");
+        if (el && el.attributes && el.attributes.y && el.attributes._orig_x) {
+            var params = get_params()
+            params.x = el.attributes._orig_x.value;
+            params.y = el.attributes.y.value;
+            history.replaceState(null, null, parse_params(params));
+        }
+    }
+    else if (e.target.id == "unzoom") {
+        unzoom();
+
+        // remove zoom state
+        var params = get_params();
+        if (params.x) delete params.x;
+        if (params.y) delete params.y;
+        history.replaceState(null, null, parse_params(params));
+    }
+    else if (e.target.id == "search") search_prompt();
+}, false)
+// mouse-over for info
+// show
+window.addEventListener("mouseover", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = nametype + " " + g_to_text(target);
+}, false)
+// clear
+window.addEventListener("mouseout", function(e) {
+    var target = find_group(e.target);
+    if (target) details.nodeValue = ' ';
+}, false)
+// ctrl-F for search
+window.addEventListener("keydown",function (e) {
+    if (e.keyCode === 114 || (e.ctrlKey && e.keyCode === 70)) {
+        e.preventDefault();
+        search_prompt();
+    }
+}, false)
+// functions
+function get_params() {
+    var params = {};
+    var paramsarr = window.location.search.substr(1).split('&');
+    for (var i = 0; i < paramsarr.length; ++i) {
+        var tmp = paramsarr[i].split("=");
+        if (!tmp[0] || !tmp[1]) continue;
+        params[tmp[0]]  = decodeURIComponent(tmp[1]);
+    }
+    return params;
+}
+function parse_params(params) {
+    var uri = "?";
+    for (var key in params) {
+        uri += key + '=' + encodeURIComponent(params[key]) + '&';
+    }
+    if (uri.slice(-1) == "&")
+        uri = uri.substring(0, uri.length - 1);
+    if (uri == '?')
+        uri = window.location.href.split('?')[0];
+    return uri;
+}
+function find_child(node, selector) {
+    var children = node.querySelectorAll(selector);
+    if (children.length) return children[0];
+    return;
+}
+function find_group(node) {
+    var parent = node.parentElement;
+    if (!parent) return;
+    if (parent.id == "frames") return node;
+    return find_group(parent);
+}
+function orig_save(e, attr, val) {
+    if (e.attributes["_orig_" + attr] != undefined) return;
+    if (e.attributes[attr] == undefined) return;
+    if (val == undefined) val = e.attributes[attr].value;
+    e.setAttribute("_orig_" + attr, val);
+}
+function orig_load(e, attr) {
+    if (e.attributes["_orig_"+attr] == undefined) return;
+    e.attributes[attr].value = e.attributes["_orig_" + attr].value;
+    e.removeAttribute("_orig_" + attr);
+}
+function g_to_text(e) {
+    var text = find_child(e, "title").firstChild.nodeValue;
+    return (text)
+}
+function g_to_func(e) {
+    var func = g_to_text(e);
+    // if there's any manipulation we want to do to the function
+    // name before it's searched, do it here before returning.
+    return (func);
+}
+function update_text(e) {
+    var r = find_child(e, "rect");
+    var t = find_child(e, "text");
+    var w = parseFloat(r.attributes.width.value) * frames.attributes.width.value / 100 - 3;
+    var txt = find_child(e, "title").textContent.replace(/\([^(]*\)$/,"");
+    t.attributes.x.value = format_percent((parseFloat(r.attributes.x.value) + (100 * 3 / frames.attributes.width.value)));
+    // Smaller than this size won't fit anything
+    if (w < 2 * fontsize * fontwidth) {
+        t.textContent = "";
+        return;
+    }
+    t.textContent = txt;
+    // Fit in full text width
+    if (/^ *\$/.test(txt) || t.getComputedTextLength() < w)
+        return;
+    if (truncate_text_right) {
+        // Truncate the right side of the text.
+        for (var x = txt.length - 2; x > 0; x--) {
+            if (t.getSubStringLength(0, x + 2) <= w) {
+                t.textContent = txt.substring(0, x) + "..";
+                return;
+            }
+        }
+    } else {
+        // Truncate the left side of the text.
+        for (var x = 2; x < txt.length; x++) {
+            if (t.getSubStringLength(x - 2, txt.length) <= w) {
+                t.textContent = ".." + txt.substring(x, txt.length);
+                return;
+            }
+        }
+    }
+    t.textContent = "";
+}
+// zoom
+function zoom_reset(e) {
+    if (e.attributes != undefined) {
+        orig_load(e, "x");
+        orig_load(e, "width");
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_reset(c[i]);
+    }
+}
+function zoom_child(e, x, ratio) {
+    if (e.attributes != undefined) {
+        if (e.attributes.x != undefined) {
+            orig_save(e, "x");
+            e.attributes.x.value = format_percent((parseFloat(e.attributes.x.value) - x) * ratio);
+            if (e.tagName == "text") {
+                e.attributes.x.value = format_percent(parseFloat(find_child(e.parentNode, "rect[x]").attributes.x.value) + (100 * 3 / frames.attributes.width.value));
+            }
+        }
+        if (e.attributes.width != undefined) {
+            orig_save(e, "width");
+            e.attributes.width.value = format_percent(parseFloat(e.attributes.width.value) * ratio);
+        }
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_child(c[i], x, ratio);
+    }
+}
+function zoom_parent(e) {
+    if (e.attributes) {
+        if (e.attributes.x != undefined) {
+            orig_save(e, "x");
+            e.attributes.x.value = "0.0%";
+        }
+        if (e.attributes.width != undefined) {
+            orig_save(e, "width");
+            e.attributes.width.value = "100.0%";
+        }
+    }
+    if (e.childNodes == undefined) return;
+    for(var i = 0, c = e.childNodes; i < c.length; i++) {
+        zoom_parent(c[i]);
+    }
+}
+function zoom(node) {
+    var attr = find_child(node, "rect").attributes;
+    var width = parseFloat(attr.width.value);
+    var xmin = parseFloat(attr.x.value);
+    var xmax = xmin + width;
+    var ymin = parseFloat(attr.y.value);
+    var ratio = 100 / width;
+    // XXX: Workaround for JavaScript float issues (fix me)
+    var fudge = 0.001;
+    unzoombtn.classList.remove("hide");
+    var el = frames.children;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        var a = find_child(e, "rect").attributes;
+        var ex = parseFloat(a.x.value);
+        var ew = parseFloat(a.width.value);
+        // Is it an ancestor
+        if (!inverted) {
+            var upstack = parseFloat(a.y.value) > ymin;
+        } else {
+            var upstack = parseFloat(a.y.value) < ymin;
+        }
+        if (upstack) {
+            // Direct ancestor
+            if (ex <= xmin && (ex+ew+fudge) >= xmax) {
+                e.classList.add("parent");
+                zoom_parent(e);
+                update_text(e);
+            }
+            // not in current path
+            else
+                e.classList.add("hide");
+        }
+        // Children maybe
+        else {
+            // no common path
+            if (ex < xmin || ex + fudge >= xmax) {
+                e.classList.add("hide");
+            }
+            else {
+                zoom_child(e, xmin, ratio);
+                update_text(e);
+            }
+        }
+    }
+}
+function unzoom() {
+    unzoombtn.classList.add("hide");
+    var el = frames.children;
+    for(var i = 0; i < el.length; i++) {
+        el[i].classList.remove("parent");
+        el[i].classList.remove("hide");
+        zoom_reset(el[i]);
+        update_text(el[i]);
+    }
+}
+// search
+function reset_search() {
+    var el = document.querySelectorAll("#frames rect");
+    for (var i = 0; i < el.length; i++) {
+        orig_load(el[i], "fill")
+    }
+    var params = get_params();
+    delete params.s;
+    history.replaceState(null, null, parse_params(params));
+}
+function search_prompt() {
+    if (!searching) {
+        var term = prompt("Enter a search term (regexp " +
+            "allowed, eg: ^ext4_)", "");
+        if (term != null) {
+            search(term)
+        }
+    } else {
+        reset_search();
+        searching = 0;
+        searchbtn.classList.remove("show");
+        searchbtn.firstChild.nodeValue = "Search"
+        matchedtxt.classList.add("hide");
+        matchedtxt.firstChild.nodeValue = ""
+    }
+}
+function search(term) {
+    var re = new RegExp(term);
+    var el = frames.children;
+    var matches = new Object();
+    var maxwidth = 0;
+    for (var i = 0; i < el.length; i++) {
+        var e = el[i];
+        var func = g_to_func(e);
+        var rect = find_child(e, "rect");
+        if (func == null || rect == null)
+            continue;
+        // Save max width. Only works as we have a root frame
+        var w = parseFloat(rect.attributes.width.value);
+        if (w > maxwidth)
+            maxwidth = w;
+        if (func.match(re)) {
+            // highlight
+            var x = parseFloat(rect.attributes.x.value);
+            orig_save(rect, "fill");
+            rect.attributes.fill.value = searchcolor;
+            // remember matches
+            if (matches[x] == undefined) {
+                matches[x] = w;
+            } else {
+                if (w > matches[x]) {
+                    // overwrite with parent
+                    matches[x] = w;
+                }
+            }
+            searching = 1;
+        }
+    }
+    if (!searching)
+        return;
+    var params = get_params();
+    params.s = term;
+    history.replaceState(null, null, parse_params(params));
+
+    searchbtn.classList.add("show");
+    searchbtn.firstChild.nodeValue = "Reset Search";
+    // calculate percent matched, excluding vertical overlap
+    var count = 0;
+    var lastx = -1;
+    var lastw = 0;
+    var keys = Array();
+    for (k in matches) {
+        if (matches.hasOwnProperty(k))
+            keys.push(k);
+    }
+    // sort the matched frames by their x location
+    // ascending, then width descending
+    keys.sort(function(a, b){
+        return a - b;
+    });
+    // Step through frames saving only the biggest bottom-up frames
+    // thanks to the sort order. This relies on the tree property
+    // where children are always smaller than their parents.
+    var fudge = 0.0001;    // JavaScript floating point
+    for (var k in keys) {
+        var x = parseFloat(keys[k]);
+        var w = matches[keys[k]];
+        if (x >= lastx + lastw - fudge) {
+            count += w;
+            lastx = x;
+            lastw = w;
+        }
+    }
+    // display matched percent
+    matchedtxt.classList.remove("hide");
+    var pct = 100 * count / maxwidth;
+    if (pct != 100) pct = pct.toFixed(1);
+    matchedtxt.firstChild.nodeValue = "Matched: " + pct + "%";
+}
+function format_percent(n) {
+    return n.toFixed(4) + "%";
+}
+]]>
+    </script>
+    <rect x="0" y="0" width="100%" height="1468" fill="url(#background)"/>
+    <text id="title" x="50.0000%" y="32.00">Peak Tracked Memory Usage, Reversed (8148.4 MiB)</text>
+    <text id="subtitle" x="50.0000%" y="64.00">Made with the Fil memory profiler. <a href="https://pythonspeed.com/products/filmemoryprofiler/" style="text-decoration: underline;" target="_parent">Try it on your code!</a></text>
+    <text id="details" x="10" y="84.00"> </text>
+    <text id="unzoom" class="hide" x="10" y="32.00">Reset Zoom</text>
+    <text id="search" x="1090" y="32.00">Search</text>
+    <text id="matched" x="1090" y="1455.00"> </text>
+    <svg id="frames" x="10" width="1180">
+        <g>
+            <title>&#160;&#160;&#160;&#160;return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values())) (3,456,190 bytes, 0.04%)</title>
+            <rect x="0.0000%" y="122" width="0.0408%" height="21" fill="rgb(255,247,247)"/>
+            <text x="0.2500%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:101 (&lt;genexpr&gt;) (3,456,190 bytes, 0.04%)</title>
+            <rect x="0.0000%" y="144" width="0.0408%" height="21" fill="rgb(255,247,247)"/>
+            <text x="0.2500%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self.expanded_config = list(GridExecutor.cartesian_product(self.compact_config)) (3,456,190 bytes, 0.04%)</title>
+            <rect x="0.0000%" y="166" width="0.0408%" height="21" fill="rgb(255,247,247)"/>
+            <text x="0.2500%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:57 (__init__) (3,456,190 bytes, 0.04%)</title>
+            <rect x="0.0000%" y="188" width="0.0408%" height="21" fill="rgb(255,247,247)"/>
+            <text x="0.2500%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;return cls(compact_config, in_schema, out_schema, func) (3,456,190 bytes, 0.04%)</title>
+            <rect x="0.0000%" y="210" width="0.0408%" height="21" fill="rgb(255,247,247)"/>
+            <text x="0.2500%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:72 (init_multiple) (3,456,190 bytes, 0.04%)</title>
+            <rect x="0.0000%" y="232" width="0.0408%" height="21" fill="rgb(255,247,247)"/>
+            <text x="0.2500%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;run = GridExecutorParallel.init_multiple( (3,456,190 bytes, 0.04%)</title>
+            <rect x="0.0000%" y="254" width="0.0408%" height="21" fill="rgb(255,247,247)"/>
+            <text x="0.2500%" y="267.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:158 (&lt;module&gt;) (3,456,190 bytes, 0.04%)</title>
+            <rect x="0.0000%" y="276" width="0.0408%" height="21" fill="rgb(255,247,247)"/>
+            <text x="0.2500%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;results = [executor.submit(self.runner, arg) for arg in self.expanded_config] (1,309,424 bytes, 0.02%)</title>
+            <rect x="0.0408%" y="122" width="0.0154%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.2908%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:189 (&lt;listcomp&gt;) (1,309,424 bytes, 0.02%)</title>
+            <rect x="0.0408%" y="144" width="0.0154%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.2908%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;results = [executor.submit(self.runner, arg) for arg in self.expanded_config] (1,309,424 bytes, 0.02%)</title>
+            <rect x="0.0408%" y="166" width="0.0154%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.2908%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:189 (exec) (1,309,424 bytes, 0.02%)</title>
+            <rect x="0.0408%" y="188" width="0.0154%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.2908%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;run.exec() (1,309,424 bytes, 0.02%)</title>
+            <rect x="0.0408%" y="210" width="0.0154%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.2908%" y="223.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:165 (&lt;module&gt;) (1,309,424 bytes, 0.02%)</title>
+            <rect x="0.0408%" y="232" width="0.0154%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.2908%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self._condition = threading.Condition() (1,228,720 bytes, 0.01%)</title>
+            <rect x="0.0562%" y="122" width="0.0145%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3062%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/concurrent/futures/_base.py:319 (__init__) (1,228,720 bytes, 0.01%)</title>
+            <rect x="0.0562%" y="144" width="0.0145%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3062%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;f = _base.Future() (1,228,720 bytes, 0.01%)</title>
+            <rect x="0.0562%" y="166" width="0.0145%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3062%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/concurrent/futures/process.py:688 (submit) (1,228,720 bytes, 0.01%)</title>
+            <rect x="0.0562%" y="188" width="0.0145%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3062%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;results = [executor.submit(self.runner, arg) for arg in self.expanded_config] (1,228,720 bytes, 0.01%)</title>
+            <rect x="0.0562%" y="210" width="0.0145%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3062%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:189 (&lt;listcomp&gt;) (1,228,720 bytes, 0.01%)</title>
+            <rect x="0.0562%" y="232" width="0.0145%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3062%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;results = [executor.submit(self.runner, arg) for arg in self.expanded_config] (1,228,720 bytes, 0.01%)</title>
+            <rect x="0.0562%" y="254" width="0.0145%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3062%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:189 (exec) (1,228,720 bytes, 0.01%)</title>
+            <rect x="0.0562%" y="276" width="0.0145%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3062%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;run.exec() (1,228,720 bytes, 0.01%)</title>
+            <rect x="0.0562%" y="298" width="0.0145%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3062%" y="311.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:165 (&lt;module&gt;) (1,228,720 bytes, 0.01%)</title>
+            <rect x="0.0562%" y="320" width="0.0145%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3062%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self.future = future (964,936 bytes, 0.01%)</title>
+            <rect x="0.0833%" y="122" width="0.0114%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3333%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/concurrent/futures/process.py:139 (__init__) (964,936 bytes, 0.01%)</title>
+            <rect x="0.0833%" y="144" width="0.0114%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3333%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;w = _WorkItem(f, fn, args, kwargs) (964,936 bytes, 0.01%)</title>
+            <rect x="0.0833%" y="166" width="0.0114%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3333%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/concurrent/futures/process.py:689 (submit) (964,936 bytes, 0.01%)</title>
+            <rect x="0.0833%" y="188" width="0.0114%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3333%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;results = [executor.submit(self.runner, arg) for arg in self.expanded_config] (964,936 bytes, 0.01%)</title>
+            <rect x="0.0833%" y="210" width="0.0114%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3333%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:189 (&lt;listcomp&gt;) (964,936 bytes, 0.01%)</title>
+            <rect x="0.0833%" y="232" width="0.0114%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3333%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;results = [executor.submit(self.runner, arg) for arg in self.expanded_config] (964,936 bytes, 0.01%)</title>
+            <rect x="0.0833%" y="254" width="0.0114%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3333%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:189 (exec) (964,936 bytes, 0.01%)</title>
+            <rect x="0.0833%" y="276" width="0.0114%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3333%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;run.exec() (964,936 bytes, 0.01%)</title>
+            <rect x="0.0833%" y="298" width="0.0114%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3333%" y="311.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:165 (&lt;module&gt;) (964,936 bytes, 0.01%)</title>
+            <rect x="0.0833%" y="320" width="0.0114%" height="21" fill="rgb(255,248,248)"/>
+            <text x="0.3333%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;cls(buf, protocol).dump(obj) (8,169,871,747 bytes, 96.37%)</title>
+            <rect x="0.1318%" y="122" width="96.3693%" height="21" fill="rgb(255,102,102)"/>
+            <text x="0.3818%" y="135.50">TB@@/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/multiprocessing/reduction.py:51@@TB</text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/multiprocessing/reduction.py:51 (dumps) (8,169,871,747 bytes, 96.37%)</title>
+            <rect x="0.1318%" y="144" width="96.3693%" height="21" fill="rgb(255,102,102)"/>
+            <text x="0.3818%" y="157.50">/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/multiprocessing/reduction.py:51 (dumps)</text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;obj = _ForkingPickler.dumps(obj) (8,169,871,747 bytes, 96.37%)</title>
+            <rect x="0.1318%" y="166" width="96.3693%" height="21" fill="rgb(255,102,102)"/>
+            <text x="0.3818%" y="179.50">TB@@/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/multiprocessing/queues.py:245@@TB</text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/multiprocessing/queues.py:245 (_feed) (8,169,871,747 bytes, 96.37%)</title>
+            <rect x="0.1318%" y="188" width="96.3693%" height="21" fill="rgb(255,102,102)"/>
+            <text x="0.3818%" y="201.50">/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/multiprocessing/queues.py:245 (_feed)</text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self._adj[u] = self.adjlist_inner_dict_factory() (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="122" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/classes/graph.py:873 (add_edge) (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="144" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G.add_edge(u, v, **edgedata) (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="166" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:293 (parse_edgelist) (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="188" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;return parse_edgelist( (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="210" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:373 (read_edgelist) (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="232" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;result = func_to_be_decorated(*new_args, **kwargs) (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="254" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/utils/decorators.py:239 (_open_file) (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="276" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="298" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="311.50"></text>
+        </g>
+        <g>
+            <title>&lt;decorator-gen-650&gt;:2 (read_edgelist) (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="320" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int) (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="342" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="355.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/utils.py:261 (load_graph) (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="364" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="377.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="386" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="399.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;listcomp&gt;) (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="408" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="421.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="430" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="443.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;module&gt;) (5,565,792 bytes, 0.07%)</title>
+            <rect x="96.5010%" y="452" width="0.0657%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.7510%" y="465.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self._node[u] = self.node_attr_dict_factory() (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="122" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/classes/graph.py:874 (add_edge) (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="144" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G.add_edge(u, v, **edgedata) (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="166" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:293 (parse_edgelist) (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="188" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;return parse_edgelist( (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="210" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:373 (read_edgelist) (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="232" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;result = func_to_be_decorated(*new_args, **kwargs) (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="254" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/utils/decorators.py:239 (_open_file) (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="276" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="298" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="311.50"></text>
+        </g>
+        <g>
+            <title>&lt;decorator-gen-650&gt;:2 (read_edgelist) (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="320" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int) (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="342" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="355.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/utils.py:261 (load_graph) (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="364" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="377.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="386" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="399.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;listcomp&gt;) (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="408" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="421.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="430" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="443.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;module&gt;) (5,859,624 bytes, 0.07%)</title>
+            <rect x="96.5667%" y="452" width="0.0691%" height="21" fill="rgb(255,246,246)"/>
+            <text x="96.8167%" y="465.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self._adj[v] = self.adjlist_inner_dict_factory() (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="122" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/classes/graph.py:876 (add_edge) (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="144" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G.add_edge(u, v, **edgedata) (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="166" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:293 (parse_edgelist) (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="188" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;return parse_edgelist( (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="210" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:373 (read_edgelist) (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="232" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;result = func_to_be_decorated(*new_args, **kwargs) (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="254" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/utils/decorators.py:239 (_open_file) (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="276" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="298" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="311.50"></text>
+        </g>
+        <g>
+            <title>&lt;decorator-gen-650&gt;:2 (read_edgelist) (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="320" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int) (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="342" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="355.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/utils.py:261 (load_graph) (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="364" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="377.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="386" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="399.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;listcomp&gt;) (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="408" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="421.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="430" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="443.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;module&gt;) (13,734,976 bytes, 0.16%)</title>
+            <rect x="96.6358%" y="452" width="0.1620%" height="21" fill="rgb(255,244,244)"/>
+            <text x="96.8858%" y="465.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self._node[v] = self.node_attr_dict_factory() (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="122" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/classes/graph.py:877 (add_edge) (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="144" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G.add_edge(u, v, **edgedata) (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="166" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:293 (parse_edgelist) (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="188" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;return parse_edgelist( (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="210" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:373 (read_edgelist) (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="232" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;result = func_to_be_decorated(*new_args, **kwargs) (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="254" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/utils/decorators.py:239 (_open_file) (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="276" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="298" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="311.50"></text>
+        </g>
+        <g>
+            <title>&lt;decorator-gen-650&gt;:2 (read_edgelist) (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="320" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int) (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="342" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="355.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/utils.py:261 (load_graph) (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="364" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="377.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="386" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="399.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;listcomp&gt;) (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="408" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="421.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="430" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="443.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;module&gt;) (14,242,672 bytes, 0.17%)</title>
+            <rect x="96.7978%" y="452" width="0.1680%" height="21" fill="rgb(255,243,243)"/>
+            <text x="97.0478%" y="465.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;datadict = self._adj[u].get(v, self.edge_attr_dict_factory()) (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="122" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/classes/graph.py:879 (add_edge) (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="144" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G.add_edge(u, v, **edgedata) (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="166" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:293 (parse_edgelist) (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="188" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;return parse_edgelist( (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="210" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:373 (read_edgelist) (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="232" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;result = func_to_be_decorated(*new_args, **kwargs) (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="254" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/utils/decorators.py:239 (_open_file) (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="276" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="298" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="311.50"></text>
+        </g>
+        <g>
+            <title>&lt;decorator-gen-650&gt;:2 (read_edgelist) (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="320" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int) (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="342" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="355.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/utils.py:261 (load_graph) (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="364" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="377.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="386" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="399.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;listcomp&gt;) (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="408" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="421.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="430" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="443.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;module&gt;) (142,315,568 bytes, 1.68%)</title>
+            <rect x="96.9658%" y="452" width="1.6787%" height="21" fill="rgb(255,230,230)"/>
+            <text x="97.2158%" y="465.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self._adj[u][v] = datadict (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="122" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/classes/graph.py:881 (add_edge) (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="144" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G.add_edge(u, v, **edgedata) (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="166" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:293 (parse_edgelist) (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="188" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;return parse_edgelist( (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="210" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:373 (read_edgelist) (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="232" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;result = func_to_be_decorated(*new_args, **kwargs) (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="254" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/utils/decorators.py:239 (_open_file) (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="276" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="298" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="311.50"></text>
+        </g>
+        <g>
+            <title>&lt;decorator-gen-650&gt;:2 (read_edgelist) (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="320" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int) (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="342" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="355.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/utils.py:261 (load_graph) (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="364" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="377.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="386" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="399.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;listcomp&gt;) (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="408" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="421.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="430" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="443.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;module&gt;) (21,552,208 bytes, 0.25%)</title>
+            <rect x="98.6445%" y="452" width="0.2542%" height="21" fill="rgb(255,242,242)"/>
+            <text x="98.8945%" y="465.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self._adj[v][u] = datadict (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="122" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/classes/graph.py:882 (add_edge) (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="144" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G.add_edge(u, v, **edgedata) (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="166" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:293 (parse_edgelist) (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="188" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;return parse_edgelist( (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="210" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:373 (read_edgelist) (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="232" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;result = func_to_be_decorated(*new_args, **kwargs) (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="254" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/utils/decorators.py:239 (_open_file) (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="276" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="298" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="311.50"></text>
+        </g>
+        <g>
+            <title>&lt;decorator-gen-650&gt;:2 (read_edgelist) (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="320" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int) (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="342" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="355.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/utils.py:261 (load_graph) (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="364" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="377.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="386" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="399.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;listcomp&gt;) (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="408" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="421.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="430" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="443.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;module&gt;) (25,618,928 bytes, 0.30%)</title>
+            <rect x="98.8987%" y="452" width="0.3022%" height="21" fill="rgb(255,241,241)"/>
+            <text x="99.1487%" y="465.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;u = nodetype(u) (18,153,632 bytes, 0.21%)</title>
+            <rect x="99.2009%" y="122" width="0.2141%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.4509%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:255 (parse_edgelist) (18,153,632 bytes, 0.21%)</title>
+            <rect x="99.2009%" y="144" width="0.2141%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.4509%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;return parse_edgelist( (18,153,632 bytes, 0.21%)</title>
+            <rect x="99.2009%" y="166" width="0.2141%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.4509%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:373 (read_edgelist) (18,153,632 bytes, 0.21%)</title>
+            <rect x="99.2009%" y="188" width="0.2141%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.4509%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;result = func_to_be_decorated(*new_args, **kwargs) (18,153,632 bytes, 0.21%)</title>
+            <rect x="99.2009%" y="210" width="0.2141%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.4509%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/utils/decorators.py:239 (_open_file) (18,153,632 bytes, 0.21%)</title>
+            <rect x="99.2009%" y="232" width="0.2141%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.4509%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (18,153,632 bytes, 0.21%)</title>
+            <rect x="99.2009%" y="254" width="0.2141%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.4509%" y="267.50"></text>
+        </g>
+        <g>
+            <title>&lt;decorator-gen-650&gt;:2 (read_edgelist) (18,153,632 bytes, 0.21%)</title>
+            <rect x="99.2009%" y="276" width="0.2141%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.4509%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int) (18,153,632 bytes, 0.21%)</title>
+            <rect x="99.2009%" y="298" width="0.2141%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.4509%" y="311.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/utils.py:261 (load_graph) (18,153,632 bytes, 0.21%)</title>
+            <rect x="99.2009%" y="320" width="0.2141%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.4509%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (18,153,632 bytes, 0.21%)</title>
+            <rect x="99.2009%" y="342" width="0.2141%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.4509%" y="355.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;listcomp&gt;) (18,153,632 bytes, 0.21%)</title>
+            <rect x="99.2009%" y="364" width="0.2141%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.4509%" y="377.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (18,153,632 bytes, 0.21%)</title>
+            <rect x="99.2009%" y="386" width="0.2141%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.4509%" y="399.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;module&gt;) (18,153,632 bytes, 0.21%)</title>
+            <rect x="99.2009%" y="408" width="0.2141%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.4509%" y="421.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;v = nodetype(v) (18,049,332 bytes, 0.21%)</title>
+            <rect x="99.4151%" y="122" width="0.2129%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.6651%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:256 (parse_edgelist) (18,049,332 bytes, 0.21%)</title>
+            <rect x="99.4151%" y="144" width="0.2129%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.6651%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;return parse_edgelist( (18,049,332 bytes, 0.21%)</title>
+            <rect x="99.4151%" y="166" width="0.2129%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.6651%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/readwrite/edgelist.py:373 (read_edgelist) (18,049,332 bytes, 0.21%)</title>
+            <rect x="99.4151%" y="188" width="0.2129%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.6651%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;result = func_to_be_decorated(*new_args, **kwargs) (18,049,332 bytes, 0.21%)</title>
+            <rect x="99.4151%" y="210" width="0.2129%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.6651%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/networkx/utils/decorators.py:239 (_open_file) (18,049,332 bytes, 0.21%)</title>
+            <rect x="99.4151%" y="232" width="0.2129%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.6651%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (18,049,332 bytes, 0.21%)</title>
+            <rect x="99.4151%" y="254" width="0.2129%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.6651%" y="267.50"></text>
+        </g>
+        <g>
+            <title>&lt;decorator-gen-650&gt;:2 (read_edgelist) (18,049,332 bytes, 0.21%)</title>
+            <rect x="99.4151%" y="276" width="0.2129%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.6651%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int) (18,049,332 bytes, 0.21%)</title>
+            <rect x="99.4151%" y="298" width="0.2129%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.6651%" y="311.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/utils.py:261 (load_graph) (18,049,332 bytes, 0.21%)</title>
+            <rect x="99.4151%" y="320" width="0.2129%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.6651%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (18,049,332 bytes, 0.21%)</title>
+            <rect x="99.4151%" y="342" width="0.2129%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.6651%" y="355.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;listcomp&gt;) (18,049,332 bytes, 0.21%)</title>
+            <rect x="99.4151%" y="364" width="0.2129%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.6651%" y="377.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;config["G"] = [load_graph(g) for g in config["G"]] (18,049,332 bytes, 0.21%)</title>
+            <rect x="99.4151%" y="386" width="0.2129%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.6651%" y="399.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:153 (&lt;module&gt;) (18,049,332 bytes, 0.21%)</title>
+            <rect x="99.4151%" y="408" width="0.2129%" height="21" fill="rgb(255,243,243)"/>
+            <text x="99.6651%" y="421.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self._is_owned = lock._is_owned (3,532,504 bytes, 0.04%)</title>
+            <rect x="99.6714%" y="122" width="0.0417%" height="21" fill="rgb(255,247,247)"/>
+            <text x="99.9214%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/threading.py:247 (__init__) (3,532,504 bytes, 0.04%)</title>
+            <rect x="99.6714%" y="144" width="0.0417%" height="21" fill="rgb(255,247,247)"/>
+            <text x="99.9214%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self._condition = threading.Condition() (3,532,504 bytes, 0.04%)</title>
+            <rect x="99.6714%" y="166" width="0.0417%" height="21" fill="rgb(255,247,247)"/>
+            <text x="99.9214%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/concurrent/futures/_base.py:319 (__init__) (3,532,504 bytes, 0.04%)</title>
+            <rect x="99.6714%" y="188" width="0.0417%" height="21" fill="rgb(255,247,247)"/>
+            <text x="99.9214%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;f = _base.Future() (3,532,504 bytes, 0.04%)</title>
+            <rect x="99.6714%" y="210" width="0.0417%" height="21" fill="rgb(255,247,247)"/>
+            <text x="99.9214%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/concurrent/futures/process.py:688 (submit) (3,532,504 bytes, 0.04%)</title>
+            <rect x="99.6714%" y="232" width="0.0417%" height="21" fill="rgb(255,247,247)"/>
+            <text x="99.9214%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;results = [executor.submit(self.runner, arg) for arg in self.expanded_config] (3,532,504 bytes, 0.04%)</title>
+            <rect x="99.6714%" y="254" width="0.0417%" height="21" fill="rgb(255,247,247)"/>
+            <text x="99.9214%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:189 (&lt;listcomp&gt;) (3,532,504 bytes, 0.04%)</title>
+            <rect x="99.6714%" y="276" width="0.0417%" height="21" fill="rgb(255,247,247)"/>
+            <text x="99.9214%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;results = [executor.submit(self.runner, arg) for arg in self.expanded_config] (3,532,504 bytes, 0.04%)</title>
+            <rect x="99.6714%" y="298" width="0.0417%" height="21" fill="rgb(255,247,247)"/>
+            <text x="99.9214%" y="311.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:189 (exec) (3,532,504 bytes, 0.04%)</title>
+            <rect x="99.6714%" y="320" width="0.0417%" height="21" fill="rgb(255,247,247)"/>
+            <text x="99.9214%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;run.exec() (3,532,504 bytes, 0.04%)</title>
+            <rect x="99.6714%" y="342" width="0.0417%" height="21" fill="rgb(255,247,247)"/>
+            <text x="99.9214%" y="355.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:165 (&lt;module&gt;) (3,532,504 bytes, 0.04%)</title>
+            <rect x="99.6714%" y="364" width="0.0417%" height="21" fill="rgb(255,247,247)"/>
+            <text x="99.9214%" y="377.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self._waiters = _deque() (922,128 bytes, 0.01%)</title>
+            <rect x="99.7130%" y="122" width="0.0109%" height="21" fill="rgb(255,248,248)"/>
+            <text x="99.9630%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/threading.py:250 (__init__) (922,128 bytes, 0.01%)</title>
+            <rect x="99.7130%" y="144" width="0.0109%" height="21" fill="rgb(255,248,248)"/>
+            <text x="99.9630%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self._condition = threading.Condition() (922,128 bytes, 0.01%)</title>
+            <rect x="99.7130%" y="166" width="0.0109%" height="21" fill="rgb(255,248,248)"/>
+            <text x="99.9630%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/concurrent/futures/_base.py:319 (__init__) (922,128 bytes, 0.01%)</title>
+            <rect x="99.7130%" y="188" width="0.0109%" height="21" fill="rgb(255,248,248)"/>
+            <text x="99.9630%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;f = _base.Future() (922,128 bytes, 0.01%)</title>
+            <rect x="99.7130%" y="210" width="0.0109%" height="21" fill="rgb(255,248,248)"/>
+            <text x="99.9630%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/concurrent/futures/process.py:688 (submit) (922,128 bytes, 0.01%)</title>
+            <rect x="99.7130%" y="232" width="0.0109%" height="21" fill="rgb(255,248,248)"/>
+            <text x="99.9630%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;results = [executor.submit(self.runner, arg) for arg in self.expanded_config] (922,128 bytes, 0.01%)</title>
+            <rect x="99.7130%" y="254" width="0.0109%" height="21" fill="rgb(255,248,248)"/>
+            <text x="99.9630%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:189 (&lt;listcomp&gt;) (922,128 bytes, 0.01%)</title>
+            <rect x="99.7130%" y="276" width="0.0109%" height="21" fill="rgb(255,248,248)"/>
+            <text x="99.9630%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;results = [executor.submit(self.runner, arg) for arg in self.expanded_config] (922,128 bytes, 0.01%)</title>
+            <rect x="99.7130%" y="298" width="0.0109%" height="21" fill="rgb(255,248,248)"/>
+            <text x="99.9630%" y="311.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:189 (exec) (922,128 bytes, 0.01%)</title>
+            <rect x="99.7130%" y="320" width="0.0109%" height="21" fill="rgb(255,248,248)"/>
+            <text x="99.9630%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;run.exec() (922,128 bytes, 0.01%)</title>
+            <rect x="99.7130%" y="342" width="0.0109%" height="21" fill="rgb(255,248,248)"/>
+            <text x="99.9630%" y="355.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:165 (&lt;module&gt;) (922,128 bytes, 0.01%)</title>
+            <rect x="99.7130%" y="364" width="0.0109%" height="21" fill="rgb(255,248,248)"/>
+            <text x="99.9630%" y="377.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;waiters_to_notify = _deque(_islice(all_waiters, n)) (5,071,128 bytes, 0.06%)</title>
+            <rect x="99.7293%" y="122" width="0.0598%" height="21" fill="rgb(255,246,246)"/>
+            <text x="99.9793%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/threading.py:364 (notify) (5,071,128 bytes, 0.06%)</title>
+            <rect x="99.7293%" y="144" width="0.0598%" height="21" fill="rgb(255,246,246)"/>
+            <text x="99.9793%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self.not_empty.notify() (5,071,128 bytes, 0.06%)</title>
+            <rect x="99.7293%" y="166" width="0.0598%" height="21" fill="rgb(255,246,246)"/>
+            <text x="99.9793%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/queue.py:152 (put) (5,071,128 bytes, 0.06%)</title>
+            <rect x="99.7293%" y="188" width="0.0598%" height="21" fill="rgb(255,246,246)"/>
+            <text x="99.9793%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self._work_ids.put(self._queue_count) (5,071,128 bytes, 0.06%)</title>
+            <rect x="99.7293%" y="210" width="0.0598%" height="21" fill="rgb(255,246,246)"/>
+            <text x="99.9793%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/concurrent/futures/process.py:692 (submit) (5,071,128 bytes, 0.06%)</title>
+            <rect x="99.7293%" y="232" width="0.0598%" height="21" fill="rgb(255,246,246)"/>
+            <text x="99.9793%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;results = [executor.submit(self.runner, arg) for arg in self.expanded_config] (5,071,128 bytes, 0.06%)</title>
+            <rect x="99.7293%" y="254" width="0.0598%" height="21" fill="rgb(255,246,246)"/>
+            <text x="99.9793%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:189 (&lt;listcomp&gt;) (5,071,128 bytes, 0.06%)</title>
+            <rect x="99.7293%" y="276" width="0.0598%" height="21" fill="rgb(255,246,246)"/>
+            <text x="99.9793%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;results = [executor.submit(self.runner, arg) for arg in self.expanded_config] (5,071,128 bytes, 0.06%)</title>
+            <rect x="99.7293%" y="298" width="0.0598%" height="21" fill="rgb(255,246,246)"/>
+            <text x="99.9793%" y="311.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:189 (exec) (5,071,128 bytes, 0.06%)</title>
+            <rect x="99.7293%" y="320" width="0.0598%" height="21" fill="rgb(255,246,246)"/>
+            <text x="99.9793%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;run.exec() (5,071,128 bytes, 0.06%)</title>
+            <rect x="99.7293%" y="342" width="0.0598%" height="21" fill="rgb(255,246,246)"/>
+            <text x="99.9793%" y="355.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:165 (&lt;module&gt;) (5,071,128 bytes, 0.06%)</title>
+            <rect x="99.7293%" y="364" width="0.0598%" height="21" fill="rgb(255,246,246)"/>
+            <text x="99.9793%" y="377.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;return _CRLock(*args, **kwargs) (1,380,864 bytes, 0.02%)</title>
+            <rect x="99.7891%" y="122" width="0.0163%" height="21" fill="rgb(255,248,248)"/>
+            <text x="100.0391%" y="135.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/threading.py:93 (RLock) (1,380,864 bytes, 0.02%)</title>
+            <rect x="99.7891%" y="144" width="0.0163%" height="21" fill="rgb(255,248,248)"/>
+            <text x="100.0391%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;lock = RLock() (1,380,864 bytes, 0.02%)</title>
+            <rect x="99.7891%" y="166" width="0.0163%" height="21" fill="rgb(255,248,248)"/>
+            <text x="100.0391%" y="179.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/threading.py:230 (__init__) (1,380,864 bytes, 0.02%)</title>
+            <rect x="99.7891%" y="188" width="0.0163%" height="21" fill="rgb(255,248,248)"/>
+            <text x="100.0391%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;self._condition = threading.Condition() (1,380,864 bytes, 0.02%)</title>
+            <rect x="99.7891%" y="210" width="0.0163%" height="21" fill="rgb(255,248,248)"/>
+            <text x="100.0391%" y="223.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/concurrent/futures/_base.py:319 (__init__) (1,380,864 bytes, 0.02%)</title>
+            <rect x="99.7891%" y="232" width="0.0163%" height="21" fill="rgb(255,248,248)"/>
+            <text x="100.0391%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;f = _base.Future() (1,380,864 bytes, 0.02%)</title>
+            <rect x="99.7891%" y="254" width="0.0163%" height="21" fill="rgb(255,248,248)"/>
+            <text x="100.0391%" y="267.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/concurrent/futures/process.py:688 (submit) (1,380,864 bytes, 0.02%)</title>
+            <rect x="99.7891%" y="276" width="0.0163%" height="21" fill="rgb(255,248,248)"/>
+            <text x="100.0391%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;results = [executor.submit(self.runner, arg) for arg in self.expanded_config] (1,380,864 bytes, 0.02%)</title>
+            <rect x="99.7891%" y="298" width="0.0163%" height="21" fill="rgb(255,248,248)"/>
+            <text x="100.0391%" y="311.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:189 (&lt;listcomp&gt;) (1,380,864 bytes, 0.02%)</title>
+            <rect x="99.7891%" y="320" width="0.0163%" height="21" fill="rgb(255,248,248)"/>
+            <text x="100.0391%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;results = [executor.submit(self.runner, arg) for arg in self.expanded_config] (1,380,864 bytes, 0.02%)</title>
+            <rect x="99.7891%" y="342" width="0.0163%" height="21" fill="rgb(255,248,248)"/>
+            <text x="100.0391%" y="355.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/runner.py:189 (exec) (1,380,864 bytes, 0.02%)</title>
+            <rect x="99.7891%" y="364" width="0.0163%" height="21" fill="rgb(255,248,248)"/>
+            <text x="100.0391%" y="377.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;run.exec() (1,380,864 bytes, 0.02%)</title>
+            <rect x="99.7891%" y="386" width="0.0163%" height="21" fill="rgb(255,248,248)"/>
+            <text x="100.0391%" y="399.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:165 (&lt;module&gt;) (1,380,864 bytes, 0.02%)</title>
+            <rect x="99.7891%" y="408" width="0.0163%" height="21" fill="rgb(255,248,248)"/>
+            <text x="100.0391%" y="421.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;from pandas._libs.interval import Interval (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="342" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="355.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/pandas/_libs/__init__.py:13 (&lt;module&gt;) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="364" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="377.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="386" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="399.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:228 (_call_with_frames_removed) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="408" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="421.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="430" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="443.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap_external&gt;:790 (exec_module) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="452" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="465.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="474" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="487.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:680 (_load_unlocked) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="496" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="509.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="518" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="531.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:986 (_find_and_load_unlocked) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="540" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="553.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="562" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="575.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:1007 (_find_and_load) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="584" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="597.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;from pandas._libs import hashtable as _hashtable, lib as _lib, tslib as _tslib (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="606" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="619.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/anaconda3/envs/tracing/lib/python3.9/site-packages/pandas/__init__.py:29 (&lt;module&gt;) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="628" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="641.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="650" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="663.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:228 (_call_with_frames_removed) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="672" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="685.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="694" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="707.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap_external&gt;:790 (exec_module) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="716" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="729.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="738" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="751.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:680 (_load_unlocked) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="760" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="773.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="782" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="795.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:986 (_find_and_load_unlocked) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="804" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="817.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="826" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="839.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:1007 (_find_and_load) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="848" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="861.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;import pandas as pd (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="870" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="883.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/utils.py:15 (&lt;module&gt;) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="892" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="905.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="914" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="927.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:228 (_call_with_frames_removed) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="936" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="949.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="958" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="971.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap_external&gt;:790 (exec_module) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="980" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="993.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1002" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1015.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:680 (_load_unlocked) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1024" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1037.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1046" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1059.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:986 (_find_and_load_unlocked) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1068" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1081.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1090" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1103.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:1007 (_find_and_load) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1112" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1125.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;from .utils import find_excluded_contours (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1134" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1147.50"></text>
+        </g>
+        <g>
+            <title>/home/ubuntu/ContactTracing/ctrace/simulation.py:11 (&lt;module&gt;) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1156" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1169.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1178" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1191.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:228 (_call_with_frames_removed) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1200" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1213.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1222" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1235.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap_external&gt;:790 (exec_module) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1244" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1257.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1266" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1279.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:680 (_load_unlocked) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1288" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1301.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1310" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1323.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:986 (_find_and_load_unlocked) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1332" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1345.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1354" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1367.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:1007 (_find_and_load) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1376" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1389.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160;from ctrace.simulation import * (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1398" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1411.50"></text>
+        </g>
+        <g>
+            <title>robustness_evaluation.py:7 (&lt;module&gt;) (2,724,250 bytes, 0.03%)</title>
+            <rect x="99.8138%" y="1420" width="0.0321%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.0638%" y="1433.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (4,165,627 bytes, 0.05%)</title>
+            <rect x="99.8054%" y="122" width="0.0491%" height="21" fill="rgb(255,246,246)"/>
+            <text x="100.0554%" y="135.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:228 (_call_with_frames_removed) (4,165,627 bytes, 0.05%)</title>
+            <rect x="99.8054%" y="144" width="0.0491%" height="21" fill="rgb(255,246,246)"/>
+            <text x="100.0554%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (3,764,740 bytes, 0.04%)</title>
+            <rect x="99.8102%" y="166" width="0.0444%" height="21" fill="rgb(255,246,246)"/>
+            <text x="100.0602%" y="179.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap_external&gt;:1116 (exec_module) (3,764,740 bytes, 0.04%)</title>
+            <rect x="99.8102%" y="188" width="0.0444%" height="21" fill="rgb(255,246,246)"/>
+            <text x="100.0602%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (3,764,740 bytes, 0.04%)</title>
+            <rect x="99.8102%" y="210" width="0.0444%" height="21" fill="rgb(255,246,246)"/>
+            <text x="100.0602%" y="223.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:680 (_load_unlocked) (3,764,740 bytes, 0.04%)</title>
+            <rect x="99.8102%" y="232" width="0.0444%" height="21" fill="rgb(255,246,246)"/>
+            <text x="100.0602%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (3,764,740 bytes, 0.04%)</title>
+            <rect x="99.8102%" y="254" width="0.0444%" height="21" fill="rgb(255,246,246)"/>
+            <text x="100.0602%" y="267.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:986 (_find_and_load_unlocked) (3,764,740 bytes, 0.04%)</title>
+            <rect x="99.8102%" y="276" width="0.0444%" height="21" fill="rgb(255,246,246)"/>
+            <text x="100.0602%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (3,764,740 bytes, 0.04%)</title>
+            <rect x="99.8102%" y="298" width="0.0444%" height="21" fill="rgb(255,246,246)"/>
+            <text x="100.0602%" y="311.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:1007 (_find_and_load) (3,764,740 bytes, 0.04%)</title>
+            <rect x="99.8102%" y="320" width="0.0444%" height="21" fill="rgb(255,246,246)"/>
+            <text x="100.0602%" y="333.50"></text>
+        </g>
+        <g>
+            <title>all (8,477,674,311 bytes, 100%)</title>
+            <rect x="0.0000%" y="100" width="100.0000%" height="21" fill="rgb(255,100,100)"/>
+            <text x="0.2500%" y="113.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (12,182,183 bytes, 0.14%)</title>
+            <rect x="99.8563%" y="122" width="0.1437%" height="21" fill="rgb(255,244,244)"/>
+            <text x="100.1063%" y="135.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap_external&gt;:587 (_compile_bytecode) (12,182,183 bytes, 0.14%)</title>
+            <rect x="99.8563%" y="144" width="0.1437%" height="21" fill="rgb(255,244,244)"/>
+            <text x="100.1063%" y="157.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (12,182,183 bytes, 0.14%)</title>
+            <rect x="99.8563%" y="166" width="0.1437%" height="21" fill="rgb(255,244,244)"/>
+            <text x="100.1063%" y="179.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap_external&gt;:918 (get_code) (12,182,183 bytes, 0.14%)</title>
+            <rect x="99.8563%" y="188" width="0.1437%" height="21" fill="rgb(255,244,244)"/>
+            <text x="100.1063%" y="201.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (12,182,183 bytes, 0.14%)</title>
+            <rect x="99.8563%" y="210" width="0.1437%" height="21" fill="rgb(255,244,244)"/>
+            <text x="100.1063%" y="223.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap_external&gt;:786 (exec_module) (12,182,183 bytes, 0.14%)</title>
+            <rect x="99.8563%" y="232" width="0.1437%" height="21" fill="rgb(255,244,244)"/>
+            <text x="100.1063%" y="245.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (12,182,183 bytes, 0.14%)</title>
+            <rect x="99.8563%" y="254" width="0.1437%" height="21" fill="rgb(255,244,244)"/>
+            <text x="100.1063%" y="267.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:680 (_load_unlocked) (12,182,183 bytes, 0.14%)</title>
+            <rect x="99.8563%" y="276" width="0.1437%" height="21" fill="rgb(255,244,244)"/>
+            <text x="100.1063%" y="289.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (12,182,183 bytes, 0.14%)</title>
+            <rect x="99.8563%" y="298" width="0.1437%" height="21" fill="rgb(255,244,244)"/>
+            <text x="100.1063%" y="311.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:986 (_find_and_load_unlocked) (12,182,183 bytes, 0.14%)</title>
+            <rect x="99.8563%" y="320" width="0.1437%" height="21" fill="rgb(255,244,244)"/>
+            <text x="100.1063%" y="333.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (12,182,183 bytes, 0.14%)</title>
+            <rect x="99.8563%" y="342" width="0.1437%" height="21" fill="rgb(255,244,244)"/>
+            <text x="100.1063%" y="355.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:1007 (_find_and_load) (12,182,183 bytes, 0.14%)</title>
+            <rect x="99.8563%" y="364" width="0.1437%" height="21" fill="rgb(255,244,244)"/>
+            <text x="100.1063%" y="377.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (3,546,902 bytes, 0.04%)</title>
+            <rect x="99.9582%" y="386" width="0.0418%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.2082%" y="399.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:228 (_call_with_frames_removed) (3,546,902 bytes, 0.04%)</title>
+            <rect x="99.9582%" y="408" width="0.0418%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.2082%" y="421.50"></text>
+        </g>
+        <g>
+            <title>&#160;&#160;&#160;&#160; (3,546,902 bytes, 0.04%)</title>
+            <rect x="99.9582%" y="430" width="0.0418%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.2082%" y="443.50"></text>
+        </g>
+        <g>
+            <title>&lt;frozen importlib._bootstrap&gt;:1058 (_handle_fromlist) (3,546,902 bytes, 0.04%)</title>
+            <rect x="99.9582%" y="452" width="0.0418%" height="21" fill="rgb(255,247,247)"/>
+            <text x="100.2082%" y="465.50"></text>
+        </g>
+    </svg>
+</svg>

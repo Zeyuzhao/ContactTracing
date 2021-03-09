@@ -79,6 +79,10 @@ def SAAAgent(
     )
     problem.solve_lp()
     probabilities = problem.get_variables()
+    # Check validity of probabilities
+    # Coerce probability vector?
+    if (any(i < 0 or i > 1 for i in probabilities)):
+        raise ValueError("invalid probability vector")
     rounded = D_prime(np.array(probabilities))
     action = set([problem.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
     if debug:

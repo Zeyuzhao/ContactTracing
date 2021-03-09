@@ -13,37 +13,6 @@ from ctrace.drawing import *
 
 import networkx as nx
 
-
-
-def grader(
-    G,
-    SIR,
-    budget,
-    transmission_rate,
-    compliance_rate,
-    action,
-    structure_rate=0,
-    grader_seed=None,
-    num_samples=1,
-    solver_id="GUROBI_LP",
-):
-    gproblem = MinExposedSAA.create(
-        G=G,
-        SIR=SIR,
-        budget=budget,
-        transmission_rate=transmission_rate,
-        compliance_rate=compliance_rate,
-        structure_rate=structure_rate,
-        num_samples=num_samples,
-        seed=grader_seed,
-        solver_id=solver_id,
-    )
-    # Pre-set the solveable parameters
-    for node in action:
-        gproblem.set_variable_id(node, 1)
-    _ = gproblem.solve_lp()
-    return gproblem.objective_value
-
 # %%
 
 # G = load_graph("montgomery")
@@ -58,16 +27,16 @@ def grader(
 # solver_id = "GUROBI_LP"
 
 
-# config = {
-#     "G": ['montgomery'],
-#     "from_cache": [f't{i}.json' for i in range(7, 10)],
-#     "transmission_rate": [0.078],
-#     "compliance_rate": [0.5, 0.6, 0.7, 0.8, 0.9],
-#     "budget": [500, 600, 700, 800],
-#     "method": ["robust", "greedy"],
-#     "num_objectives": [1],
-#     "num_samples": [10, 20, 40],
-# }
+config = {
+    "G": ['montgomery'],
+    "from_cache": [f't{i}.json' for i in range(7, 10)],
+    "transmission_rate": [0.078],
+    "compliance_rate": [0.5, 0.6, 0.7, 0.8, 0.9],
+    "budget": [500, 600, 700, 800],
+    "method": ["robust", "greedy"],
+    "num_objectives": [1],
+    "num_samples": [10, 20, 40],
+}
 
 # config = {
 #     "G": ['montgomery'],
@@ -111,20 +80,25 @@ def robust_experiment(
             transmission_rate=transmission_rate,
             compliance_rate=compliance_rate,
             structure_rate=0,
+            solver_id="GUROBI_LP"
         )
         # Running the objective multiple times?
         objs = [grader(G, SIR, budget, transmission_rate,
-                       compliance_rate, action) for _ in range(num_objectives)]
+                    compliance_rate, action) for _ in range(num_objectives)]
     elif method == "greedy":
         # Generate Greedy action
         info = InfectionInfo(G, SIR, budget, transmission_rate)
         # actions -> set of node ids
         action = DegGreedy(info)
         objs = [grader(G, SIR, budget, transmission_rate,
-                       compliance_rate, action) for _ in range(num_objectives)]
+                    compliance_rate, action) for _ in range(num_objectives)]
+    elif method == "none":
+        objs = [grader(G, SIR, budget, transmission_rate,
+                    compliance_rate, set()) for _ in range(num_objectives)]
     else:
         raise ValueError(f"Invalid method ({method}): must be one the values")
     return TrackerInfo(mean(objs))
+
 
 
 # config = {
@@ -139,13 +113,13 @@ def robust_experiment(
 # }
 config = {
     "G": ['montgomery'],
-    "from_cache": [f't{i}.json' for i in range(7, 10)],
+    "from_cache": [f't{i}.json' for i in range(7, 15)],
     "transmission_rate": [0.078],
     "compliance_rate": [0.5, 0.6, 0.7, 0.8, 0.9],
     "budget": [500, 600, 700, 800],
-    "method": ["robust", "greedy"],
+    "method": ["none"],
     "num_objectives": [1],
-    "num_samples": [10, 20, 40],
+    "num_samples": ["None"],
 }
 
 
@@ -154,14 +128,18 @@ in_schema = list(config.keys())
 out_schema = ["infected_v2"]
 TrackerInfo = namedtuple("TrackerInfo", out_schema)
 
-run = GridExecutorLinear.init_multiple(
+run = GridExecutorParallel.init_multiple(
     config, in_schema, out_schema, func=robust_experiment, trials=10)
 
 # print(f"First 5 trials: {run.expanded_config[:10]}")
 print(f"Number of trials: {len(run.expanded_config)}")
 # %%
-run.exec()
+run.track_duration()
+# 40 sample size -> 20 workers
+# 20 sample size -> 60
+run.exec(max_workers=None)
 
+exit()
 
 # %%
 
