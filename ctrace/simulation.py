@@ -15,8 +15,50 @@ SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I", "R"])
 
 class SimulationState:
     
-    def __init__(self, G:nx.graph, SIR_real: SIR_Tuple, SIR_known: SIR_Tuple, budget: int, transmission_rate:float, compliance_rate:float, global_rate:float, discovery_rate:float, snitch_rate:float):
+    def __init__(self, G:nx.graph, SIR_real: SIR_Tuple, SIR_known: SIR_Tuple, budget: int, transmission_rate:float, compliance_rate: list, partial_compliance: bool, global_rate:float, discovery_rate:float, snitch_rate:float):
         self.G = G
+        '''
+        Compliance is an array of compliance rates per node (by index). Compliance edge weightings are binary {0, 1}. Partial_compliance indicates whether all edges of a given node should be the same.
+        The edges are a list of two tuples, where the first element of each tuple is compliance and the second is transmission.
+        The first tuple is the edge from the smaller node to the larger node. The second tuple is the edge from the larger node to the smaller node.
+        [(compliance_rate_u, transmission_rate), (compliance_rate_v, transmission_rate)] (where u<v)
+        '''
+        node_to_compliance = {}
+        edge_to_compliance = {}
+        if partial_compliance:
+            for node in G.nodes():
+                node_to_compliance[node] = compliance_array[node]
+                for nghbr in G.neighbors(node):
+                    forward = node<nghbr
+                    tuple = (node, nghbr)
+                    if not forward:
+                        tuple = (nghbr, node)
+                    if tuple in edge_to_compliance:
+                        compliance_edge = [(0 if random.random()>compliance_array[node] else 1, transmission_rate)]
+                        if forward:
+                            edge_to_compliance[tuple] = compliance_edge + edge_to_compliance[tuple] 
+                        else:
+                            edge_to_compliance[tuple] = edge_to_compliance[tuple] + compliance_edge
+                    else:
+                        edge_to_compliance[tuple] = [(0 if random.random()>compliance_array[node] else 1, transmission_rate)]
+        else:
+            for node in G.nodes():
+                node_to_compliance[node] = compliance_array[node]
+                compliance_edge = [(0 if random.random()>compliance_array[node] else 1, transmission_rate)]
+                for nghbr in G.neighbors(node):
+                    forward = node<nghbr
+                    tuple = (node, nghbr)
+                    if not forward:
+                        tuple = (nghbr, node)
+                    if tuple in edge_to_compliance:
+                        if forward: edge_to_compliance[tuple] = compliance_edge + edge_to_compliance[tuple]
+                        else: edge_to_compliance[tuple] = edge_to_compliance[tuple] + compliance_edge
+                    else:
+                        edge_to_compliance[tuple] = compliance_edge
+        
+        nx.set_node_attributes(G, node_to_compliance, 'compliance_rate')
+        nx.set_edge_attributes(G, edge_to_compliance, 'compliance_transmission')
+        
         self.SIR_real: InfectionInfo = InfectionInfo(G, SIR_real, budget, transmission_rate, 1, 1)
         self.SIR_known: InfectionInfo = InfectionInfo(G, SIR_known, budget, transmission_rate, discovery_rate, snitch_rate)
 
