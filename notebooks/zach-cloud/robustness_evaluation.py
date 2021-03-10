@@ -13,6 +13,40 @@ from ctrace.drawing import *
 
 import networkx as nx
 
+<<<<<<< HEAD
+=======
+
+
+def grader(
+    G,
+    SIR,
+    budget,
+    transmission_rate,
+    compliance_rate,
+    action,
+    structure_rate=0,
+    grader_seed=None,
+    num_samples=1,
+    solver_id="GUROBI_LP",
+):
+    gproblem = MinExposedSAA.create(
+        G=G,
+        SIR=SIR,
+        budget=budget,
+        transmission_rate=transmission_rate,
+        compliance_rate=compliance_rate,
+        structure_rate=structure_rate,
+        num_samples=num_samples,
+        seed=grader_seed,
+        solver_id=solver_id,
+    )
+    # Pre-set the solveable parameters
+    for node in action:
+        gproblem.set_variable_id(node, 1)
+    _ = gproblem.solve_lp()
+    return gproblem.objective_value
+
+>>>>>>> 4a8e988d9f6decc028e1b304e39f45934fa81167
 # %%
 
 # G = load_graph("montgomery")
@@ -27,6 +61,7 @@ import networkx as nx
 # solver_id = "GUROBI_LP"
 
 
+<<<<<<< HEAD
 config = {
     "G": ['montgomery'],
     "from_cache": [f't{i}.json' for i in range(7, 10)],
@@ -37,6 +72,18 @@ config = {
     "num_objectives": [1],
     "num_samples": [10, 20, 40],
 }
+=======
+# config = {
+#     "G": ['montgomery'],
+#     "from_cache": [f't{i}.json' for i in range(7, 10)],
+#     "transmission_rate": [0.078],
+#     "compliance_rate": [0.5, 0.6, 0.7, 0.8, 0.9],
+#     "budget": [500, 600, 700, 800],
+#     "method": ["robust", "greedy"],
+#     "num_objectives": [1],
+#     "num_samples": [10, 20, 40],
+# }
+>>>>>>> 4a8e988d9f6decc028e1b304e39f45934fa81167
 
 # config = {
 #     "G": ['montgomery'],
@@ -98,7 +145,6 @@ def robust_experiment(
     else:
         raise ValueError(f"Invalid method ({method}): must be one the values")
     return TrackerInfo(mean(objs))
-
 
 
 # config = {
