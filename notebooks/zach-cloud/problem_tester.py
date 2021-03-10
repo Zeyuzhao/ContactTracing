@@ -1,7 +1,7 @@
 #%%
-# %load_ext autoreload
-#
-# %autoreload 2
+%load_ext autoreload
+
+%autoreload 2
 import networkx as nx
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -25,7 +25,7 @@ import networkx as nx
 # Create graph (with diagonal connections) to experiment on
 
 seed=42
-G, pos = grid_2d(30, seed=seed)
+G, pos = grid_2d(25, seed=seed)
 
 SIR = random_init(G, num_infected=20, seed=seed)
 budget=50
@@ -137,6 +137,36 @@ def SAAEval(problem: MinExposedSAA, action, seed):
     return evaluator
 
 [problem.variable_solutions["sample_variables"][i]["z"] for i in range(problem.num_samples)]
+
+
+#%%
+
+from ctrace.problem import grader
+none_obj = grader(G,
+    SIR,
+    budget,
+    transmission_rate,
+    compliance_rate,
+    set(),
+    structure_rate=0,
+    grader_seed=None,
+    num_samples=10,
+    solver_id="GUROBI_LP"
+)
+robust_obj = grader(G,
+    SIR,
+    budget,
+    transmission_rate,
+    compliance_rate,
+    action,
+    structure_rate=0,
+    grader_seed=None,
+    num_samples=10,
+    solver_id="GUROBI_LP"
+)
+
+print(f"None: {none_obj}")
+print(f"Robust: {robust_obj}")
 #%%
 # Visualization
 

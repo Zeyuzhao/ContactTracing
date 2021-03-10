@@ -1,10 +1,12 @@
 import abc
+from ctrace import PROJECT_ROOT
 import random
 import itertools
 import networkx as nx
 import numpy as np
 import rich
 import logging
+import time
 
 from typing import Any, Dict, List, Tuple, Union
 from copy import deepcopy
@@ -27,7 +29,7 @@ import time
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
-file_handler = logging.FileHandler('problem.log')
+file_handler = logging.FileHandler(PROJECT_ROOT / 'logs' / 'problem.log')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
@@ -296,29 +298,29 @@ class MinExposedSAA(MinExposedProgram):
         G: nx.Graph,
         SIR: SIR_Tuple,
         budget: int,
+        log=False,
         **args,
     ) -> "MinExposedSAA":
         """Creates a new MinExposedSAA problem with sampling"""
         problem = cls(G, SIR, budget, **args)
-
-
-        start = time.time()
+        s = time.time()
         problem.init_samples()
-        end = time.time()
-        logger.debug(f'Elapsed init_samples: {end-start}')
-        # debug_memory('init_samples')
+        f = time.time()
+        if log:
+            logger.debug(f"Sampling Complete. [{f - s}]")
 
-        start = time.time()
+        s = time.time()
         problem.init_variables()
-        end = time.time()
-        logger.debug(f'Elapsed init_variables: {end-start}')
-        # debug_memory('init_variables')
+        f = time.time()
+        if log:
+            logger.debug(f"Variable Initialization Complete. [{f - s}]")
 
-        start = time.time()
+        s = time.time()
         problem.init_constraints()
-        end = time.time()
-        logger.debug(f'Elapsed init_constraints: {end-start}')
-        # debug_memory('init_constraints')
+        f = time.time()
+        if log:
+            logger.debug(f"Constraint Initialization Complete. [{f - s}]")
+            
         return problem
 
     @classmethod
@@ -355,16 +357,16 @@ class MinExposedSAA(MinExposedProgram):
             # STRUCTURAL
             # Structural edges are sampled into existance.
             # Currently - structural edges must be in (I x V1) and (V1 x V2)
-            structural_edges = [[], []]
+            # structural_edges = [[], []]
             # TODO: UNDISABLE structural edges???
             # structural_edges[0] = uniform_sample(list(itertools.product(self.SIR[1], self.contour1)), self.s)
             # structural_edges[1] = uniform_sample(list(itertools.product(self.contour1, self.contour2)), self.s)
-            self.sample_data[i]["structural_edges"] = structural_edges
+            # self.sample_data[i]["structural_edges"] = structural_edges
             
             # Expanded network (with sampled structural edges)
-            # GE = self.G.copy() # Operation very slow
-            # GE.add_edges_from(structural_edges[0] + structural_edges[1])
             GE = self.G
+            # GE.add_edges_from(structural_edges[0] + structural_edges[1])
+
             # DIFFUSION
             # Implementation Notes:
             # 1) Will use the graph obtained from structural uncertainty sampling
@@ -561,3 +563,62 @@ def compute_border_edges(G, src, dest):
 
 def compute_contour_edges(G: nx.Graph, I, V1, V2):
     return compute_border_edges(G, I, V1), compute_border_edges(G, V1, V2)
+
+def grader(
+    G,
+    SIR,
+    budget,
+    transmission_rate,
+    compliance_rate,
+    action,
+    structure_rate=0,
+    grader_seed=None,
+    num_samples=1,
+    solver_id="GUROBI_LP",
+):
+    gproblem = MinExposedSAA.create(
+        G=G,
+        SIR=SIR,
+        budget=budget,
+        transmission_rate=transmission_rate,
+        compliance_rate=compliance_rate,
+        structure_rate=structure_rate,
+        num_samples=num_samples,
+        seed=grader_seed,
+        solver_id=solver_id,
+    )
+
+    # Pre-set the solveable parameters
+    for node in action:
+        gproblem.set_variable_id(node, 1)
+    # Set the rest to zero
+    for node in gproblem.contour1 - action:
+        gproblem.set_variable_id(node, 0)
+
+    _ = gproblem.solve_lp()
+    return gproblem.objective_value
+
+def optimal_baseline(
+    G,
+    SIR,
+    budget,
+    transmission_rate,
+    compliance_rate,
+    structure_rate=0,
+    grader_seed=None,
+    num_samples=1,
+    solver_id="GUROBI_LP",
+):
+    gproblem = MinExposedSAA.create(
+        G=G,
+        SIR=SIR,
+        budget=budget,
+        transmission_rate=transmission_rate,
+        compliance_rate=compliance_rate,
+        structure_rate=structure_rate,
+        num_samples=num_samples,
+        seed=grader_seed,
+        solver_id=solver_id,
+    )
+    _ = gproblem.solve_lp()
+    return gproblem.objective_value
