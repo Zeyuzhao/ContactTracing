@@ -1,10 +1,12 @@
 import abc
+from ctrace import PROJECT_ROOT
 import random
 import itertools
 import networkx as nx
 import numpy as np
 import rich
 import logging
+import time
 
 from typing import Any, Dict, List, Tuple, Union
 from copy import deepcopy
@@ -16,22 +18,16 @@ from rich.logging import RichHandler
 from .round import D, D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective, uniform_sample
 from .simulation import InfectionInfo, SIR_Tuple
-import tracemalloc
 
 # Experimental logging features:
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
-file_handler = logging.FileHandler('problem.log')
+file_handler = logging.FileHandler(PROJECT_ROOT / 'logs' / 'problem.log')
 file_handler.setFormatter(formatter)
 
 logger.addHandler(file_handler)
-
-def debug_memory(label=""):
-    snapshot = tracemalloc.take_snapshot()
-    top_stats = snapshot.statistics('lineno')
-    logger.debug(f"[{label}]: {top_stats[:5]}")
 
 class MinExposedProgram:
     def __init__(self, info: InfectionInfo, solver_id="GLOP"):
@@ -288,13 +284,29 @@ class MinExposedSAA(MinExposedProgram):
         G: nx.Graph,
         SIR: SIR_Tuple,
         budget: int,
+        log=False,
         **args,
     ) -> "MinExposedSAA":
         """Creates a new MinExposedSAA problem with sampling"""
         problem = cls(G, SIR, budget, **args)
+        s = time.time()
         problem.init_samples()
+        f = time.time()
+        if log:
+            logger.debug(f"Sampling Complete. [{f - s}]")
+
+        s = time.time()
         problem.init_variables()
+        f = time.time()
+        if log:
+            logger.debug(f"Variable Initialization Complete. [{f - s}]")
+
+        s = time.time()
         problem.init_constraints()
+        f = time.time()
+        if log:
+            logger.debug(f"Constraint Initialization Complete. [{f - s}]")
+            
         return problem
 
     @classmethod

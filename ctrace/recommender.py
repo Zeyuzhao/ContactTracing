@@ -2,12 +2,23 @@ import random
 import math
 import numpy as np
 import networkx as nx
-
+import time
+import logging
 from .round import D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective
 from .simulation import *
 from .problem import MinExposedLP, MinExposedSAA, is_close
 from typing import *
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+
+formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+file_handler = logging.FileHandler(PROJECT_ROOT / 'logs' / 'problem.log')
+file_handler.setFormatter(formatter)
+
+logger.addHandler(file_handler)
+
 def NoIntervention(state: SimulationState):
     return set()
 
@@ -76,8 +87,13 @@ def SAAAgent(
         structure_rate=structure_rate, 
         seed=seed,
         solver_id=solver_id,
+        log=True,
     )
+    s = time.time()
     problem.solve_lp()
+    f = time.time()
+    logger.debug(f"LP Solve Complete. [{f - s}]")
+
     probabilities = problem.get_variables()
     # Check validity of probabilities
     # Coerce probability vector?
