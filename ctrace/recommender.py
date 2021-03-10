@@ -8,6 +8,9 @@ from .utils import pq_independent, find_excluded_contours, min_exposed_objective
 from .simulation import *
 from .problem import MinExposedLP, MinExposedSAA, is_close
 from typing import *
+
+import time
+
 def NoIntervention(state: SimulationState):
     return set()
 
@@ -77,7 +80,11 @@ def SAAAgent(
         seed=seed,
         solver_id=solver_id,
     )
+    start = time.time()
     problem.solve_lp()
+    end = time.time()
+    print(f'Elapsed solve_lp: {end-start}')
+
     probabilities = problem.get_variables()
     rounded = D_prime(np.array(probabilities))
     action = set([problem.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])

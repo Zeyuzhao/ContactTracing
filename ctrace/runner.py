@@ -1,5 +1,6 @@
 import concurrent.futures
 import csv
+from ctrace.utils import max_neighbors
 import functools
 import itertools
 import logging
@@ -164,7 +165,7 @@ class GridExecutor():
 class GridExecutorParallel(GridExecutor):
     # Override the exec
     def exec(self):
-        with concurrent.futures.ProcessPoolExecutor() as executor, \
+        with concurrent.futures.ProcessPoolExecutor(max_workers=20) as executor, \
              open(self.result_path, "w+") as result_file: # TODO: Encapsulate "csv file"
             self.init_logger()
 

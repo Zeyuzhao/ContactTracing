@@ -17,15 +17,25 @@ from .round import D, D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective, uniform_sample
 from .simulation import InfectionInfo, SIR_Tuple
 
+
+import tracemalloc
+tracemalloc.start()
+import time
+
+
 # Experimental logging features:
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-
+logger.setLevel(logging.DEBUG)
 formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
 file_handler = logging.FileHandler('problem.log')
 file_handler.setFormatter(formatter)
-
 logger.addHandler(file_handler)
+
+
+def debug_memory(label=""):
+    snapshot = tracemalloc.take_snapshot()
+    top_stats = snapshot.statistics('lineno')
+    logger.debug(f"[{label}]: {top_stats[:5]}")
 
 class MinExposedProgram:
     def __init__(self, info: InfectionInfo, solver_id="GLOP"):
@@ -109,6 +119,7 @@ class MinExposedProgram:
         self.quarantine_map
             Maps the array index to the V1 node id
         """
+        start = time.time()
 
         # Reset variables
         self.objective_value = 0
@@ -132,6 +143,9 @@ class MinExposedProgram:
             self.quarantine_map.append(u)
 
         self.objective_value = self.lp_objective_value()
+
+        end = time.time()
+        logger.debug(f'Elapsed solver_lp: {end-start}')
 
         self._post_solve_handler()
         return self.quarantined_solution
@@ -286,9 +300,25 @@ class MinExposedSAA(MinExposedProgram):
     ) -> "MinExposedSAA":
         """Creates a new MinExposedSAA problem with sampling"""
         problem = cls(G, SIR, budget, **args)
+
+
+        start = time.time()
         problem.init_samples()
+        end = time.time()
+        logger.debug(f'Elapsed init_samples: {end-start}')
+        # debug_memory('init_samples')
+
+        start = time.time()
         problem.init_variables()
+        end = time.time()
+        logger.debug(f'Elapsed init_variables: {end-start}')
+        # debug_memory('init_variables')
+
+        start = time.time()
         problem.init_constraints()
+        end = time.time()
+        logger.debug(f'Elapsed init_constraints: {end-start}')
+        # debug_memory('init_constraints')
         return problem
 
     @classmethod
@@ -332,9 +362,9 @@ class MinExposedSAA(MinExposedProgram):
             self.sample_data[i]["structural_edges"] = structural_edges
             
             # Expanded network (with sampled structural edges)
-            GE = self.G.copy()
-            GE.add_edges_from(structural_edges[0] + structural_edges[1])
-
+            # GE = self.G.copy() # Operation very slow
+            # GE.add_edges_from(structural_edges[0] + structural_edges[1])
+            GE = self.G
             # DIFFUSION
             # Implementation Notes:
             # 1) Will use the graph obtained from structural uncertainty sampling
