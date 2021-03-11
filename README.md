@@ -1,6 +1,8 @@
 # ContactTracing
-
 Randomized Rounding applied to Contact Tracing
+
+![multi](https://user-images.githubusercontent.com/6325738/110845006-1a11e980-8278-11eb-94c2-3a817aa390db.png)
+
 
 ## Setup
 
