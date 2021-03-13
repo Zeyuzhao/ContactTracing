@@ -135,4 +135,4 @@ class InfectionInfo:
                 self.quarantined[2].append(node)
                 
     def set_contours(self):
-        (self.V1, self.V2) = find_excluded_contours(self.G, self.SIR[1], self.SIR[2] + self.quarantined[0] + self.quarantined[1] + self.quarantined[2], self.discovery_rate, self.snitch_rate)
+        (self.V1, self.V2, self.il_v1, self.il_v2, self.il_v2_nbrs) = find_excluded_contours(self.G, self.SIR[1], self.SIR[2] + self.quarantined[0] + self.quarantined[1] + self.quarantined[2], self.discovery_rate, self.snitch_rate)
