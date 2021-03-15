@@ -38,7 +38,6 @@ class SimulationState:
     
     # saves a SimulationState object to a file
     def save(self, file):
-        
         to_save = {
             "G": self.SIR_real.G.name,
             "S_real": self.SIR_real[0],

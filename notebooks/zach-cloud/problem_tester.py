@@ -25,7 +25,7 @@ import networkx as nx
 # Create graph (with diagonal connections) to experiment on
 
 seed=42
-G, pos = grid_2d(25, seed=seed)
+G, pos = grid_2d(20, seed=seed)
 
 SIR = random_init(G, num_infected=20, seed=seed)
 budget=50
@@ -38,7 +38,7 @@ structure_rate=0
 draw_single(G, pos=pos, sir=SIR, edges=G.edges, title="Graph Struct")
 
 #%%
-sample_dim = (3, 3)
+sample_dim = (2, 2)
 num_samples = sample_dim[0] * sample_dim[1]
 num_samples = 10
 info = SAAAgentGurobi(
@@ -200,4 +200,5 @@ def viz_saa(problem: MinExposedSAA):
 fig, ax = viz_saa(gproblem_greedy)
 fig, ax = viz_saa(gproblem_minex)
 # %%
-# fig.savefig("seq_diag_seed_42.svg")
+fig.savefig("multi.png")
+# %%

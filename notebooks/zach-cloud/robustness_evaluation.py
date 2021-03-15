@@ -13,8 +13,6 @@ from ctrace.drawing import *
 
 import networkx as nx
 
-<<<<<<< HEAD
-=======
 
 
 def grader(
@@ -46,7 +44,6 @@ def grader(
     _ = gproblem.solve_lp()
     return gproblem.objective_value
 
->>>>>>> 4a8e988d9f6decc028e1b304e39f45934fa81167
 # %%
 
 # G = load_graph("montgomery")
@@ -61,7 +58,6 @@ def grader(
 # solver_id = "GUROBI_LP"
 
 
-<<<<<<< HEAD
 config = {
     "G": ['montgomery'],
     "from_cache": [f't{i}.json' for i in range(7, 10)],
@@ -72,7 +68,6 @@ config = {
     "num_objectives": [1],
     "num_samples": [10, 20, 40],
 }
-=======
 # config = {
 #     "G": ['montgomery'],
 #     "from_cache": [f't{i}.json' for i in range(7, 10)],
@@ -83,7 +78,6 @@ config = {
 #     "num_objectives": [1],
 #     "num_samples": [10, 20, 40],
 # }
->>>>>>> 4a8e988d9f6decc028e1b304e39f45934fa81167
 
 # config = {
 #     "G": ['montgomery'],
@@ -144,7 +138,7 @@ def robust_experiment(
                     compliance_rate, set()) for _ in range(num_objectives)]
     else:
         raise ValueError(f"Invalid method ({method}): must be one the values")
-    return TrackerInfo(mean(objs))
+    return TrackerInfo(max(objs))
 
 
 # config = {
@@ -167,7 +161,6 @@ config = {
     "num_objectives": [1],
     "num_samples": ["None"],
 }
- 
 
 config["G"] = [load_graph(g) for g in config["G"]]
 in_schema = list(config.keys())
