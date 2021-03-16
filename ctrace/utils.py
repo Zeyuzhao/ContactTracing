@@ -257,7 +257,7 @@ def prep_dataset(name: str, data_dir: Path=None, sizes=(None,)):
 def load_graph(dataset_name, graph_folder=None):
     """Will load the complete folder by default, and set the NAME attribute to dataset_name"""
     if graph_folder is None:
-        graph_folder = PROJECT_ROOT / "data" / "graphs" / dataset_name / "complete"
+        graph_folder = PROJECT_ROOT / "data" / "graph" / dataset_name
     G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int)
 
     # Set name of graphs

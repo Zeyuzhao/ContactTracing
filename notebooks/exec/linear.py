@@ -10,10 +10,6 @@ from pathlib import Path
 import itertools
 import random
 
-class GraphEq(nx.Graph):
-    def __eq__(self, other):
-        return self.nodes == other.nodes \
-        and self.edges == other.edges
 
 @dataclass
 class SIR:
@@ -21,47 +17,7 @@ class SIR:
     I: Set[int] = field(repr=False)
     R: Set[int] = field(repr=False)
     length: int = field(default=0)
-
-@dataclass
-class FileParam:
-    """Class for keeping track of file parameters"""
-    name: str = field(repr=True)
-    file_path: Union[str, Path] = field(repr=True)
-    loader: InitVar[Callable[[str], Any]]
-
-    # Generated Parameters
-    data: Any = field(init=False, repr=True)
-    file_hash: str = field(init=False, repr=True)
-
-    def __post_init__(self):
-        self.data = self.loader(self.file_path)
-        self.file_hash = md5_hash(self.file_path)
-
-@dataclass
-class GraphParam():
-    """Class for keeping track of file parameters"""
-    name: str = field(repr=True)
-    data: Any = field(init=False, repr=False)
-    file_path: Union[str, Path] = field(repr=True)
-    file_hash: str = field(init=False, repr=True)
-
-    def __post_init__(self):
-        self.data = load_graph(self.file_path)
-        # Temp Hack
-        self.file_hash = md5_hash(self.file_path / 'data.txt')
-
-@dataclass
-class SirParam:
-    """Class for tracking SIR params"""
-    name: str = field(repr=True)
-    data: Any = field(init=False, repr=False)
-    file_path: Union[str, Path] = field(repr=True)
-    file_hash: str = field(init=False, repr=True)
-
-    def __post_init__(self):
-        self.data = load_sir(self.file_path)
-        self.file_hash = md5_hash(self.file_path)
-
+    
 def load_graph(fp: Union[str, Path]) -> nx.DiGraph():
     g = nx.grid_2d_graph(10,10)
     return g
@@ -80,20 +36,61 @@ def md5_hash(fp: Union[str, Path]) -> str:
             md5.update(data)
     return md5.hexdigest()
 
+class GraphEq(nx.Graph):
+    def __eq__(self, other):
+        return self.nodes == other.nodes \
+        and self.edges == other.edges
+
+@dataclass
+class FileParam:
+    """Class for keeping track of file parameters"""
+    name: str = field(repr=True)
+    file_path: Union[str, Path] = field(repr=True)
+    loader: InitVar[Callable[[str], Any]] # Parameterized by loader
+
+    # Generated Parameters
+    data: Any = field(init=False, repr=True)
+    file_hash: str = field(init=False, repr=True)
+
+    def __post_init__(self):
+        self.data = self.loader(self.file_path)
+        self.file_hash = md5_hash(self.file_path) # Change hasher to object?
+
+@dataclass
+class SirParam(FileParam):
+    """Class for tracking SIR params"""
+    loader: load_sir
+
+@dataclass
+class GraphParam(FileParam):
+    """Class for keeping track of file parameters"""
+    name: str = field(repr=True)
+    data: Any = field(init=False, repr=False)
+    file_path: Union[str, Path] = field(repr=True)
+    file_hash: str = field(init=False, repr=True)
+
+    def __post_init__(self):
+        self.data = load_graph(self.file_path)
+        # Temp Hack
+        self.file_hash = md5_hash(self.file_path / 'data.txt')
+
+#%%
+
+
 # Desired schema
 in_schema = [
     ('graph', GraphParam),
     ('sir', SirParam),
     ('rate1', float),
     ('rate2', float),
-    ('seed', float)
+    ('seed', int)
 ]
 
 graph_root = PROJECT_ROOT / 'data' / 'graphs'
 sir_root = PROJECT_ROOT / 'data' / 'SIR_Cache'
 compact = {
     'graph': [
-        GraphParam('montgomery', graph_root / 'montgomery'),
+        GraphParam('montgomery', graph_root / 'montgomery'), # Allow for specification of name
     ],
     'sir': [
         SirParam('m1', sir_root / 't7.json'),
