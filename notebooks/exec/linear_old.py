@@ -7,6 +7,7 @@ import networkx as nx
 from typing import *
 from dataclasses import dataclass, field, make_dataclass, InitVar
 from pathlib import Path
+from multiprocessing import Queue
 import itertools
 import random
 
@@ -111,8 +112,8 @@ tasks = []
 
 # Check that schema matches
 assert set(compact.keys()) == {x[0] for x in in_schema}
+# Check that each attribute matches schema
 new_tasks = [SchemaIn(**dict(zip(compact, x))) for x in itertools.product(*compact.values())]
-# TODO: Add seeds and id 
 
 compact = {
     'graph': [
@@ -130,12 +131,33 @@ assert set(compact.keys()) == {x[0] for x in in_schema}
 
 # lambda function accepts InSchema objects
 # Must attach id object
-def runner(s: SchemaIn):
+def runner(s: SchemaIn, queues: List[Queue]):
+    # Non-primitive data
     graph = s.graph.data
     sir = s.sir.data
+
+    # Primitive data
     r1 = s.rate1
     r2 = s.rate2
-    print({'id'})
+    id = s.id
+    
+    # Output data into queues
+    queues["main_csv"].put({"id": id, "objective": r1 + r2})
+    queues["aux_csv"].put({"id": id, "stuff": "hmm..."})
+
+    # Write data to folders
+
+class ParallelExecutor():
+    def __init__(self, in_schema, id=True, seed=False):
+        # in_schema : [("name", type), ("name", type)]
+        self.in_schema = in_schema
+        self.enable_id = id
+        self.enable
+        
+
+
+
+
 
 
 
