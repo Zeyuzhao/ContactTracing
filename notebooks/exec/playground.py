@@ -27,22 +27,13 @@ def md5_hash(fp: Union[str, Path]) -> str:
             md5.update(data)
     return md5.hexdigest()
 
+# object -> pickle -> md5 hash
 def md5_hash_obj(obj) -> str:
-    BUF_SIZE = 65536
     md5 = hashlib.md5()
-
-    # Init in-memory file to serialize object
-    f = io.BytesIO()
-    pickle.dump(obj, f)
-
-    while True:
-        data = f.read(BUF_SIZE)
-        if not data:
-            break
-        md5.update(data)
+    f = pickle.dumps(obj)
+    md5.update(f)
     return md5.hexdigest()
 
-
 # %%
-md5_hash_mem(f)
+md5_hash_obj(g)
 # %%

@@ -1,138 +1,134 @@
 #%%
-
-from ctrace import PROJECT_ROOT
+import itertools
+import random
+import pickle
 import hashlib
 import networkx as nx
+import json
+
 
 from typing import *
 from dataclasses import dataclass, field, make_dataclass, InitVar
 from pathlib import Path
-import itertools
-import random
+from ctrace import PROJECT_ROOT
+from ctrace.utils import load_graph
+from collections import namedtuple
 
+SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I", "R"])
 
-@dataclass
-class SIR:
-    S: Set[int] = field(repr=False)
-    I: Set[int] = field(repr=False)
-    R: Set[int] = field(repr=False)
-    length: int = field(default=0)
-    
-def load_graph(fp: Union[str, Path]) -> nx.DiGraph():
-    g = nx.grid_2d_graph(10,10)
-    return g
-
-def load_sir(fp: Union[str, Path]) -> SIR:
-    return SIR({0,1}, {2,3}, {3,4})
-
-def md5_hash(fp: Union[str, Path]) -> str:
-    BUF_SIZE = 65536
+def md5_hash_obj(obj) -> str:
     md5 = hashlib.md5()
-    with open(fp, 'rb') as f:
-        while True:
-            data = f.read(BUF_SIZE)
-            if not data:
-                break
-            md5.update(data)
+    f = pickle.dumps(obj)
+    md5.update(f)
     return md5.hexdigest()
 
-class GraphEq(nx.Graph):
-    def __eq__(self, other):
-        return self.nodes == other.nodes \
-        and self.edges == other.edges
 
+def load_sir_path(path: Path, merge=True):
+    with open(path) as file:
+        # json to dict
+        data = json.load(file)
+        if merge:
+            data["I"] = list(set().union(*data["I_Queue"]))
+            del data["I_Queue"]
+        # dict to sir_tuple
+        return SIR_Tuple(data["S"], data["I"], data["R"])
 @dataclass
 class FileParam:
-    """Class for keeping track of file parameters"""
+    """
+    Class for keeping track of files as parameters
+    (Abstract)
+    Required: name
+    Optional: path
+    """
     name: str = field(repr=True)
-    file_path: Union[str, Path] = field(repr=True)
-    loader: InitVar[Callable[[str], Any]] # Parameterized by loader
+    path: Optional[Union[str, Path]] = field(repr=True, default=None)
 
     # Generated Parameters
-    data: Any = field(init=False, repr=True)
-    file_hash: str = field(init=False, repr=True)
+    data: Any = field(init=False, repr=False)
+    # md5 hash of pickled data (could swap with directory hash???)
+    obj_hash: str = field(init=False, repr=True)
+
+    # Parameterized functions
+    def finder(self) -> Union[str, Path]:
+        # self.name -> path
+        raise NotImplementedError
+    
+    def loader(self) -> Any:
+        # self.path -> data object
+        raise NotImplementedError
+    
+    def hasher(self) -> str:
+        # self.data -> md5 hash
+        return md5_hash_obj(self.data)
+
+    def signature(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "path": self.path,
+            "obj_hash": self.obj_hash,
+        }
 
     def __post_init__(self):
-        self.data = self.loader(self.file_path)
-        self.file_hash = md5_hash(self.file_path) # Change hasher to object?
-
-@dataclass
-class SirParam(FileParam):
-    """Class for tracking SIR params"""
-    loader: load_sir
-
+        if self.path is None:
+            self.path = self.finder()
+        self.data = self.loader()
+        self.obj_hash = self.hasher()
 @dataclass
 class GraphParam(FileParam):
-    """Class for keeping track of file parameters"""
-    name: str = field(repr=True)
-    data: Any = field(init=False, repr=False)
-    file_path: Union[str, Path] = field(repr=True)
-    file_hash: str = field(init=False, repr=True)
+    """
+    Class for keeping track of graph files as parameters
+    
+    Required: name
+    Optional: path
+    """
+    # Parameterized functions
+    def finder(self) -> Union[str, Path]:
+        # name -> path
+        return PROJECT_ROOT / "data" / "graph" / self.name
+    
+    def loader(self) -> Any:
+        # path -> data object
+        return load_graph(self.name, self.path)
 
+@dataclass
+class SIRParam(FileParam):
+    """
+    Class for keeping track of graph files as parameters
+    
+    Required: name
+    Optional: parent OR file path
+    """
+    parent: Optional[GraphParam] = field(repr=True, default=None)
+
+    # Parameterized functions
+    def finder(self) -> Union[str, Path]:
+        # self.name, self.parent -> Path
+        return self.parent.path / "sir_cache" / f"{self.name}.json"
+
+    def loader(self) -> Any:
+        # self.path -> SIR_Tuple object
+        return load_sir_path(self.path)
+    
+    def signature(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "path": self.path,
+            "parent": self.parent.name, # Assign an object id? # This is a foriegn key
+            "obj_hash": self.obj_hash,
+        }
     def __post_init__(self):
-        self.data = load_graph(self.file_path)
-        # Temp Hack
-        self.file_hash = md5_hash(self.file_path / 'data.txt')
+        if self.path is None and self.parent is None:
+            raise ValueError("Must need specified path or parent to resolve file path")
+        super().__post_init__()
 
-#%%
-
-
-# Desired schema
-in_schema = [
-    ('graph', GraphParam),
-    ('sir', SirParam),
-    ('rate1', float),
-    ('rate2', float),
-    ('seed', int)
-]
-
-graph_root = PROJECT_ROOT / 'data' / 'graphs'
-sir_root = PROJECT_ROOT / 'data' / 'SIR_Cache'
-compact = {
-    'graph': [
-        GraphParam('montgomery', graph_root / 'montgomery'), # Allow for specification of name
-    ],
-    'sir': [
-        SirParam('m1', sir_root / 't7.json'),
-        SirParam('m2', sir_root / 't8.json'),
-    ],
-    'rate1': [0.1 * x for x in range(10)],
-    'rate2': [0.01 * x for x in range(10)],
-    'seed': [21, 42, 101, 9000]
-}
-# TODO: Validate compact schema.
-
-tasks = []
-
-# Check that schema matches
-assert set(compact.keys()) == {x[0] for x in in_schema}
-new_tasks = [dict(zip(compact, x)) for x in itertools.product(*compact.values())]
-# TODO: Add seeds and id 
-
-compact = {
-    'graph': [
-        GraphParam('alpine', graph_root / 'alpine'),
-    ],
-    'sir': [
-        SirParam('a1', sir_root / 'a8.json'),
-        SirParam('a2', sir_root / 'a9.json'),
-    ],
-    'rate1': [0.1 * x for x in range(10)],
-    'rate2': [0.01 * x for x in range(10)],
-    'seed': [21, 42, 101, 9000],
-}
-assert set(compact.keys()) == {x[0] for x in in_schema}
-new_tasks = [dict(zip(compact, x)) for x in itertools.product(*compact.values())]
+# tests
 
 
-# lambda function accepts InSchema objects
-# Must attach id object
+# Hash is consistant across runs
+assert GraphParam('montgomery').obj_hash == GraphParam('montgomery').obj_hash
 
+# Throws error if both parent and path is not specified
+SIRParam('t7')
 
-
-
-
-
-# %%
 
 # %%
