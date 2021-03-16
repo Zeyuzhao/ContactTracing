@@ -58,11 +58,12 @@ def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], 
     """Finds V1_known and V2_known from a graph without including elements in the excluded set"""
     # probability calculation for v2_k: 1-(1-q)^k; let k = number of nodes in v1_k with an edge connecting to the node v
     v1 = set().union(*[G.neighbors(v) for v in (set(infected)-set(excluded))]) - (set(infected)|set(excluded))
+    v2 = set().union(*[G.neighbors(v) for v in v1]) - (set(infected)|set(excluded)|set(v1))
     v1_k = {v for v in v1 if random.uniform(0,1) < discovery_rate}
     v1_k_nbrs = set().union(*[G.neighbors(v) for v in v1_k]) - (set(infected)|set(excluded)|set(v1_k))
     v2_k = {v for v in v1_k_nbrs
             if random.uniform(0,1) < (1-((1-snitch_rate) ** len(set(G.neighbors(v)).intersection(v1_k))))}
-    return v1_k, v2_k
+    return v1_k, v2_k, len(v1-v1_k), len(v2 - v2_k), len(v1_k_nbrs - v2_k)
 
 
 def pq_independent(G: nx.Graph, I: Iterable[int], V1: Iterable[int], p: float):
