@@ -107,7 +107,7 @@ config = {
     "budget": [500, 600, 700, 800],
     "method": ["none"],
     "num_objectives": [10, 20, 30, 40],
-    "num_samples": ["None"],
+    "num_samples": [10, 20, 30, 40],
 }
 
 # Config for greedy and None
