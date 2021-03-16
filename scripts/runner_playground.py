@@ -75,7 +75,7 @@ config = {
     "from_cache": ["a6.json"],
     "agent": [DegGreedy]
 }
-#config["G"] = [load_graph(x) for x in config["G"]]
+config["G"] = [load_graph(x) for x in config["G"]]
 
 in_schema = list(config.keys())
 out_schema = ["infected_count_known", "infected_count_real", "information_loss_V1", "information_loss_V2", "information_loss_I", "information_loss_V1_iterative", "information_loss_V2_iterative", "information_loss_V2_nbrs_iterative"]
@@ -95,7 +95,7 @@ def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: float, compl
             I = I.union(*infected_queue)
             I = list(I)
 
-    state = SimulationState(G, (S, I, R), (S, I, R), budget, transmission_rate, compliance_rate, global_rate, discovery_rate, snitch_rate)
+    state = SimulationState(G, (S, I, R), (S, I, R), budget, transmission_rate, compliance_rate, global_rate, discovery_rate, discovery_rate)
     
     information_loss_V1 = 0
     information_loss_V2 = 0
@@ -129,21 +129,19 @@ run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=tim
 # run.track_duration()
 run.exec()
 
-"""
 config = {
-    "G" : ["montgomery"],
-    "budget": [i for i in range(100,3410,10)],
-    "transmission_rate": [0.078],
-    "compliance_rate": [i/100 for i in range(50,101,5)],
-    "global_rate":  [1],        
-    "discovery_rate": [1],
-    "snitch_rate":  [1],
-    "from_cache": ["t7.json"],
+    "G" : [G2],
+    "budget": [1000,2000],
+    "transmission_rate": [0.06],
+    "compliance_rate": [1],
+    "global_rate":  [.05],        
+    "discovery_rate": [i/100 for i in range(1,101)],
+    "snitch_rate":  [.8],
+    "from_cache": ["a5.json"],
     "agent": [DegGreedy]
 }
-config["G"] = [load_graph(x) for x in config["G"]]
 
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
 run.exec()
-"""
+
 #%%
