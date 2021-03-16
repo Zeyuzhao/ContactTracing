@@ -47,19 +47,19 @@ for line in lines:
 
 config = {
     "G" : ['montgomery'],
-    "budget": [500,1000],
+    "budget": [1000],
     "transmission_rate": [0.078],
     "compliance_rate": [1],
-    "global_rate":  [.05],        
-    "discovery_rate": [i/100 for i in range(1,101)],
-    "snitch_rate":  [.8],
+    "global_rate":  [0],        
+    "discovery_rate": [1],
+    "snitch_rate":  [1],
     "from_cache": ["t7.json"],
-    "agent": [DegGreedy]
+    "agent": [Random]
 }
 config["G"] = [load_graph(x) for x in config["G"]]
 
 in_schema = list(config.keys())
-out_schema = ["infected_count_known", "infected_count_real"]
+out_schema = ["ME_objective", "total_degree"]
 TrackerInfo = namedtuple("TrackerInfo", out_schema)
 
 def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: float, compliance_rate: float, global_rate: float,
@@ -78,30 +78,21 @@ def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: float, compl
 
     state = SimulationState(G, (S, I, R), (S, I, R), budget, transmission_rate, compliance_rate, global_rate, discovery_rate, discovery_rate)
     
-    while len(state.SIR_real.SIR[1]) != 0:
-        to_quarantine = agent(state)
-        state.step(to_quarantine)
+    arr = agent(state)
 
-    return TrackerInfo(len(state.SIR_known.SIR[2]), len(state.SIR_real.SIR[2]))
+    q = {}
 
-run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
-# Attempt at making schemas extensible - quite hacky right now
-# run.track_duration()
+    for node in range(len(G.nodes)):
+        if node in arr:
+            q[node] = 1
+        else:
+            q[node] = 0
+    
+    obj = min_exposed_objective(G, (S, I, R), (state.SIR_known.V1, state.SIR_known.V2), transmission_rate, q, 100)
+    sum_deg = sum([len(set(G.neighbors(i)).intersection(state.SIR_known.V2)) for i in arr])
+    
+    return TrackerInfo(obj, sum_deg)
+
+run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=1000)
 run.exec()
 
-config = {
-    "G" : [G2],
-    "budget": [1000,2000],
-    "transmission_rate": [0.06],
-    "compliance_rate": [1],
-    "global_rate":  [.05],        
-    "discovery_rate": [i/100 for i in range(1,101)],
-    "snitch_rate":  [.8],
-    "from_cache": ["a5.json"],
-    "agent": [DegGreedy]
-}
-
-run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
-run.exec()
-
-#%%
