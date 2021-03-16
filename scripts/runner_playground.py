@@ -71,7 +71,7 @@ config = {
     "compliance_rate": [1],#[i/100 for i in range(50,101,5)],
     "global_rate":  [0],        
     "discovery_rate": [i/100 for i in range(5, 105, 5)],
-    "snitch_rate":  [1],
+    "snitch_rate":  [i/100 for i in range(5, 105, 5)],
     "from_cache": ["a6.json"],
     "agent": [DegGreedy]
 }
@@ -124,7 +124,7 @@ def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: float, compl
 
     return TrackerInfo(len(state.SIR_known.SIR[2]), len(state.SIR_real.SIR[2]), information_loss_V1, information_loss_V2, information_loss_I, information_loss_V1_iterative, information_loss_V2_iterative, information_loss_V2_nbrs_iterative)
 
-run = GridExecutorLinear.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
+run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
 # Attempt at making schemas extensible - quite hacky right now
 # run.track_duration()
 run.exec()
