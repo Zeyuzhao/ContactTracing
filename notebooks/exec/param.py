@@ -114,7 +114,7 @@ class SIRParam(FileParam):
         return {
             "name": self.name,
             "path": self.path,
-            "parent": self.parent.name, # Assign an object id? # This is a foriegn key
+            "parent": self.parent.name if self.parent else None, # Assign an object id? # This is a foriegn key
             "obj_hash": self.obj_hash,
         }
     def __post_init__(self):
@@ -122,7 +122,6 @@ class SIRParam(FileParam):
             raise ValueError("Must need specified path or parent to resolve file path")
         super().__post_init__()
 
-# tests
 
 
 # Hash is consistant across runs
