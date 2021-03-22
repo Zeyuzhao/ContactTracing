@@ -25,6 +25,7 @@ class SimulationState:
         edge_to_compliance = {}
         compliance_edge = 0
         for node in G.nodes():
+            G.nodes[node]['quarantine'] = 0
             node_to_compliance[node] = compliance_rate[node]
             if not partial_compliance: compliance_edge = (0 if random.random()>compliance_rate[node] else 1, transmission_rate)
             for nbr in G.neighbors(node):
@@ -36,6 +37,7 @@ class SimulationState:
         
         nx.set_node_attributes(G, node_to_compliance, 'compliance_rate')
         nx.set_edge_attributes(G, edge_to_compliance, 'compliance_transmission')
+        
         
         self.SIR_real: InfectionInfo = InfectionInfo(G, SIR_real, budget, transmission_rate, 1, 1)
         self.SIR_known: InfectionInfo = InfectionInfo(G, SIR_known, budget, transmission_rate, discovery_rate, snitch_rate)
@@ -75,13 +77,17 @@ class SimulationState:
         
         with open(PROJECT_ROOT / "data" / "SIR_Cache" / file, 'w') as outfile:
             json.dump(to_save, outfile)
-
+    
     # TODO: Adapt to indicators over entire Graph G
-    def step(self, quarantine_known: Set[int]):
+    def step(self, to_quarantine: Set[int]):
         
-        # moves the real SIR forward by 1 timestep
-        recovered = self.SIR_real.SIR[2] + self.SIR_real.quarantined[0] + self.SIR_real.quarantined[1] + self.SIR_real.quarantined[2]
-        full_data = EoN.basic_discrete_SIR(G=self.G, p=self.SIR_real.transmission_rate, initial_infecteds=self.SIR_real.SIR[1], initial_recovereds=recovered, tmin=0, tmax=1, return_full_data=True)
+        def edge_transmission(u, v, G):
+            if (G.nodes[u]['quarantine'] == 1 and G.nodes[u]['hid'] != G.nodes[v]['hid']):
+                return 1 if random.random() < ((1-G[u][v]['compliance_transmission'][u][0]) * G[u][v]['compliance_transmission'][u][1]) else 0
+            else:
+                return 1 if random.random() < G[u][v]['compliance_transmission'][u][1] else 0
+        
+        full_data = EoN.discrete_SIR(G = self.G, test_transmission = edge_transmission, args = (self.G,), initial_infecteds=self.SIR_real.SIR[1], initial_recovereds=self.SIR_real.SIR[2], tmin=0, tmax=1, return_full_data=True)
         
         S = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'S']
         I = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'I']
@@ -89,14 +95,12 @@ class SimulationState:
         
         self.SIR_real.SIR = SIR_Tuple(S,I,R)
         
-        
         # moves the known SIR forward by 1 timestep
         I = [i for i in self.SIR_known.V1 if i in self.SIR_real.SIR.I]
         S = [i for i in self.SIR_known.SIR.S if i not in I]
-        R = self.SIR_known.SIR.R + self.SIR_known.SIR.I + self.SIR_known.quarantined[0] + self.SIR_known.quarantined[1] + self.SIR_known.quarantined[2]
+        R = self.SIR_known.SIR.R + self.SIR_known.SIR.I
         
         self.SIR_known.SIR = SIR_Tuple(S,I,R)
-        
         
         # implements the global rate
         difference = [i for i in self.SIR_real.SIR.I if i not in self.SIR_known.SIR.I]
@@ -105,16 +109,10 @@ class SimulationState:
                 if node in self.SIR_known.SIR.S:
                     self.SIR_known.SIR.I.append(node)
                     self.SIR_known.SIR.S.remove(node)
-                else:
-                    self.SIR_known.quarantined[1].append(node)
-                    self.SIR_known.quarantined[0].remove(node)
         
-        
-        # updates the quarantined people
-        quarantine_real = {i for i in quarantine_known if random.random() < self.compliance_rate}
-        self.SIR_real.update_quarantine(quarantine_real)
-        self.SIR_known.update_quarantine(quarantine_known)
-        
+        #updates quarantined
+        for node in self.G.nodes:
+            self.G.nodes[node]['quarantine'] = 1 if node in to_quarantine else 0
         
         # resets the V1 and V2
         self.SIR_known.set_contours()
@@ -127,7 +125,7 @@ class InfectionInfo:
         self.SIR = SIR_Tuple(*SIR)
         self.transmission_rate = transmission_rate
         self.budget = budget
-        self.quarantined = ([],[],[])
+        #self.quarantined = ([],[],[])
         self.discovery_rate = discovery_rate
         self.snitch_rate = snitch_rate
         
@@ -136,14 +134,13 @@ class InfectionInfo:
         
     def update_quarantine(self, to_quarantine):
         # un-quarantine people from previous time step
-        for node in self.quarantined[0]:
-            self.SIR.S.append(node)
-            self.SIR.R.remove(node)
-            
-        self.quarantined = ([],[],[])
-        
+        #for node in self.quarantined[0]:
+        #    self.SIR.S.append(node)
+        #    self.SIR.R.remove(node)    
+        #self.quarantined = ([],[],[])
+        #self.quarantine_list = [1 if node in to_quarantine else 0 for node in G.nodes]
         # quarantine the new group
-        for node in to_quarantine:
+        '''for node in to_quarantine:
             if node in self.SIR.S:
                 self.SIR.S.remove(node)
                 self.quarantined[0].append(node)
@@ -152,7 +149,8 @@ class InfectionInfo:
                 self.quarantined[1].append(node)
             else:
                 self.SIR.R.remove(node)
-                self.quarantined[2].append(node)
+                self.quarantined[2].append(node)'''
                 
     def set_contours(self):
-        (self.V1, self.V2) = find_excluded_contours(self.G, self.SIR[1], self.SIR[2] + self.quarantined[0] + self.quarantined[1] + self.quarantined[2], self.discovery_rate, self.snitch_rate)
+        #(self.V1, self.V2) = find_excluded_contours(self.G, self.SIR[1], self.SIR[2] + self.quarantined[0] + self.quarantined[1] + self.quarantined[2], self.discovery_rate, self.snitch_rate)
+        (self.V1, self.V2) = find_excluded_contours(self.G, self.SIR[1], self.SIR[2], self.discovery_rate, self.snitch_rate)

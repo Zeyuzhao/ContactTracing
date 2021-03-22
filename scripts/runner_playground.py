@@ -66,9 +66,10 @@ G2 = readData();
 
 config = {
     "G" : [G2],
-    "budget": [i for i in range(100,3710,10)],
-    "transmission_rate": [0.06],
-    "compliance_rate": [i/100 for i in range(50,101,5)],
+    "budget": [2000],
+    "transmission_rate": [0.078],
+    "compliance_rate": [[0.8 for i in range(0, len(G2.nodes()))]],
+    "partial_compliance": [True],
     "global_rate":  [1],        
     "discovery_rate": [1],
     "snitch_rate":  [1],
@@ -81,8 +82,7 @@ in_schema = list(config.keys())
 out_schema = ["infected_count_known", "infected_count_real"]
 TrackerInfo = namedtuple("TrackerInfo", out_schema)
 
-def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: float, compliance_rate: float, global_rate: float,
-                  discovery_rate: float, snitch_rate: float, from_cache: str, agent, **kwargs):
+def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: float, compliance_rate:list, partial_compliance: bool, global_rate: float, discovery_rate: float, snitch_rate: float, from_cache: str, agent, **kwargs):
 
     I = set()
     with open(PROJECT_ROOT / "data" / "SIR_Cache" / from_cache, 'r') as infile:
@@ -95,7 +95,7 @@ def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: float, compl
             I = I.union(*infected_queue)
             I = list(I)
 
-    state = SimulationState(G, (S, I, R), (S, I, R), budget, transmission_rate, compliance_rate, global_rate, discovery_rate, snitch_rate)
+    state = SimulationState(G, (S, I, R), (S, I, R), budget, transmission_rate, compliance_rate, partial_compliance, global_rate, discovery_rate, snitch_rate)
     
     while len(state.SIR_real.SIR[1]) != 0:
         to_quarantine = agent(state)
@@ -103,7 +103,7 @@ def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: float, compl
 
     return TrackerInfo(len(state.SIR_known.SIR[2]), len(state.SIR_real.SIR[2]))
 
-run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
+run = GridExecutorLinear.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=1)
 # Attempt at making schemas extensible - quite hacky right now
 # run.track_duration()
 run.exec()
