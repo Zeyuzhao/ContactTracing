@@ -16,6 +16,13 @@ from collections import namedtuple
 
 SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I", "R"])
 
+@dataclass
+class SIR():
+    S: Set[int] = field(default_factory=set)
+    I: Set[int] = field(default_factory=set)
+    R: Set[int] = field(default_factory=set)
+    
+
 def md5_hash_obj(obj) -> str:
     md5 = hashlib.md5()
     f = pickle.dumps(obj)

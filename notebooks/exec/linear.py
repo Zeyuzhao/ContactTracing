@@ -2,19 +2,21 @@
 import shortuuid
 from ctrace import PROJECT_ROOT
 from param import GraphParam, SIRParam, FileParam
-from pathlib import Path
+from pathlib import Path, PurePath
 import multiprocessing as mp
-from typing import List, Tuple, Dict, Any
+import concurrent.futures
+from typing import List, Tuple, Dict, Any, Callable
 import itertools
 import pandas as pd
 import numpy as np
+import tqdm
+import csv
 class MultiExecutor():
     INIT = 0
     EXEC = 1
-    def __init__(self, schema: List[Tuple[str, type]], output_id: str = None, seed: bool = True, validation: bool = True):
+    def __init__(self, runner: Callable, schema: List[Tuple[str, type]], output_id: str = None, seed: bool = True, validation: bool = True):
+        self.runner = runner
         self.schema = schema
-
-        self.output_id = output_id
 
         # Multiexecutor state
         self.tasks: List[Dict[str, Any]] = [] # store expanded tasks
@@ -31,6 +33,11 @@ class MultiExecutor():
         self._schema.insert(0, ('id', int))
         if self.seed:
             self._schema.append(('seed', int))
+        self.num_process = None
+
+        # Initialize functions
+        self.output_id = output_id
+        self.init_output_directory()
 
     def init_output_directory(self):
         if self.output_id is None:
@@ -38,8 +45,6 @@ class MultiExecutor():
         # Setup output directories
         self.output_directory = PROJECT_ROOT / "output" / self.output_id
         self.output_directory.mkdir(parents=True, exist_ok=True)
-        self.result_path = self.output_directory / 'results.csv'
-        self.logging_path = self.output_directory / 'run.log'
 
     @staticmethod
     def cartesian_product(dicts):
@@ -47,11 +52,10 @@ class MultiExecutor():
         return (dict(zip(dicts, x)) for x in itertools.product(*dicts.values()))
 
     def add_cartesian(self, config: Dict[str, List[Any]]):
-        # check stage
-        if self.stage != MultiExecutor.INIT:
-            raise Exception(f"Adding entries allowed during INIT stage. Current stage: {self.stage}")
-        
         if self.validation:
+            # check stage
+            if self.stage != MultiExecutor.INIT:
+                raise Exception(f"Adding entries allowed during INIT stage. Current stage: {self.stage}")
             # labels must match
             config_attr = set(config.keys())
             schema_attr = set(x[0] for x in self.schema)
@@ -88,30 +92,52 @@ class MultiExecutor():
                         raise ValueError(f"task[{i}] [{prop_name}]: item [{item}] is not a [{prop_type}]")
         self.tasks.extend(collection)
 
-    def attach(self, label, worker):
+    def attach(self, name, worker):
+        worker.run_root = self.output_directory
         self.workers.append({
-            "label": label,
+            "name": name,
             "worker": worker
         })
+
     
     def exec(self):
+
+        # Clean Up and pre-exec initialization
+
+        # Attach seeds
         df = pd.DataFrame.from_dict(self.tasks, orient='columns')
         df["seed"] = np.random.randint(0,100000, size=(len(df), 1))
+        df.insert(0, "id", range(len(df)))
 
+        # Label receives name (string), data receives data object
         label_df = df.copy()
         data_df = df.copy()
         for label in self.file_params:
             label_df[label] = label_df[label].map(lambda x: x.name)
             data_df[label] = data_df[label].map(lambda x: x.data)
         
-        label_df.to_csv(self.output_dir / "input.csv")
-        self.tasks = df.to_dict('records')
+        label_df.to_csv(self.output_directory / "input.csv", index=False)
+        self.tasks = data_df.to_dict('records')
 
+        processes = []
+        # Start workers and attach worker queues
+        self.queues = {}
+        for (name, worker) in self.workers:
+            processes.append(mp.Process(target=worker.start))
+            self.queues[name] = worker.queue
 
+        # Start and attach loggers
+        self.loggers = {} # TODO: Implement loggers
+        for item in self.tasks:
+            item["queues"] = self.queues
+            item["loggers"] = self.loggers
         
+        with mp.Pool(self.num_process) as pool:
+            list(tqdm.tqdm(pool.imap(self.runner, self.tasks), total=len(self.tasks)))
 
-
-
+        for p in processes:
+            p.join()
+        
 # Example Usage
 in_schema = [
     ('graph', GraphParam),
@@ -170,12 +196,49 @@ class Worker():
 
 class CsvWorker(Worker):
     # TODO: Inject destination?
-    def __init__(self, name, schema):
+    def __init__(self, name, schema, relpath: PurePath, run_root: Path = None):
+        """
+        Listens on created queue for dicts. Worker will extract only data specified from dicts
+        and fills with self.NA if any attribute doesn't exist.
+
+        Will stop if dict is passed a terminating object (self.term).
+
+        """
         self.name = name
         self.schema = schema
         self.queue = mp.Queue()
-    def start():
-        raise NotImplementedError()
+        self.relpath = relpath
+        self.run_root = run_root
+
+        # Default value
+        self.default = None
+        # Terminating value
+        self.terminator = "done"
+    def start(self):
+        """
+        
+        """
+        # TODO: Replace prints with logging
+        if self.run_root is None:
+            raise ValueError('run_root needs to a path')
+        self.path = self.run_root / self.relpath
+
+        with open(self.path, 'w') as f:
+            writer = csv.DictWriter(f, self.schema, restval=self.default, extrasaction='ignore')
+            writer.writeheader()
+            print(f'INFO: Worker {self.name} initialized.')
+            while True:
+                msg = self.queue.get()
+                if (msg == self.terminator):
+                    print(f"INFO: Worker {self.name} finished")
+                    break
+                # Filter for default
+                # data = {l: (msg.get(l, self.default)) for l in self.schema}
+                writer.writerow(msg)
+                print(f'DEBUG: Worker {self.name} writes entry {msg["id"]}')
+
+
+            
 
 main_out_schema = ["mean_objective_value", "max_objective_value", "std_objective_value"]
 main_handler = CsvWorker("main", main_out_schema)
