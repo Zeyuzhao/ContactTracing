@@ -85,7 +85,7 @@ class GraphParam(FileParam):
     # Parameterized functions
     def finder(self) -> Union[str, Path]:
         # name -> path
-        return "data" / "graph" / self.name
+        return PROJECT_ROOT / ("data") / "graph" / self.name
     
     def loader(self) -> Any:
         # path -> data object
