@@ -11,6 +11,8 @@ import pandas as pd
 import numpy as np
 import tqdm
 import csv
+import random
+import time
 class MultiExecutor():
     INIT = 0
     EXEC = 1
@@ -106,7 +108,7 @@ class MultiExecutor():
         self.workers[name] = worker
     
     def exec(self):
-
+        self.stage = MultiExecutor.EXEC
         # Clean Up and pre-exec initialization
 
         # Attach seeds
@@ -193,7 +195,8 @@ class CsvWorker(Worker):
         with open(self.path, 'w') as f:
             writer = csv.DictWriter(f, self.schema, restval=self.default, extrasaction='ignore')
             writer.writeheader()
-            print(f'INFO: Worker {self.name} initialized @ f{self.path}')
+            print(f'INFO: Worker {self.name} initialized @ {self.path}')
+            start = time.time()
             while True:
                 msg = self.queue.get()
                 if (msg == self.terminator):
@@ -202,74 +205,83 @@ class CsvWorker(Worker):
                 # Filter for default
                 # data = {l: (msg.get(l, self.default)) for l in self.schema}
                 writer.writerow(msg)
-                print(f'DEBUG: Worker {self.name} writes entry {msg.get("id")}')
-#%%
-# Example Usage
-in_schema = [
-    ('graph', GraphParam),
-    ('sir', SIRParam),
-    ('transmission_rate', float),
-    ('compliance_rate', float),
-    ('method', str),
-]
-
-def runner(data):
-    queues = data["queues"]
-    instance_id = data["id"]
-    method = data["method"]
-
-    output_obj = {
-        "id": instance_id,
-        "out_method": method,
-    }
-    queues["csv_main"].put(output_obj)
-
-run = MultiExecutor(runner, in_schema, seed=True)
-
-# Add compact tasks (expand using cartesian)
-mont = GraphParam('montgomery')
-run.add_cartesian({
-    'graph': [mont],
-    'sir' : [SIRParam(f't{i}', parent=mont) for i in range(7, 10)],
-    'transmission_rate': [0.1, 0.2, 0.3],
-    'compliance_rate': [.8, .9, 1.0],
-    'method': ["robust"]
-})
-run.add_cartesian({
-    'graph': [mont],
-    'sir' : [SIRParam(f't{i}', parent=mont) for i in range(7, 10)],
-    'transmission_rate': [0.1, 0.2, 0.3],
-    'compliance_rate': [.8, .9, 1.0],
-    'method': ["none"]
-})
-
-# Add lists of tasks
-run.add_collection([{
-    'graph': mont,
-    'sir' : SIRParam('t7', parent=mont),
-    'transmission_rate': 0.1,
-    'compliance_rate': 1.0,
-    'method': "greedy"
-}])
-
-run.add_collection([{
-    'graph': mont,
-    'sir' : SIRParam('t7', parent=mont),
-    'transmission_rate': 0.1,
-    'compliance_rate': 0.5,
-    'method': "greedy"
-}])
-
+                f.flush()
+                # print(f'DEBUG: Worker {self.name} writes entry {msg.get("id")}')
 #%%
 
-main_out_schema = ["mean_objective_value", "max_objective_value", "std_objective_value"]
-main_handler = CsvWorker("csv_main", main_out_schema, PurePath('main.csv'))
+if __name__ == '__main__':
+    # Example Usage
+    in_schema = [
+        ('graph', GraphParam),
+        ('sir', SIRParam),
+        ('transmission_rate', float),
+        ('compliance_rate', float),
+        ('method', str),
+    ]
 
-aux_out_schema = ["runtime"]
-aux_handler = CsvWorker("csv_aux", aux_out_schema, PurePath('aux.csv'))
+    def runner(data):
 
-run.attach(main_handler)
-run.attach(aux_handler)
+        queues = data["queues"]
+        instance_id = data["id"]
+        method = data["method"]
 
-run.exec()
-# %%
+        main_obj = {
+            "id": instance_id,
+            "out_method": method,
+        }
+
+        aux_obj = {
+            "id": instance_id,
+            "runtime": random.random()
+        }
+
+        queues["csv_main"].put(main_obj)
+        queues["csv_aux"].put(aux_obj)
+
+    run = MultiExecutor(runner, in_schema, seed=True)
+
+    # Add compact tasks (expand using cartesian)
+    mont = GraphParam('montgomery')
+    run.add_cartesian({
+        'graph': [mont],
+        'sir' : [SIRParam(f't{i}', parent=mont) for i in range(7, 10)],
+        'transmission_rate': [0.1, 0.2, 0.3],
+        'compliance_rate': [.8, .9, 1.0],
+        'method': ["robust"]
+    })
+    run.add_cartesian({
+        'graph': [mont],
+        'sir' : [SIRParam(f't{i}', parent=mont) for i in range(7, 10)],
+        'transmission_rate': [0.1, 0.2, 0.3],
+        'compliance_rate': [.8, .9, 1.0],
+        'method': ["none"]
+    })
+
+    # Add lists of tasks
+    run.add_collection([{
+        'graph': mont,
+        'sir' : SIRParam('t7', parent=mont),
+        'transmission_rate': 0.1,
+        'compliance_rate': 1.0,
+        'method': "greedy"
+    }])
+
+    run.add_collection([{
+        'graph': mont,
+        'sir' : SIRParam('t7', parent=mont),
+        'transmission_rate': 0.1,
+        'compliance_rate': 0.5,
+        'method': "greedy"
+    }])
+
+    main_out_schema = ["mean_objective_value", "max_objective_value", "std_objective_value"]
+    main_out_schema = ["id", "out_method"]
+    main_handler = CsvWorker("csv_main", main_out_schema, PurePath('main.csv'))
+
+    aux_out_schema = ["id", "runtime"]
+    aux_handler = CsvWorker("csv_aux", aux_out_schema, PurePath('aux.csv'))
+
+    run.attach(main_handler)
+    run.attach(aux_handler)
+
+    run.exec()
