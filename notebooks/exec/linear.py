@@ -22,6 +22,10 @@ class MultiExecutor():
         self.tasks: List[Dict[str, Any]] = [] # store expanded tasks
         self.signatures = {} # store signatures of any FileParam
         self.stage: int = MultiExecutor.INIT # Track the state of executor
+        self.workers = {}
+        self.queues = {}
+
+        self.manager = mp.Manager()
         
         # Filter FileParams from schema
         self.file_params = [l for (l, t) in schema if issubclass(t, FileParam)]
@@ -93,12 +97,12 @@ class MultiExecutor():
         self.tasks.extend(collection)
 
     def attach(self, name, worker):
+        # Inject dependencies
         worker.run_root = self.output_directory
-        self.workers.append({
-            "name": name,
-            "worker": worker
-        })
-
+        worker.queue = self.manager.Queue()
+        
+        self.queues[name] = worker.queue
+        self.workers[name] = worker
     
     def exec(self):
 
@@ -121,10 +125,10 @@ class MultiExecutor():
 
         processes = []
         # Start workers and attach worker queues
-        self.queues = {}
-        for (name, worker) in self.workers:
-            processes.append(mp.Process(target=worker.start))
-            self.queues[name] = worker.queue
+        for (_, worker) in self.workers.items():
+            p = mp.Process(target=worker.start)
+            p.start()
+            processes.append(p)
 
         # Start and attach loggers
         self.loggers = {} # TODO: Implement loggers
@@ -135,9 +139,69 @@ class MultiExecutor():
         with mp.Pool(self.num_process) as pool:
             list(tqdm.tqdm(pool.imap(self.runner, self.tasks), total=len(self.tasks)))
 
+
+        # Clean up workers
+        for (_, q) in self.queues.items():
+            q.put("done")
+
         for p in processes:
             p.join()
+
+class Worker():
+    def __init__(self):
+        self.queue = mp.Queue()
+    def start():
+        raise NotImplementedError()
+
+class CsvWorker(Worker):
+    # TODO: Inject destination?
+    def __init__(self, name, schema, relpath: PurePath, run_root: Path = None):
+        """
+        Listens on created queue for dicts. Worker will extract only data specified from dicts
+        and fills with self.NA if any attribute doesn't exist.
+
+        Dicts should contain id, preferrably as first element of schema
+
+        Will stop if dict is passed a terminating object (self.term).
+
+        """
+        self.name = name
+        self.schema = schema
+        self.queue = None
+        self.relpath = relpath
+        self.run_root = run_root
+
+        # Default value
+        self.default = None
+        # Terminating value
+        self.terminator = "done"
+    def start(self):
+        """
         
+        """
+        # TODO: Replace prints with logging
+        if self.run_root is None:
+            raise ValueError('run_root needs to a path')
+
+        if self.queue is None:
+            raise ValueError('need to pass a queue to run')
+
+        self.path = self.run_root / self.relpath
+
+        with open(self.path, 'w') as f:
+            writer = csv.DictWriter(f, self.schema, restval=self.default, extrasaction='ignore')
+            writer.writeheader()
+            print(f'INFO: Worker {self.name} initialized @ f{self.path}')
+            while True:
+                msg = self.queue.get()
+                if (msg == self.terminator):
+                    print(f"INFO: Worker {self.name} finished")
+                    break
+                # Filter for default
+                # data = {l: (msg.get(l, self.default)) for l in self.schema}
+                writer.writerow(msg)
+                print(f'DEBUG: Worker {self.name} writes entry {msg.get("id")}')
+#%%
 # Example Usage
 in_schema = [
     ('graph', GraphParam),
@@ -147,7 +211,18 @@ in_schema = [
     ('method', str),
 ]
 
-run = MultiExecutor(in_schema, seed=True)
+def runner(data):
+    queues = data["queues"]
+    instance_id = data["id"]
+    method = data["method"]
+
+    output_obj = {
+        "id": instance_id,
+        "out_method": method,
+    }
+    queues["csv_main"].put(output_obj)
+
+run = MultiExecutor(runner, in_schema, seed=True)
 
 # Add compact tasks (expand using cartesian)
 mont = GraphParam('montgomery')
@@ -183,70 +258,16 @@ run.add_collection([{
     'method': "greedy"
 }])
 
-
 #%%
-run
-
-#%%
-class Worker():
-    def __init__(self):
-        self.queue = mp.Queue()
-    def start():
-        raise NotImplementedError()
-
-class CsvWorker(Worker):
-    # TODO: Inject destination?
-    def __init__(self, name, schema, relpath: PurePath, run_root: Path = None):
-        """
-        Listens on created queue for dicts. Worker will extract only data specified from dicts
-        and fills with self.NA if any attribute doesn't exist.
-
-        Will stop if dict is passed a terminating object (self.term).
-
-        """
-        self.name = name
-        self.schema = schema
-        self.queue = mp.Queue()
-        self.relpath = relpath
-        self.run_root = run_root
-
-        # Default value
-        self.default = None
-        # Terminating value
-        self.terminator = "done"
-    def start(self):
-        """
-        
-        """
-        # TODO: Replace prints with logging
-        if self.run_root is None:
-            raise ValueError('run_root needs to a path')
-        self.path = self.run_root / self.relpath
-
-        with open(self.path, 'w') as f:
-            writer = csv.DictWriter(f, self.schema, restval=self.default, extrasaction='ignore')
-            writer.writeheader()
-            print(f'INFO: Worker {self.name} initialized.')
-            while True:
-                msg = self.queue.get()
-                if (msg == self.terminator):
-                    print(f"INFO: Worker {self.name} finished")
-                    break
-                # Filter for default
-                # data = {l: (msg.get(l, self.default)) for l in self.schema}
-                writer.writerow(msg)
-                print(f'DEBUG: Worker {self.name} writes entry {msg["id"]}')
-
-
-            
 
 main_out_schema = ["mean_objective_value", "max_objective_value", "std_objective_value"]
-main_handler = CsvWorker("main", main_out_schema)
+main_handler = CsvWorker("csv_main", main_out_schema, PurePath('main.csv'))
 
 aux_out_schema = ["runtime"]
-aux_handler = CsvWorker("aux", aux_out_schema)
+aux_handler = CsvWorker("csv_aux", aux_out_schema, PurePath('aux.csv'))
 
 run.attach("csv_main", main_handler)
 run.attach("csv_aux", aux_handler)
 
 run.exec()
+# %%
