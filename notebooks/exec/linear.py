@@ -37,7 +37,7 @@ class MultiExecutor():
         self._schema.insert(0, ('id', int))
         if self.seed:
             self._schema.append(('seed', int))
-        self.num_process = None
+        self.num_process = 10
 
         # Initialize functions
         self.output_id = output_id
@@ -96,8 +96,9 @@ class MultiExecutor():
                         raise ValueError(f"task[{i}] [{prop_name}]: item [{item}] is not a [{prop_type}]")
         self.tasks.extend(collection)
 
-    def attach(self, name, worker):
+    def attach(self, worker):
         # Inject dependencies
+        name = worker.name
         worker.run_root = self.output_directory
         worker.queue = self.manager.Queue()
         
@@ -155,7 +156,7 @@ class Worker():
 
 class CsvWorker(Worker):
     # TODO: Inject destination?
-    def __init__(self, name, schema, relpath: PurePath, run_root: Path = None):
+    def __init__(self, name, schema, relpath: PurePath, run_root: Path = None, queue = None):
         """
         Listens on created queue for dicts. Worker will extract only data specified from dicts
         and fills with self.NA if any attribute doesn't exist.
@@ -165,9 +166,10 @@ class CsvWorker(Worker):
         Will stop if dict is passed a terminating object (self.term).
 
         """
+        # Should be unique within a collection!
         self.name = name
         self.schema = schema
-        self.queue = None
+        self.queue = queue
         self.relpath = relpath
         self.run_root = run_root
 
@@ -266,8 +268,8 @@ main_handler = CsvWorker("csv_main", main_out_schema, PurePath('main.csv'))
 aux_out_schema = ["runtime"]
 aux_handler = CsvWorker("csv_aux", aux_out_schema, PurePath('aux.csv'))
 
-run.attach("csv_main", main_handler)
-run.attach("csv_aux", aux_handler)
+run.attach(main_handler)
+run.attach(aux_handler)
 
 run.exec()
 # %%
