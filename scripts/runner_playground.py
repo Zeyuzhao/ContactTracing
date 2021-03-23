@@ -9,7 +9,7 @@ from ctrace.recommender import *
 from collections import namedtuple
 json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 
-def readData():
+'''def readData():
     G = nx.Graph()
     G.NAME = "cville"
     nodes = {}
@@ -61,43 +61,57 @@ def readData():
     return G;
 
 
-G2 = readData();
-
+G2 = readData();'''
+G = load_graph("montgomery")
 
 config = {
-    "G" : [G2],
-    "budget": [1000, 2000],#[i for i in range(100,3710,10)],
-    "transmission_rate": [0.078],
-    "compliance_rate": [1],#[i/100 for i in range(50,101,5)],
+    "G" : [G],
+    "budget": [500],#[i for i in range(100, 451, 50)],#[i for i in range(100,3710,10)],
+    "transmission_rate": [(0.10, 0.075, 0.05)],
+    "partition": [(0.04, 0.40, 1.0)],
+    "time_stage": [0],
+    "compliance_rate": [1],#[i/100 for i in range(50, 101, 5)],#[i/100 for i in range(50,101,5)],
     "global_rate":  [0],        
-    "discovery_rate": [i/100 for i in range(5, 105, 5)],
-    "snitch_rate":  [i/100 for i in range(5, 105, 5)],
-    "from_cache": ["a6.json"],
+    "discovery_rate": [i/100 for i in range(50, 101, 5)],
+    "snitch_rate":  [i/100 for i in range(50, 101, 5)],
+    "from_cache": ["z6.json"],
     "agent": [DegGreedy]
 }
-config["G"] = [load_graph(x) for x in config["G"]]
+#config["G"] = [load_graph(x) for x in config["G"]]
 
 in_schema = list(config.keys())
-out_schema = ["infected_count_known", "infected_count_real", "information_loss_V1", "information_loss_V2", "information_loss_I", "information_loss_V1_iterative", "information_loss_V2_iterative", "information_loss_V2_nbrs_iterative"]
+out_schema = ["infected_count_known", "infected_count_real", "infections_step"]
+#out_schema = ["infected_count_known", "infected_count_real", "information_loss_V1", "information_loss_V2", "information_loss_I", "information_loss_V1_iterative", "information_loss_V2_iterative", "information_loss_V2_nbrs_iterative"]
 TrackerInfo = namedtuple("TrackerInfo", out_schema)
 
-def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: float, compliance_rate: float, global_rate: float,
+def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: tuple, partition: tuple, time_stage: int, compliance_rate: float, global_rate: float,
                   discovery_rate: float, snitch_rate: float, from_cache: str, agent, **kwargs):
 
     I = set()
     with open(PROJECT_ROOT / "data" / "SIR_Cache" / from_cache, 'r') as infile:
             j = json.load(infile)
             
-            (S, infected_queue, R) = (j["S"], j["I_Queue"], j["R"])
-
+            #(S, infected_queue, R) = (j["S"], j["I_Queue"], j["R"])
+            (S, I, R) = (j["S"], j["I"], j["R"])
+            
+            infections = j["early_infected"]
             # Make infected_queue a list of sets
-            infected_queue = [set(s) for s in infected_queue]
-            I = I.union(*infected_queue)
-            I = list(I)
+            #infected_queue = [set(s) for s in infected_queue]
+            #I = I.union(*infected_queue)
+            #I = list(I)
 
-    state = SimulationState(G, (S, I, R), (S, I, R), budget, transmission_rate, compliance_rate, global_rate, discovery_rate, discovery_rate)
+    state = SimulationState(G, (S, I, R), (S, I, R), budget, transmission_rate, partition, time_stage, compliance_rate, global_rate, discovery_rate, snitch_rate)
+    while len(state.SIR_real.SIR[1]) != 0:
+        if (state.SIR_real.time_stage!=0):
+            #state.budget = 500
+            #state.compliance_rate = 0.8
+            state.discovery_rate = 0.8
+            state.snitch_rate = 0.8
+        to_quarantine = agent(state)
+        state.step(to_quarantine)
+        infections.append(len(state.SIR_real.SIR[1]))
     
-    information_loss_V1 = 0
+    '''information_loss_V1 = 0
     information_loss_V2 = 0
     information_loss_I = 0
     information_loss_V1_iterative = 0
@@ -120,16 +134,17 @@ def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: float, compl
         information_loss_I += len(I_real-I_known)
         information_loss_V1_iterative += state.SIR_known.il_v1
         information_loss_V2_iterative += state.SIR_known.il_v2
-        information_loss_V2_nbrs_iterative += state.SIR_known.il_v2_nbrs
-
-    return TrackerInfo(len(state.SIR_known.SIR[2]), len(state.SIR_real.SIR[2]), information_loss_V1, information_loss_V2, information_loss_I, information_loss_V1_iterative, information_loss_V2_iterative, information_loss_V2_nbrs_iterative)
+        information_loss_V2_nbrs_iterative += state.SIR_known.il_v2_nbrs'''
+    
+    return TrackerInfo(len(state.SIR_known.SIR[2]), len(state.SIR_real.SIR[2]), infections)
+    #return TrackerInfo(len(state.SIR_known.SIR[2]), len(state.SIR_real.SIR[2]), information_loss_V1, information_loss_V2, information_loss_I, information_loss_V1_iterative, information_loss_V2_iterative, information_loss_V2_nbrs_iterative)
 
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
 # Attempt at making schemas extensible - quite hacky right now
 # run.track_duration()
 run.exec()
 
-config = {
+'''config = {
     "G" : [G2],
     "budget": [1000,2000],
     "transmission_rate": [0.06],
@@ -142,6 +157,6 @@ config = {
 }
 
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
-run.exec()
+run.exec()'''
 
 #%%
