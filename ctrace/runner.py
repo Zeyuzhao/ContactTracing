@@ -97,7 +97,7 @@ class GridExecutor():
         filtered = {}
         for key in self.in_schema:
             if key == "G":
-                filtered[key] = in_param[key].NAME
+                filtered[key] = in_param[key].name
             elif key == "agent":
                 filtered[key] = in_param[key].__name__
             else:
