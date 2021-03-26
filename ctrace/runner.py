@@ -96,9 +96,7 @@ class GridExecutor():
         """Uses in_schema and __str__ to return a formatted dict"""
         filtered = {}
         for key in self.in_schema:
-            if key == "G":
-                filtered[key] = in_param[key].name
-            elif key == "agent":
+            if key == "agent":
                 filtered[key] = in_param[key].__name__
             else:
                 filtered[key] = str(in_param[key])
