@@ -58,8 +58,6 @@ class SimulationState:
     # TODO: Adapt to indicators over entire Graph G
     def step(self, quarantine_known: Set[int]):
         
-        previous_infected_real = len(self.SIR_real.SIR[1])
-        previous_infected_known = len(self.SIR_known.SIR[1])
         # moves the real SIR forward by 1 timestep
         recovered = self.SIR_real.SIR[2] + self.SIR_real.quarantined[0] + self.SIR_real.quarantined[1] + self.SIR_real.quarantined[2]
         full_data = EoN.basic_discrete_SIR(G=self.G, p=self.SIR_real.transmission_rate[self.SIR_real.time_stage], initial_infecteds=self.SIR_real.SIR[1], initial_recovereds=recovered, tmin=0, tmax=1, return_full_data=True)
@@ -70,12 +68,12 @@ class SimulationState:
         
         self.SIR_real.SIR = SIR_Tuple(S,I,R)
         
-        if(self.SIR_real.time_stage!=2 and len(self.SIR_real.SIR[2])/len(self.G.nodes) > self.SIR_real.partition[self.SIR_real.time_stage]):
+        #Transition into the late phase: Can jump straight into late phase and skip peak
+        if(self.SIR_real.time_stage != 2 and len(self.SIR_real.SIR[1])/max(1,len(self.SIR_real.SIR[2])) < self.SIR_real.partition[1]):
+            self.SIR_real.time_stage = 2
+        #Transition into the middle phase
+        elif(self.SIR_real.time_stage == 0 and len(self.SIR_real.SIR[2])/len(self.G.nodes) > self.SIR_real.partition[self.SIR_real.time_stage]):
             self.SIR_real.time_stage+=1
-        '''if(self.SIR_real.time_stage==0 and len(self.SIR_real.SIR[1])/previous_infected_real > self.SIR_real.partition[self.SIR_real.time_stage]):
-            self.SIR_real.time_stage+=1
-        elif(self.SIR_real.time_stage==1 and len(self.SIR_real.SIR[1])/previous_infected_real < self.SIR_real.partition[self.SIR_real.time_stage]):
-            self.SIR_real.time_stage+=1'''
         
         # moves the known SIR forward by 1 timestep
         I = [i for i in self.SIR_known.V1 if i in self.SIR_real.SIR.I]
@@ -84,13 +82,12 @@ class SimulationState:
         
         self.SIR_known.SIR = SIR_Tuple(S,I,R)
         
-        '''if(self.SIR_known.time_stage==0 and len(self.SIR_known.SIR[1])/previous_infected_known > self.SIR_known.partition[self.SIR_known.time_stage]):
+        #Transition into the late phase: Can jump straight into late phase and skip peak
+        if(self.SIR_known.time_stage != 2 and len(self.SIR_known.SIR[1])/max(1,len(self.SIR_known.SIR[2])) < self.SIR_known.partition[1]):
+            self.SIR_known.time_stage = 2
+        #Transition into the middle phase
+        elif(self.SIR_known.time_stage == 0 and len(self.SIR_known.SIR[2])/len(self.G.nodes) > self.SIR_known.partition[self.SIR_known.time_stage]):
             self.SIR_known.time_stage+=1
-        elif(self.SIR_known.time_stage==1 and len(self.SIR_known.SIR[1])/previous_infected_known < self.SIR_known.partition[self.SIR_known.time_stage]):
-            self.SIR_known.time_stage+=1'''
-        if(self.SIR_known.time_stage!=2 and len(self.SIR_known.SIR[2])/len(self.G.nodes) > self.SIR_known.partition[self.SIR_known.time_stage]):
-            self.SIR_known.time_stage+=1
-        
         
         # implements the global rate
         difference = [i for i in self.SIR_real.SIR.I if i not in self.SIR_known.SIR.I]
