@@ -32,7 +32,7 @@ def Degree(state: SimulationState):
 # TODO: Test code! V2 -> set V2
 def DegGreedy(state: SimulationState):
     info = state.SIR_known
-    P, Q = pq_independent(info.G, info.SIR.I, info.V1, info.transmission_rate)
+    P, Q = pq_independent(info.G, info.SIR.I, info.V1, info.transmission_rate[info.time_stage])
     
     weights: List[Tuple[int, int]] = []
     for u in info.V1:
