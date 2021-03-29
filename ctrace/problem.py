@@ -19,9 +19,6 @@ from .round import D, D_prime
 from .utils import pq_independent, find_excluded_contours, min_exposed_objective, uniform_sample
 from .simulation import InfectionInfo, SIR_Tuple
 
-
-import tracemalloc
-tracemalloc.start()
 import time
 
 
@@ -32,12 +29,6 @@ formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
 file_handler = logging.FileHandler(PROJECT_ROOT / 'logs' / 'problem.log')
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
-
-
-def debug_memory(label=""):
-    snapshot = tracemalloc.take_snapshot()
-    top_stats = snapshot.statistics('lineno')
-    logger.debug(f"[{label}]: {top_stats[:5]}")
 
 class MinExposedProgram:
     def __init__(self, info: InfectionInfo, solver_id="GLOP"):
@@ -576,6 +567,10 @@ def grader(
     num_samples=1,
     solver_id="GUROBI_LP",
 ):
+    """
+    Grader works by fixing the quarantine solutions, and solving for the solution
+    
+    """
     gproblem = MinExposedSAA.create(
         G=G,
         SIR=SIR,

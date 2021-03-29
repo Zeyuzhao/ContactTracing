@@ -38,8 +38,9 @@ def simplify(alpha:float, beta:float):
         
         return (1,1,-1,-1)
         
-def D(p):
+def D(p, seed=None):
     t = len(p)
+    np.random.seed(seed)
     sample = np.full(t,-1)
     prob = np.array(p,copy=True)
     
