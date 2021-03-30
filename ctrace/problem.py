@@ -250,7 +250,7 @@ class MinExposedSAA(MinExposedProgram):
         num_samples=10, 
         seed=42,
         aggregation_method="max", # "max" | "mean"
-        solver_id="GUROBI", # "GUORBI" | "GLOP" | "SCIP"
+        solver_id="GLOP", # "GUORBI" | "GLOP" | "SCIP"
     ):
         self.seed = seed
         self.result = None
@@ -574,7 +574,7 @@ def grader(
     structure_rate=0,
     grader_seed=None,
     num_samples=1,
-    solver_id="GUROBI_LP",
+    solver_id="GLOP",
 ):
     gproblem = MinExposedSAA.create(
         G=G,
