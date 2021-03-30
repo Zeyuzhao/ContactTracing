@@ -8,7 +8,7 @@ from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Variable, Constraint, Objective
 
 from .round import D_prime
-from .utils import pq_independent, find_excluded_contours, min_exposed_objective
+from .utils import pq_independent_edges, find_excluded_contours, min_exposed_objective
 from .simulation import InfectionInfo
 
 class MinExposedProgram:
@@ -27,7 +27,8 @@ class MinExposedProgram:
             raise ValueError("Solver failed to initialize!")
             
         # Compute P, Q from SIR
-        self.P, self.Q = pq_independent(self.G, self.SIR.I, self.contour1, self.p)
+        #self.P, self.Q = pq_independent(self.G, self.SIR.I, self.contour1, self.p)
+        self.P, self.Q = pq_independent_edges(self.G, self.SIR.I, info.V1, info.V2, info.compliance_known)
     
         # Partial evaluation storage
         self.partials = {}

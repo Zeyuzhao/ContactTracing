@@ -53,7 +53,6 @@ def union_neighbors(G: nx.Graph, initial: Set[int], excluded: Set[int]):
     total = set().union(*[G.neighbors(v) for v in initial])
     return total - excluded
 
-#TODO: Alter V2 to include...
 def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate:float = 1, snitch_rate:float = 1, compliance_known:bool = True):
     """Finds V1_known and V2_known from a graph without including elements in the excluded set"""
     # probability calculation for v2_k: 1-(1-q)^k; let k = number of nodes in v1_k with an edge connecting to the node v
@@ -92,8 +91,8 @@ def pq_independent_edges(G: nx.Graph, I: Iterable[int], V1: Iterable[int], V2: I
     """
     Guarantees: v from V1 is not quarantined, somehow reachable from I
     """
-    P = {v: 1 - math.prod(1-(G[i][v]["compliance_transmission"][i][1] if check_edge_transmission(G, i, v, compliance_known) else 0) for i  in set(G.neighbors(v) & set(I))) for v in V1}
-    Q = {u: {v: G[u][v]["compliance_transmission"][u][1] for v in set(G.neighbors(u) & set(V2))} for u in V1}
+    P = {v: 1 - math.prod(1-(G[i][v]["compliance_transmission"][i][1] if check_edge_transmission(G, i, v, compliance_known) else 0) for i  in set(set(G.neighbors(v)) & set(I))) for v in V1}
+    Q = {u: {v: G[u][v]["compliance_transmission"][u][1] for v in set(set(G.neighbors(u)) & set(V2))} for u in V1}
     return P, Q
 
 #TODO: Consider partial compliance

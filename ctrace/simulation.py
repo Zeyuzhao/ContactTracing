@@ -83,7 +83,7 @@ class SimulationState:
     def step(self, to_quarantine: Set[int]):
         
         #Set G[u][v]['compliance_transmission'] in the elif
-        def edge_transmission(u, v, G):
+        def edge_transmission_hid(u, v, G):
             if (G.nodes[v]["quarantine"]==1):
                 return 0
             elif (G.nodes[u]['quarantine'] == 1 and G.nodes[u]['hid'] != G.nodes[v]['hid']):
@@ -92,7 +92,15 @@ class SimulationState:
             else:
                 return 1 if random.random() < G[u][v]['compliance_transmission'][u][1] else 0
         
-        full_data = EoN.discrete_SIR(G = self.G, test_transmission = edge_transmission, args = (self.G,), initial_infecteds=self.SIR_real.SIR[1], initial_recovereds=self.SIR_real.SIR[2], tmin=0, tmax=1, return_full_data=True)
+        def edge_transmission(u, v, G):
+            if (G.nodes[v]["quarantine"]==1):
+                return 0
+            elif (G.nodes[u]['quarantine'] == 1):
+                return 1 if random.random() < ((1-G[u][v]['compliance_transmission'][u][0]) * G[u][v]['compliance_transmission'][u][1]) else 0
+            else:
+                return 1 if random.random() < G[u][v]['compliance_transmission'][u][1] else 0
+        
+        full_data = EoN.discrete_SIR(G = self.G, test_transmission = edge_transmission_hid, args = (self.G,), initial_infecteds=self.SIR_real.SIR[1], initial_recovereds=self.SIR_real.SIR[2], tmin=0, tmax=1, return_full_data=True)
         #full_data = EoN.discrete_SIR(G = self.G, args = (self.SIR_real.transmission_rate,), initial_infecteds=self.SIR_real.SIR[1], initial_recovereds=self.SIR_real.SIR[2], tmin=0, tmax=1, return_full_data=True)
         
         S = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'S']
@@ -120,6 +128,7 @@ class SimulationState:
         for node in self.G.nodes:
             self.G.nodes[node]['quarantine'] = 1 if node in to_quarantine else 0
             #regenerate random compliance along edges
+            #TODO: check if it resets any old compliances by accident
             if node in self.SIR_real.SIR.I:
                 for ngbr in self.G.neighbors(node):
                     self.G[node][ngbr]['compliance_transmission'][node] = (0 if random.random() > self.G.nodes[node]["compliance_rate"] else 1, self.G[node][ngbr]['compliance_transmission'][node][1])

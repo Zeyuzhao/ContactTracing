@@ -4,7 +4,7 @@ import numpy as np
 import networkx as nx
 
 from .round import D_prime
-from .utils import pq_independent, find_excluded_contours, min_exposed_objective
+from .utils import pq_independent_edges, find_excluded_contours, min_exposed_objective
 from .simulation import *
 from .problem import *
 
@@ -32,7 +32,7 @@ def Degree(state: SimulationState):
 # TODO: Test code! V2 -> set V2
 def DegGreedy(state: SimulationState):
     info = state.SIR_known
-    P, Q = pq_independent(info.G, info.SIR.I, info.V1, info.transmission_rate)
+    P, Q = pq_independent_edges(info.G, info.SIR.I, info.V1, info.V2, info.compliance_known)
     
     weights: List[Tuple[int, int]] = []
     for u in info.V1:
