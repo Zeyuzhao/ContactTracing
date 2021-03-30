@@ -53,18 +53,50 @@ def union_neighbors(G: nx.Graph, initial: Set[int], excluded: Set[int]):
     total = set().union(*[G.neighbors(v) for v in initial])
     return total - excluded
 
-
-def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate:float = 1, snitch_rate:float = 1):
+#TODO: Alter V2 to include...
+def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate:float = 1, snitch_rate:float = 1, compliance_known:bool = True):
     """Finds V1_known and V2_known from a graph without including elements in the excluded set"""
     # probability calculation for v2_k: 1-(1-q)^k; let k = number of nodes in v1_k with an edge connecting to the node v
-    v1 = set().union(*[G.neighbors(v) for v in (set(infected)-set(excluded))]) - (set(infected)|set(excluded))
+    #v1 = set().union(*[G.neighbors(v) for v in (set(infected)-set(excluded))]) - (set(infected)|set(excluded))
+    v1 = set().union(*[effective_neighbor(G, v, G.neighbors(v), compliance_known) for v in (set(infected)-set(excluded))]) - (set(infected) | set(excluded))
     v1_k = {v for v in v1 if random.uniform(0,1) < discovery_rate}
-    v1_k_nbrs = set().union(*[G.neighbors(v) for v in v1_k]) - (set(infected)|set(excluded)|set(v1_k))
+    v1_k_nbrs = set().union(*[G.neighbors(v) for v in v1_k]) - (set(infected) | set(excluded) | set(v1_k))
     v2_k = {v for v in v1_k_nbrs
             if random.uniform(0,1) < (1-((1-snitch_rate) ** len(set(G.neighbors(v)).intersection(v1_k))))}
     return v1_k, v2_k
 
+def effective_neighbor(G: nx.Graph, infected: int, target: list, compliance_known: bool):
+    """
+    Filters out edges of no transmission for G.neighbors
+    """
+    effective_neighbors = set()
+    for v in target:
+        if check_edge_transmission(G, infected, v, compliance_known):
+            effective_neighbors.add(v)
+    return effective_neighbors
 
+def check_edge_transmission(G: nx.Graph, infected: int, target: int, compliance_known: bool) -> bool:
+    """
+    Given node u, infected and node v, neighbor
+    Does not transmit when:
+    1) v is quarantined
+    2) u is quarantined and complies along edge uv and u,v are not in the same household
+    """
+    if compliance_known:
+        return not (G.nodes[target]["quarantine"]==1 or 
+        (G.nodes[infected]["quarantine"]==1 and G[infected][target]["compliance_transmission"][infected][0]==1 and G.nodes[infected]["hid"]!=G.nodes[target]["hid"]))
+    else:
+        return not (G.nodes[infected]["quarantine"]==1 or G.nodes[target]["quarantine"]==1)
+
+def pq_independent_edges(G: nx.Graph, I: Iterable[int], V1: Iterable[int], V2: Iterable[int], compliance_known: bool):
+    """
+    Guarantees: v from V1 is not quarantined, somehow reachable from I
+    """
+    P = {v: 1 - math.prod(1-(G[i][v]["compliance_transmission"][i][1] if check_edge_transmission(G, i, v, compliance_known) else 0) for i  in set(G.neighbors(v) & set(I))) for v in V1}
+    Q = {u: {v: G[u][v]["compliance_transmission"][u][1] for v in set(G.neighbors(u) & set(V2))} for u in V1}
+    return P, Q
+
+#TODO: Consider partial compliance
 def pq_independent(G: nx.Graph, I: Iterable[int], V1: Iterable[int], p: float):
     # Returns dictionary P, Q
     # Calculate P, (1-P) ^ [number of neighbors in I]
