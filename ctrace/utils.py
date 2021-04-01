@@ -70,11 +70,11 @@ def effective_neighbor(G: nx.Graph, infected: int, target: list, compliance_know
     """
     effective_neighbors = set()
     for v in target:
-        if check_edge_transmission(G, infected, v, compliance_known):
+        if check_edge_transmission_hid(G, infected, v, compliance_known):
             effective_neighbors.add(v)
     return effective_neighbors
 
-def check_edge_transmission(G: nx.Graph, infected: int, target: int, compliance_known: bool) -> bool:
+def check_edge_transmission_hid(G: nx.Graph, infected: int, target: int, compliance_known: bool) -> bool:
     """
     Given node u, infected and node v, neighbor
     Does not transmit when:
@@ -87,11 +87,24 @@ def check_edge_transmission(G: nx.Graph, infected: int, target: int, compliance_
     else:
         return not (G.nodes[infected]["quarantine"]==1 or G.nodes[target]["quarantine"]==1)
 
+def check_edge_transmission(G: nx.Graph, infected: int, target: int, compliance_known: bool) -> bool:
+    """
+    Given node u, infected and node v, neighbor
+    Does not transmit when:
+    1) v is quarantined
+    2) u is quarantined and complies along edge uv
+    """
+    if compliance_known:
+        return not (G.nodes[target]["quarantine"]==1 or 
+        (G.nodes[infected]["quarantine"]==1 and G[infected][target]["compliance_transmission"][infected][0]==1))
+    else:
+        return not (G.nodes[infected]["quarantine"]==1 or G.nodes[target]["quarantine"]==1)
+
 def pq_independent_edges(G: nx.Graph, I: Iterable[int], V1: Iterable[int], V2: Iterable[int], compliance_known: bool):
     """
     Guarantees: v from V1 is not quarantined, somehow reachable from I
     """
-    P = {v: 1 - math.prod(1-(G[i][v]["compliance_transmission"][i][1] if check_edge_transmission(G, i, v, compliance_known) else 0) for i  in set(set(G.neighbors(v)) & set(I))) for v in V1}
+    P = {v: 1 - math.prod(1-(G[i][v]["compliance_transmission"][i][1] if check_edge_transmission_hid(G, i, v, compliance_known) else 0) for i  in set(set(G.neighbors(v)) & set(I))) for v in V1}
     Q = {u: {v: G[u][v]["compliance_transmission"][u][1] for v in set(set(G.neighbors(u)) & set(V2))} for u in V1}
     return P, Q
 
@@ -285,6 +298,58 @@ def load_graph(dataset_name, graph_folder=None):
     # Set name of graphs
     G.G["name"] = dataset_name
     return G
+
+def load_graph_hid_duration():
+    G = nx.Graph()
+    G.NAME = "cville"
+    nodes = {}
+    rev_nodes = []
+    cnode_to_labels = {}
+    edges_to_duration = {}
+    file = open(PROJECT_ROOT / "data/raw/charlottesville.txt", "r")
+    file.readline()
+    lines = file.readlines()
+    c = 0
+    c_node=0
+    
+    labels_df = pd.read_csv(PROJECT_ROOT/"data/raw/cville/cville_labels.txt")
+    labels_df = labels_df[["pid", "hid"]]
+    labels_dict = {}
+    for index, ids in labels_df.iterrows():
+        labels_dict[ids["pid"].item()] = ids["hid"].item()
+    
+    for line in lines:
+
+        a = line.split()
+        u = int(a[1])
+        v = int(a[2])
+        duration = int(a[3])
+
+        if u in nodes.keys():
+            u = nodes[u]
+        else:
+            nodes[u] = c_node
+            rev_nodes.append(u)
+            cnode_to_labels[c_node] = labels_dict[u];
+            u = c_node
+            c_node+=1        
+
+        if v in nodes.keys():
+            v = nodes[v]
+        else:
+            nodes[v] = c_node
+            rev_nodes.append(v)
+            cnode_to_labels[c_node] = labels_dict[v];
+            v = c_node
+            c_node+=1
+
+        G.add_edge(u,v)
+        edges_to_duration[(u,v)] = duration
+    
+    nx.set_node_attributes(G, cnode_to_labels, 'hid')
+    nx.set_edge_attributes(G, edges_to_duration, 'duration')
+    
+    return G;
 
 def load_graph_cville(fp = "undirected_albe_1.90.txt"):
     graph_file = PROJECT_ROOT / "data" / "raw" / fp

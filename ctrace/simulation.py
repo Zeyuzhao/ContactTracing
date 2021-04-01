@@ -4,6 +4,7 @@ import random
 import EoN
 import networkx as nx
 import numpy as np
+import math
 
 from typing import Set
 from collections import namedtuple
@@ -24,14 +25,23 @@ class SimulationState:
         node_to_compliance = {}
         edge_to_compliance = {}
         compliance_edge = 0
+        
+        min_duration = min(nx.get_edge_attributes(G, "duration").values())
+        max_duration = max(nx.get_edge_attributes(G, "duration").values())
+        mean_duration = sum(nx.get_edge_attributes(G, "duration").values())/len(nx.get_edge_attributes(G, "duration"))
+        lambda_cdf = -math.log(1-transmission_rate)/mean_duration
+        exponential_cdf = lambda x: 1-math.exp(-lambda_cdf*x)
+        
         for node in G.nodes():
             G.nodes[node]['quarantine'] = 0
             node_to_compliance[node] = compliance_rate[node]
-            if not partial_compliance: compliance_edge = (0 if random.random()>compliance_rate[node] else 1, transmission_rate)
+            if not partial_compliance: compliance = 0 if random.random()>compliance_rate[node] else 1
             for nbr in G.neighbors(node):
                 order = (node,nbr)
                 if node>nbr: order = (nbr, node)
-                if partial_compliance: compliance_edge = (0 if random.random()>compliance_rate[node] else 1, transmission_rate)
+                transmission_edge = exponential_cdf(G[node][nbr]["duration"])
+                if partial_compliance: compliance_edge = (0 if random.random()>compliance_rate[node] else 1, transmission_edge)
+                else: compliance_edge = (compliance, transmission_edge)
                 if order not in edge_to_compliance: edge_to_compliance[order] = {node: compliance_edge}
                 else: edge_to_compliance[order][node] = compliance_edge
         
