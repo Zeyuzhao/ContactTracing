@@ -28,6 +28,16 @@ def Degree(state: SimulationState):
     degrees.sort(reverse=True)
     return {i[1] for i in degrees[:info.budget]}
 
+def Degree2(state: SimulationState):
+    info = state.SIR_known
+    
+    degrees: List[Tuple[int, int]] = []
+    for u in info.V1:
+        count = sum([1 for v in info.G.neighbors(u) if v in info.V2 or v in info.V1])
+        degrees.append((count, u))
+        
+    degrees.sort(reverse=True)
+    return {i[1] for i in degrees[:info.budget]}
 
 # TODO: Test code! V2 -> set V2
 def DegGreedy(state: SimulationState):
@@ -42,6 +52,18 @@ def DegGreedy(state: SimulationState):
     weights.sort(reverse=True)
     return {i[1] for i in weights[:info.budget]}
 
+def DegGreedy2(state: SimulationState):
+    info = state.SIR_known
+    P, Q = pq_independent(info.G, info.SIR.I, info.V1, info.transmission_rate[info.time_stage])
+    
+    weights: List[Tuple[int, int]] = []
+    for u in info.V1:
+        w_sum_v2 = sum([Q[u][v] for v in info.G.neighbors(u) if v in info.V2]) # V2 is a set!
+        w_sum_v1 = sum([Q[u][v]*(1-P[v]) for v in info.G.neighbors(u) if v in info.V1])
+        weights.append((P[u] * (w_sum_v2+w_sum_v1), u))
+
+    weights.sort(reverse=True)
+    return {i[1] for i in weights[:info.budget]}
 
 def DepRound(state: SimulationState):
     
