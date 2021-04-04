@@ -25,17 +25,31 @@ import networkx as nx
 # Create graph (with diagonal connections) to experiment on
 
 seed=42
-G, pos = grid_2d(20, seed=seed)
+G, pos = small_world_grid(8, max_norm=False, sparsity=0.1, local_range=1, num_long_range=1, r=2, seed=42)
+# G, pos = grid_2d(8, seed=42, diagonals=True, sparsity=0.2, global_rate=0)
+# G = nx.scale_free_graph(100)
+# G = nx.generators.navigable_small_world_graph(10, p=1, q=1, r=2, dim=2, seed=None)
+# G = G.to_undirected()
 
-SIR = random_init(G, num_infected=20, seed=seed)
+# mapper = {n : i for i, n in enumerate(G.nodes())}
+# pos = {i:(y ,-x) for i, (x,y) in enumerate(G.nodes())}
+# G = nx.relabel_nodes(G, mapper)
+
+# pos = nx.nx_agraph.graphviz_layout(G, prog="sfdp", args="-Goverlap=false")
+# pos = nx.nx_agraph.graphviz_layout(G, prog="sfdp", args="")
+SIR = random_init(G, num_infected=10, seed=seed)
 budget=50
-transmission_rate=0.8 
+transmission_rate=1
 compliance_rate=0.8
 structure_rate=0
 
 # Create infection state
-# infection_info = InfectionInfo(G, SIR, budget=0, transmission_rate=0)
-draw_single(G, pos=pos, sir=SIR, edges=G.edges, title="Graph Struct")
+# # infection_info = InfectionInfo(G, SIR, budget=0, transmission_rate=0)
+edges = list(G.edges.data("long", default=False))
+# long_edges= list(filter(lambda x: x[2], edges))
+# short_edges= list(filter(lambda x: not x[2], edges))
+draw_single(G, pos=pos, sir=SIR, edges=edges, title="Graph Struct", figsize=(5,5))
+
 
 #%%
 sample_dim = (2, 2)
@@ -187,7 +201,7 @@ def viz_saa(problem: MinExposedSAA):
         args.append({
             "title": f"Graph[{sample_num}]: LP.{problem.aggregation_method}: {z_value:.3f}",
             "pos": pos, 
-            "sir":SIR, 
+            "sir":SIR,
             "quarantined_nodes":action, 
             "non_compliant_nodes": non_compliant_samples, 
             "exposed_nodes": exposed_v2, 
@@ -201,4 +215,10 @@ fig, ax = viz_saa(gproblem_greedy)
 fig, ax = viz_saa(gproblem_minex)
 # %%
 fig.savefig("multi.png")
+# %%
+
+# %%
+
+# %%
+
 # %%
