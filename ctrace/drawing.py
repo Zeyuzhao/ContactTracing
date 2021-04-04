@@ -120,7 +120,7 @@ def small_world_grid(width: int, max_norm=False, sparsity=0, local_range=1, num_
         probs = np.array(probs) / np.sum(probs)
         targets = np.random.choice(len(probs), size=num_long_range, p=probs)
         for t in targets:
-            p2 = nodes[t]
+            p2 = nodes[t] # Convert int -> real id
             G.add_edge(p1, p2, long=dist(p1,p2) > local_range)
 
     G.remove_nodes_from(uniform_sample(G.nodes(), sparsity))

@@ -104,7 +104,7 @@ def runner(
     saa_objectives = [problem.lp_objective_value(i) for i in range(num_samples)]
     saa_objective_value = max(saa_objectives)
     # Evaluation
-    grader_seed = seed + 10000 # arbitary value
+    grader_seed = seed # arbitary value
 
     gproblem = grader(
         G,
@@ -231,9 +231,9 @@ run.add_cartesian({
     "budget":[100, 200, 300, 400],
     # Method 
     "method":["SAA"],
-    "num_samples":[500],
+    "num_samples":[100],
     # Evaluation
-    "eval_num_samples":[500],
+    "eval_num_samples":[100],
     "eval_aggregation_method":["max"],
     # Seeding
     "seed":[100,200,300,400,500],

@@ -1,3 +1,8 @@
 *.txt filter=lfs diff=lfs merge=lfs -text
 data/** filter=lfs diff=lfs merge=lfs -text
 output/** filter=lfs diff=lfs merge=lfs -text
+output/run_73Z4n filter=lfs diff=lfs merge=lfs -text
+output/run_WTH2f filter=lfs diff=lfs merge=lfs -text
+output/run_WVU8n filter=lfs diff=lfs merge=lfs -text
+output/run_Z6c3h filter=lfs diff=lfs merge=lfs -text
+output/run_jaCJw filter=lfs diff=lfs merge=lfs -text

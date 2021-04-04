@@ -25,7 +25,7 @@ import networkx as nx
 # Create graph (with diagonal connections) to experiment on
 
 seed=42
-G, pos = small_world_grid(8, max_norm=False, sparsity=0.1, local_range=1, num_long_range=1, r=2, seed=42)
+G, pos = small_world_grid(8, max_norm=False, sparsity=0.1, local_range=1, num_long_range=0, r=2, seed=42)
 # G, pos = grid_2d(8, seed=42, diagonals=True, sparsity=0.2, global_rate=0)
 # G = nx.scale_free_graph(100)
 # G = nx.generators.navigable_small_world_graph(10, p=1, q=1, r=2, dim=2, seed=None)

@@ -159,7 +159,7 @@ class MultiExecutor():
             item["path"] = self.output_directory
         
         with mp.Pool(self.num_process) as pool:
-            list(tqdm.tqdm(pool.imap(self.runner, self.tasks), total=len(self.tasks)))
+            list(tqdm.tqdm(pool.imap_unordered(self.runner, self.tasks), total=len(self.tasks)))
 
 
         # Clean up workers
