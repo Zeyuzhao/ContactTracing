@@ -1,11 +1,12 @@
 #%%
 import shortuuid
 from ctrace import PROJECT_ROOT
-from ctrace.exec.param import GraphParam, SIRParam, FileParam
+from ctrace.exec.param import GraphParam, SIRParam, FileParam, Param
 from pathlib import Path, PurePath
 import multiprocessing as mp
 import concurrent.futures
 from typing import List, Tuple, Dict, Any, Callable
+from zipfile import ZipFile
 import itertools
 import pandas as pd
 import numpy as np
@@ -13,10 +14,23 @@ import tqdm
 import csv
 import random
 import time
+import pickle
+import json
+import shutil
+
+
 class MultiExecutor():
     INIT = 0
     EXEC = 1
-    def __init__(self, runner: Callable, schema: List[Tuple[str, type]], output_id: str = None, seed: bool = True, validation: bool = True):
+    def __init__(
+        self, 
+        runner: Callable, 
+        schema: List[Tuple[str, type]], 
+        post_execution: Callable = lambda self: self, 
+        output_id: str = None, 
+        seed: bool = True, 
+        validation: bool = True
+    ):
         self.runner = runner
         self.schema = schema
 
@@ -30,7 +44,7 @@ class MultiExecutor():
         self.manager = mp.Manager()
         
         # Filter FileParams from schema
-        self.file_params = [l for (l, t) in schema if issubclass(t, FileParam)]
+        self.file_params = [l for (l, t) in schema if issubclass(t, Param)]
 
         # Executor Parameters
         self.seed: bool = seed
@@ -44,6 +58,8 @@ class MultiExecutor():
         # Initialize functions
         self.output_id = output_id
         self.init_output_directory()
+
+        self.post_execution = post_execution
 
     def init_output_directory(self):
         if self.output_id is None:
@@ -76,7 +92,9 @@ class MultiExecutor():
                         raise ValueError(f"Property [{prop_name}]: item [{item}] is not a [{prop_type}]")
 
         # Collect signatures from FileParams
-        self.tasks.extend(MultiExecutor.cartesian_product(config))
+        new_tasks = list(MultiExecutor.cartesian_product(config))
+        self.tasks.extend(new_tasks)
+        print(f"Attached {len(new_tasks)} tasks.")
 
     def add_collection(self, collection: List[Dict[str, Any]]):
         if self.validation:
@@ -138,6 +156,7 @@ class MultiExecutor():
         for item in self.tasks:
             item["queues"] = self.queues
             item["loggers"] = self.loggers
+            item["path"] = self.output_directory
         
         with mp.Pool(self.num_process) as pool:
             list(tqdm.tqdm(pool.imap(self.runner, self.tasks), total=len(self.tasks)))
@@ -150,13 +169,16 @@ class MultiExecutor():
         for p in processes:
             p.join()
 
+        # TODO: Join the main and auxillary csvs???
+        self.post_execution(self)
+
 class Worker():
     def __init__(self):
         self.queue = mp.Queue()
     def start():
         raise NotImplementedError()
 
-class CsvWorker(Worker):
+class CsvSchemaWorker(Worker):
     # TODO: Inject destination?
     def __init__(self, name, schema, relpath: PurePath, run_root: Path = None, queue = None):
         """
@@ -196,7 +218,56 @@ class CsvWorker(Worker):
             writer = csv.DictWriter(f, self.schema, restval=self.default, extrasaction='ignore')
             writer.writeheader()
             print(f'INFO: Worker {self.name} initialized @ {self.path}')
-            start = time.time()
+            while True:
+                msg = self.queue.get()
+                if (msg == self.terminator):
+                    print(f"INFO: Worker {self.name} finished")
+                    break
+                # Filter for default
+                # data = {l: (msg.get(l, self.default)) for l in self.schema}
+                writer.writerow(msg)
+                f.flush()
+                # print(f'DEBUG: Worker {self.name} writes entry {msg.get("id")}')
+
+class CsvWorker(Worker):
+    # TODO: Inject destination?
+    def __init__(self, name, relpath: PurePath, run_root: Path = None, queue = None):
+        """
+        Listens on created queue for dicts. Worker will extract only data specified from dicts
+        and fills with self.NA if any attribute doesn't exist.
+
+        Dicts should contain id, preferrably as first element of schema
+
+        Will stop if dict is passed a terminating object (self.term).
+
+        """
+        # Should be unique within a collection!
+        self.name = name
+        self.queue = queue
+        self.relpath = relpath
+        self.run_root = run_root
+
+        # Default value
+        self.default = None
+        # Terminating value
+        self.terminator = "done"
+    def start(self):
+        """
+        Each objected piped to queue must be in form [id, val1, val2 ...]
+        """
+        # TODO: Replace prints with logging
+        if self.run_root is None:
+            raise ValueError('run_root needs to a path')
+
+        if self.queue is None:
+            raise ValueError('need to pass a queue to run')
+
+        self.path = self.run_root / self.relpath
+
+        with open(self.path, 'w') as f:
+            writer = csv.writer(f)
+            writer.writerow(["id", "vals"])
+            print(f'INFO: CsvWorker {self.name} initialized @ {self.path}')
             while True:
                 msg = self.queue.get()
                 if (msg == self.terminator):
@@ -218,13 +289,25 @@ if __name__ == '__main__':
         ('compliance_rate', float),
         ('method', str),
     ]
+    
+    main_out_schema = ["id", "out_method"]
+    aux_out_schema = ["id", "runtime"]
+
+    main_handler = CsvWorker("csv_main", main_out_schema, PurePath('main.csv'))
+    aux_handler = CsvWorker("csv_aux", aux_out_schema, PurePath('aux.csv'))
 
     def runner(data):
 
         queues = data["queues"]
         instance_id = data["id"]
         method = data["method"]
+        graph = data["graph"]
+        compliance_rate = data["compliance_rate"]
+        sir = data["sir"]
+        # Execute logic here ... 
 
+
+        # Output data to workers and folders
         main_obj = {
             "id": instance_id,
             "out_method": method,
@@ -234,11 +317,26 @@ if __name__ == '__main__':
             "id": instance_id,
             "runtime": random.random()
         }
-
         queues["csv_main"].put(main_obj)
         queues["csv_aux"].put(aux_obj)
 
-    run = MultiExecutor(runner, in_schema, seed=True)
+        # Save large checkpoint data ("High data usage")
+        save_extra = False
+        if save_extra:
+            path = data["path"] / "data" / str(data["id"])
+            path.mkdir(parents=True, exist_ok=True)
+
+            with open(path / "sir_dump.json", "w") as f:
+                json.dump(sir, f)
+        
+    def post_execution(self):
+        compress=False
+        if self.output_directory / "data".exists() and compress:
+            print("Compressing files ...")
+            shutil.make_archive(str(self.output_directory / "data"), 'zip', base_dir="data")
+            shutil.rmtree(self.output_directory / "data")
+
+    run = MultiExecutor(runner, in_schema, post_execution=post_execution, seed=True)
 
     # Add compact tasks (expand using cartesian)
     mont = GraphParam('montgomery')
@@ -274,14 +372,11 @@ if __name__ == '__main__':
         'method': "greedy"
     }])
 
-    main_out_schema = ["mean_objective_value", "max_objective_value", "std_objective_value"]
-    main_out_schema = ["id", "out_method"]
-    main_handler = CsvWorker("csv_main", main_out_schema, PurePath('main.csv'))
-
-    aux_out_schema = ["id", "runtime"]
-    aux_handler = CsvWorker("csv_aux", aux_out_schema, PurePath('aux.csv'))
+    # main_out_schema = ["mean_objective_value", "max_objective_value", "std_objective_value"]
 
     run.attach(main_handler)
     run.attach(aux_handler)
 
     run.exec()
+
+# %%

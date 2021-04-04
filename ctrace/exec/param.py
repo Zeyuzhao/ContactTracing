@@ -39,8 +39,13 @@ def load_sir_path(path: Path, merge=True):
             del data["I_Queue"]
         # dict to sir_tuple
         return SIR_Tuple(data["S"], data["I"], data["R"])
+
 @dataclass
-class FileParam:
+class Param:
+    name: str = field(repr=True)
+    data: Any = field(init=False, repr=False)
+@dataclass
+class FileParam(Param):
     """
     Class for keeping track of files as parameters
     (Abstract)

@@ -205,6 +205,15 @@ class MinExposedProgram:
             raise ValueError("Must call recommend() before retrieving objective value")
         min_exposed_objective(self.info.G, self.info.SIR, self.info.transmission_rate, self.result)
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state['solver']
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+
+    
 
 class MinExposedLP(MinExposedProgram):
     def __init__(self, info: InfectionInfo, solver_id="GLOP"):
@@ -387,7 +396,7 @@ class MinExposedSAA(MinExposedProgram):
     def init_variables(self):
         if self.solver_id.upper() == "GUROBI":
             self.init_int_variables()
-            print("Integer Solving ...")
+            # print("Integer Solving ...")
         else:
             self.init_frac_variables()
 
@@ -489,11 +498,11 @@ class MinExposedSAA(MinExposedProgram):
             return self.max_lp_objective()
         raise ValueError(f"Invalid Aggregation Method: {self.aggregation_method}")
 
-    def lp_objective_value(self):
+    def lp_objective_value(self, i=None):
         if self.aggregation_method == "mean":
-            return self.mean_lp_objective_value()
+            return self.mean_lp_objective_value(i)
         elif self.aggregation_method == 'max':
-            return self.max_lp_objective_value()
+            return self.max_lp_objective_value(i)
         raise ValueError(f"Invalid Aggregation Method: {self.aggregation_method}")
 
     # Max aggregation 
@@ -565,6 +574,7 @@ def grader(
     structure_rate=0,
     grader_seed=None,
     num_samples=1,
+    aggregation_method="max",
     solver_id="GUROBI_LP",
 ):
     """
@@ -580,6 +590,7 @@ def grader(
         structure_rate=structure_rate,
         num_samples=num_samples,
         seed=grader_seed,
+        aggregation_method=aggregation_method,
         solver_id=solver_id,
     )
 
@@ -591,7 +602,7 @@ def grader(
         gproblem.set_variable_id(node, 0)
 
     _ = gproblem.solve_lp()
-    return gproblem.objective_value
+    return gproblem
 
 def optimal_baseline(
     G,
