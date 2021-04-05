@@ -8,16 +8,15 @@ from .utils import pq_independent, find_excluded_contours, min_exposed_objective
 from .simulation import *
 from .problem import *
 
-def NoIntervention(state: SimulationState):
+def NoIntervention(state: InfectionState):
     return set()
 
 
-def Random(state: SimulationState):
+def Random(state: InfectionState):
     return set(random.sample(state.SIR_known.V1, min(state.SIR_known.budget, len(state.SIR_known.V1))))
 
 
-# TODO: Test code! (Removed set)
-def Degree(state: SimulationState):
+def Degree(state: InfectionState):
     info = state.SIR_known
     
     degrees: List[Tuple[int, int]] = []
@@ -30,7 +29,7 @@ def Degree(state: SimulationState):
 
 
 # TODO: Test code! V2 -> set V2
-def DegGreedy(state: SimulationState):
+def DegGreedy(state: InfectionState):
     info = state.SIR_known
     P, Q = pq_independent(info.G, info.SIR.I, info.V1, info.transmission_rate[info.time_stage])
     
@@ -43,7 +42,7 @@ def DegGreedy(state: SimulationState):
     return {i[1] for i in weights[:info.budget]}
 
 
-def DepRound(state: SimulationState):
+def DepRound(state: InfectionState):
     
     problem = MinExposedLP(state.SIR_known)
     problem.solve_lp()
@@ -52,7 +51,7 @@ def DepRound(state: SimulationState):
 
     return set([problem.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
 
-def SAA_Diffusion(state: SimulationState, debug=False, num_samples=10):
+def SAA_Diffusion(state: InfectionState, debug=False, num_samples=10):
     problem = MinExposedSAADiffusion(state.SIR_known, num_samples=num_samples)
     problem.solve_lp()
     probabilities = problem.get_variables()

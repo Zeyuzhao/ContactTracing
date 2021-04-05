@@ -7,12 +7,12 @@ from typing import Dict, List, Tuple
 from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Variable, Constraint, Objective
 
-from .round import D_prime
-from .utils import pq_independent, find_excluded_contours, min_exposed_objective
-from .simulation import InfectionInfo
+from .round import *
+from .utils import *
+from .simulation import *
 
 class MinExposedProgram:
-    def __init__(self, info: InfectionInfo, solver_id="GLOP"):
+    def __init__(self, info: InfectionState, solver_id="GLOP"):
         
         self.result = None
         self.info = info
@@ -176,7 +176,7 @@ class MinExposedProgram:
 
 
 class MinExposedLP(MinExposedProgram):
-    def __init__(self, info: InfectionInfo, solver_id="GLOP"):
+    def __init__(self, info: InfectionState, solver_id="GLOP"):
         super().__init__(info, solver_id)
 
     def init_variables(self):
@@ -189,7 +189,7 @@ class MinExposedLP(MinExposedProgram):
 
 
 class MinExposedIP(MinExposedProgram):
-    def __init__(self, info: InfectionInfo, solver_id="GUROBI"):
+    def __init__(self, info: InfectionState, solver_id="GUROBI"):
         super().__init__(info, solver_id)
 
     def init_variables(self):
@@ -201,7 +201,7 @@ class MinExposedIP(MinExposedProgram):
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
 
 class MinExposedSAADiffusion(MinExposedProgram):
-    def __init__(self, info: InfectionInfo, solver_id="GLOP", num_samples=10, seed=42):
+    def __init__(self, info: InfectionState, solver_id="GLOP", num_samples=10, seed=42):
         self.result = None
         self.info = info
         self.G = info.G

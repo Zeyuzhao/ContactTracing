@@ -13,7 +13,7 @@ from . import PROJECT_ROOT
 
 SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I1", "I2", "R"])
                 
-class InfectionInfo:
+class InfectionState:
     
     def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, transmission_rate:float, compliance_rate:float = 1, I_knowledge:float = 1, discovery_rate:float = 1, snitch_rate:float = 1):
         self.G = G
@@ -23,7 +23,42 @@ class InfectionInfo:
         self.compliance_rate = compliance_rate
         self.discovery_rate = discovery_rate
         self.snitch_rate = snitch_rate
-        self.quarantined = ([],[],[])
+        
+        node_to_compliance = {}
+        edge_to_compliance = {}
+        compliance_edge = 0
+        
+        mean_duration = np.mean(nx.get_edge_attributes(G, "duration").values())
+        lambda_cdf = -math.log(1-transmission_rate)/mean_duration
+        exponential_cdf = lambda x: 1-math.exp(-lambda_cdf*x)
+        
+        for node in G.nodes():
+            G.nodes[node]['quarantine'] = 0
+            node_to_compliance[node] = compliance_rate
+            
+            if not partial_compliance: 
+                compliance = 0 if random.random()>compliance_rate else 1
+            
+            for nbr in G.neighbors(node):
+                order = (node,nbr)
+                
+                if node>nbr: 
+                    order = (nbr, node)
+                
+                transmission_edge = exponential_cdf(G[node][nbr]["duration"])
+                
+                if partial_compliance:
+                    compliance_edge = (0 if random.random()>compliance_rate else 1, transmission_edge)
+                else: 
+                    compliance_edge = (compliance, transmission_edge)
+                    
+                if order not in edge_to_compliance: 
+                    edge_to_compliance[order] = {node: compliance_edge}
+                else: 
+                    edge_to_compliance[order][node] = compliance_edge
+        
+        nx.set_node_attributes(G, node_to_compliance, 'compliance_rate')
+        nx.set_edge_attributes(G, edge_to_compliance, 'compliance_transmission')
         
         # initialize V1 and V2
         self.set_contours()
@@ -62,35 +97,20 @@ class InfectionInfo:
 
     def step(self, quarantine: Set[int]):
         # moves the SIR forward by 1 timestep
-        recovered = self.SIR[2] + self.quarantined[0] + self.quarantined[1] + self.quarantined[2]
-        full_data = EoN.basic_discrete_SIR(G=self.G, p=self.transmission_rate, initial_infecteds=self.SIR_real.SIR[1], initial_recovereds=recovered, tmin=0, tmax=1, return_full_data=True)
+        full_data = EoN.basic_discrete_SIR(G=self.G, p=self.transmission_rate, initial_infecteds=self.SIR.I1 + self.SIR.I2, initial_recovereds=self.SIR.R, tmin=0, tmax=1, return_full_data=True)
         
         S = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'S']
-        I = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'I']
-        R = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'R']
+        I1 = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'I']
+        I2 = self.SIR.I1
+        R = self.SIR.R + self.SIR.I2  
         
-        to_quarantine = [u for u in quarantine if
-        update_quarantine(to_quarantine
+        self.SIR = SIR_Tuple(S,I1,I2,R)
         
-    def update_quarantine(self, to_quarantine):
-        # un-quarantine people from previous time step
-        for node in self.quarantined[0]:
-            self.SIR.S.append(node)
-            self.SIR.R.remove(node)
-            
-        self.quarantined = ([],[],[])
         
-        # quarantine the new group
-        for node in to_quarantine:
-            if node in self.SIR.S:
-                self.SIR.S.remove(node)
-                self.quarantined[0].append(node)
-            elif node in self.SIR.I:
-                self.SIR.I.remove(node)
-                self.quarantined[1].append(node)
-            else:
-                self.SIR.R.remove(node)
-                self.quarantined[2].append(node)
-                
     def set_contours(self):
-        (self.V1, self.V2) = find_excluded_contours(self.G, self.SIR[1], self.SIR[2] + self.quarantined[0] + self.quarantined[1] + self.quarantined[2], self.discovery_rate, self.snitch_rate)
+        (self.V1, self.V2) = find_excluded_contours(self.G, self.SIR[1], self.SIR[2], self.discovery_rate, self.snitch_rate)
+        
+        
+        
+        
+        
