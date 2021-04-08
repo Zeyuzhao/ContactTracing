@@ -4,34 +4,38 @@ import random
 import EoN
 import networkx as nx
 import numpy as np
+import math
 
 from typing import Set
 from collections import namedtuple
 
-from .utils import find_excluded_contours
+from .utils import find_excluded_contours_edges, edge_transmission, edge_transmission_hid
 from . import PROJECT_ROOT
 
 SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I1", "I2", "R"])
                 
 class InfectionState:
     
-    def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, transmission_rate:float, compliance_rate:float = 1, I_knowledge:float = 1, discovery_rate:float = 1, snitch_rate:float = 1):
+    def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, transmission_rate:float, compliance_rate:float = 1, partial_compliance:bool = False, I_knowledge:float = 1, discovery_rate:float = 1, snitch_rate:float = 1):
         self.G = G
         self.SIR = SIR_Tuple(*SIR)
         self.budget = budget
         self.transmission_rate = transmission_rate
         self.compliance_rate = compliance_rate
+        self.partial_compliance = partial_compliance
         self.discovery_rate = discovery_rate
         self.snitch_rate = snitch_rate
         
         node_to_compliance = {}
         edge_to_compliance = {}
+       # edge_to_transmission = {}
         compliance_edge = 0
         
-        mean_duration = np.mean(nx.get_edge_attributes(G, "duration").values())
+        mean_duration = np.mean(list(nx.get_edge_attributes(G, "duration").values()))
         lambda_cdf = -math.log(1-transmission_rate)/mean_duration
         exponential_cdf = lambda x: 1-math.exp(-lambda_cdf*x)
         
+        #TODO: Figure out when to modify compliance edges
         for node in G.nodes():
             G.nodes[node]['quarantine'] = 0
             node_to_compliance[node] = compliance_rate
@@ -46,7 +50,7 @@ class InfectionState:
                     order = (nbr, node)
                 
                 transmission_edge = exponential_cdf(G[node][nbr]["duration"])
-                
+                #edge_to_transmission[order] = transmission_edge
                 if partial_compliance:
                     compliance_edge = (0 if random.random()>compliance_rate else 1, transmission_edge)
                 else: 
@@ -97,7 +101,8 @@ class InfectionState:
 
     def step(self, quarantine: Set[int]):
         # moves the SIR forward by 1 timestep
-        full_data = EoN.basic_discrete_SIR(G=self.G, p=self.transmission_rate, initial_infecteds=self.SIR.I1 + self.SIR.I2, initial_recovereds=self.SIR.R, tmin=0, tmax=1, return_full_data=True)
+        full_data = EoN.discrete_SIR(G = self.G, test_transmission = edge_transmission, args = (self.G,), initial_infecteds=self.SIR.I1 + self.SIR.I2, initial_recovereds=self.SIR.R, tmin=0, tmax=1, return_full_data=True)
+        #full_data = EoN.basic_discrete_SIR(G=self.G, p=self.transmission_rate, initial_infecteds=self.SIR.I1 + self.SIR.I2, initial_recovereds=self.SIR.R, tmin=0, tmax=1, return_full_data=True)
         
         S = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'S']
         I1 = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'I']
@@ -106,11 +111,15 @@ class InfectionState:
         
         self.SIR = SIR_Tuple(S,I1,I2,R)
         
+        #Update the quarantined nodes, each quarantined node is quarantined for 2 timesteps
+        for node in self.G.nodes:
+            self.G.nodes[node]['quarantine'] -= 1
+            self.G.nodes[node]['quarantine'] = 2 if node in quarantine and self.G.nodes[node]['quarantine']<=0 else max(self.G.nodes[node]['quarantine'], 0)
         
+        self.set_contours()
+    
     def set_contours(self):
-        (self.V1, self.V2) = find_excluded_contours(self.G, self.SIR[1], self.SIR[2], self.discovery_rate, self.snitch_rate)
-        
-        
-        
+        #(self.V1, self.V2) = find_excluded_contours(self.G, self.SIR[1], self.SIR[2], self.discovery_rate, self.snitch_rate)
+        (self.V1, self.V2) = find_excluded_contours_edges(self.G, self.SIR.I2, self.SIR.R, self.discovery_rate, self.snitch_rate)
         
         
