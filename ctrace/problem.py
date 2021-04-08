@@ -27,7 +27,8 @@ class MinExposedProgram:
             raise ValueError("Solver failed to initialize!")
             
         # Compute P, Q from SIR
-        self.P, self.Q = pq_independent(self.G, self.SIR.I, self.contour1, self.p)
+        #self.P, self.Q = pq_independent(self.G, self.SIR.I, self.contour1, self.p)
+        self.P, self.Q = pq_independent_edges(self.G, self.SIR.I2, self.contour1, self.countour2)
     
         # Partial evaluation storage
         self.partials = {}

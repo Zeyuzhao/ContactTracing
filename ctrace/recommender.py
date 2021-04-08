@@ -4,7 +4,7 @@ import numpy as np
 import networkx as nx
 
 from .round import D_prime
-from .utils import pq_independent, find_excluded_contours, min_exposed_objective
+from .utils import pq_independent_edges, find_excluded_contours_edges, min_exposed_objective
 from .simulation import *
 from .problem import *
 
@@ -17,34 +17,53 @@ def Random(state: InfectionState):
 
 
 def Degree(state: InfectionState):
-    info = state.SIR_known
-    
     degrees: List[Tuple[int, int]] = []
-    for u in info.V1:
-        count = sum([1 for v in info.G.neighbors(u) if v in info.V2])
+    for u in state.V1:
+        count = sum([1 for v in state.G.neighbors(u) if v in state.V2])
         degrees.append((count, u))
         
     degrees.sort(reverse=True)
-    return {i[1] for i in degrees[:info.budget]}
+    return {i[1] for i in degrees[:state.budget]}
 
+#Accounts for edges between V1
+def Degree2(state: InfectionState):
+    degrees: List[Tuple[int, int]] = []
+    for u in state.V1:
+        count = sum([1 for v in state.G.neighbors(u) if v in state.V2 or v in state.V1])
+        degrees.append((count, u))
+        
+    degrees.sort(reverse=True)
+    return {i[1] for i in degrees[:state.budget]}
 
 # TODO: Test code! V2 -> set V2
 def DegGreedy(state: InfectionState):
-    info = state.SIR_known
-    P, Q = pq_independent(info.G, info.SIR.I, info.V1, info.transmission_rate[info.time_stage])
+    #P, Q = pq_independent(info.G, info.SIR.I, info.V1, info.transmission_rate[info.time_stage])
+    P, Q = pq_independent_edges(state.G, state.SIR.I2, state.V1, state.V2)
     
     weights: List[Tuple[int, int]] = []
-    for u in info.V1:
-        w_sum = sum([Q[u][v] for v in info.G.neighbors(u) if v in info.V2]) # V2 is a set!
+    for u in state.V1:
+        w_sum = sum([Q[u][v] for v in state.G.neighbors(u) if v in state.V2]) # V2 is a set!
         weights.append((P[u] * w_sum, u))
 
     weights.sort(reverse=True)
-    return {i[1] for i in weights[:info.budget]}
+    return {i[1] for i in weights[:state.budget]}
 
+#Accounts for edges between V1
+def DegGreedy2(state: InfectionState):
+    P, Q = pq_independent_edges(state.G, state.SIR.I2, state.V1, state.V2)
+    
+    weights: List[Tuple[int, int]] = []
+    for u in state.V1:
+        w_sum_v2 = sum([Q[u][v] for v in state.G.neighbors(u) if v in state.V2]) # V2 is a set!
+        w_sum_v1 = sum([Q[u][v]*(1-P[v]) for v in state.G.neighbors(u) if v in state.V1])
+        weights.append((P[u] * (w_sum_v2+w_sum_v1), u))
+
+    weights.sort(reverse=True)
+    return {i[1] for i in weights[:state.budget]}
 
 def DepRound(state: InfectionState):
     
-    problem = MinExposedLP(state.SIR_known)
+    problem = MinExposedLP(state)
     problem.solve_lp()
     probabilities = problem.get_variables()
     rounded = D_prime(np.array(probabilities))
@@ -52,7 +71,7 @@ def DepRound(state: InfectionState):
     return set([problem.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
 
 def SAA_Diffusion(state: InfectionState, debug=False, num_samples=10):
-    problem = MinExposedSAADiffusion(state.SIR_known, num_samples=num_samples)
+    problem = MinExposedSAADiffusion(state, num_samples=num_samples)
     problem.solve_lp()
     probabilities = problem.get_variables()
     rounded = D_prime(np.array(probabilities))
