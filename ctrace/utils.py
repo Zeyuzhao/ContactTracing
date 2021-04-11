@@ -108,7 +108,9 @@ def find_excluded_contours_edges(G: nx.Graph, infected: Set[int], excluded: Set[
     # probability calculation for v2_k: 1-(1-q)^k; let k = number of nodes in v1_k with an edge connecting to the node v
     v1 = set().union(*[effective_neighbor(G, v, G.neighbors(v), compliance_known) for v in set(infected)]) - (set(infected) | set(excluded))
     v1_k = {v for v in v1 if random.uniform(0,1) < discovery_rate}
-    v1_k_nbrs = set().union(*[G.neighbors(v) for v in v1_k]) - (set(infected) | set(excluded) | set(v1_k))
+    #v1_k_nbrs = set().union(*[G.neighbors(v) for v in v1_k]) - (set(infected) | set(excluded) | set(v1_k))
+    #new definition of v2 to also include v1 neighbors in v1
+    v1_k_nbrs = set().union(*[G.neighbors(v) for v in v1_k]) - (set(infected)|set(excluded))
     v2_k = {v for v in v1_k_nbrs
             if random.uniform(0,1) < (1-((1-snitch_rate) ** len(set(G.neighbors(v)).intersection(v1_k))))}
     return v1_k, v2_k
@@ -153,7 +155,9 @@ def pq_independent_edges(G: nx.Graph, I: Iterable[int], V1: Iterable[int], V2: I
     """
     Precondition: every node in V1 is somehow reachable from I
     """
-    P = {v: 1 - math.prod(1-(G[i][v]["compliance_transmission"][i][1] if check_edge_transmission(G, i, v, compliance_known) else 0) for i in set(set(G.neighbors(v)) & set(I))) for v in V1}
+    #P = {v: 1 - math.prod(1-(G[i][v]["compliance_transmission"][i][1] if check_edge_transmission(G, i, v, compliance_known) else 0) for i in set(set(G.neighbors(v)) & set(I))) for v in V1}
+    P = {v: (1 - math.prod(1-(G[i][v]["compliance_transmission"][i][1] if check_edge_transmission(G, i, v, compliance_known) else 0) for i in set(set(G.neighbors(v)) & set(I)))) 
+        if v in V1 else 0 for v in (set(V1)|set(V2))}
     Q = {u: {v: G[u][v]["compliance_transmission"][u][1] for v in set(G.neighbors(u)) & (set(V2)| set(V1))} for u in V1}
     return P, Q
 

@@ -6,7 +6,7 @@ import networkx as nx
 from .round import D_prime
 from .utils import pq_independent_edges, find_excluded_contours_edges, min_exposed_objective
 from .simulation import *
-from .problem import *
+from .problem2 import *
 
 def NoIntervention(state: InfectionState):
     return set()
@@ -54,9 +54,8 @@ def DegGreedy2(state: InfectionState):
     
     weights: List[Tuple[int, int]] = []
     for u in state.V1:
-        w_sum_v2 = sum([Q[u][v] for v in state.G.neighbors(u) if v in state.V2]) # V2 is a set!
-        w_sum_v1 = sum([Q[u][v]*(1-P[v]) for v in state.G.neighbors(u) if v in state.V1])
-        weights.append((P[u] * (w_sum_v2+w_sum_v1), u))
+        w_sum = sum([Q[u][v]*(1-P[v]) for v in state.G.neighbors(u)]) # V2 is a set!
+        weights.append(P[u] * (w_sum), u)
 
     weights.sort(reverse=True)
     return {i[1] for i in weights[:state.budget]}

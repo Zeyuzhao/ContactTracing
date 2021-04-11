@@ -119,7 +119,7 @@ class InfectionState:
         self.set_contours()
     
     def set_contours(self):
-        #(self.V1, self.V2) = find_excluded_contours(self.G, self.SIR[1], self.SIR[2], self.discovery_rate, self.snitch_rate)
+        #For knowledge of which edges are complied along, add parameter compliance_known:bool
         (self.V1, self.V2) = find_excluded_contours_edges(self.G, self.SIR.I2, self.SIR.R, self.discovery_rate, self.snitch_rate)
         
         
