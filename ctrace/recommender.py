@@ -7,19 +7,21 @@ from .round import D_prime
 from .utils import pq_independent_edges, find_excluded_contours_edges, min_exposed_objective
 from .simulation import *
 from .problem2 import *
+from .problem import *
 
 def NoIntervention(state: InfectionState):
     return set()
 
 
 def Random(state: InfectionState):
-    return set(random.sample(state.SIR_known.V1, min(state.SIR_known.budget, len(state.SIR_known.V1))))
+    return set(random.sample(state.V1, min(state.budget, len(state.V1))))
 
 
 def Degree(state: InfectionState):
     degrees: List[Tuple[int, int]] = []
+    V2_only = state.V2-state.V1
     for u in state.V1:
-        count = sum([1 for v in state.G.neighbors(u) if v in state.V2])
+        count = sum([1 for v in state.G.neighbors(u) if v in V2_only])
         degrees.append((count, u))
         
     degrees.sort(reverse=True)
@@ -29,7 +31,7 @@ def Degree(state: InfectionState):
 def Degree2(state: InfectionState):
     degrees: List[Tuple[int, int]] = []
     for u in state.V1:
-        count = sum([1 for v in state.G.neighbors(u) if v in state.V2 or v in state.V1])
+        count = sum([1 for v in state.G.neighbors(u) if v in state.V2])
         degrees.append((count, u))
         
     degrees.sort(reverse=True)
@@ -40,9 +42,11 @@ def DegGreedy(state: InfectionState):
     #P, Q = pq_independent(info.G, info.SIR.I, info.V1, info.transmission_rate[info.time_stage])
     P, Q = pq_independent_edges(state.G, state.SIR.I2, state.V1, state.V2)
     
+    #only weighs V2 not in V1
+    V2_only = state.V2-state.V1
     weights: List[Tuple[int, int]] = []
     for u in state.V1:
-        w_sum = sum([Q[u][v] for v in state.G.neighbors(u) if v in state.V2]) # V2 is a set!
+        w_sum = sum([Q[u][v] for v in state.G.neighbors(u) if v in V2_only]) # V2 is a set!
         weights.append((P[u] * w_sum, u))
 
     weights.sort(reverse=True)
@@ -54,8 +58,8 @@ def DegGreedy2(state: InfectionState):
     
     weights: List[Tuple[int, int]] = []
     for u in state.V1:
-        w_sum = sum([Q[u][v]*(1-P[v]) for v in state.G.neighbors(u)]) # V2 is a set!
-        weights.append(P[u] * (w_sum), u)
+        w_sum = sum([Q[u][v]*(1-P[v]) for v in state.G.neighbors(u) if v in state.V2]) # V2 is a set!
+        weights.append((P[u] * (w_sum), u))
 
     weights.sort(reverse=True)
     return {i[1] for i in weights[:state.budget]}
@@ -68,6 +72,15 @@ def DepRound(state: InfectionState):
     rounded = D_prime(np.array(probabilities))
 
     return set([problem.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
+
+def DepRound2(state: InfectionState):
+    
+    problem2 = MinExposedLP2(state)
+    problem2.solve_lp()
+    probabilities = problem2.get_variables()
+    rounded = D_prime(np.array(probabilities))
+
+    return set([problem2.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
 
 def SAA_Diffusion(state: InfectionState, debug=False, num_samples=10):
     problem = MinExposedSAADiffusion(state, num_samples=num_samples)
