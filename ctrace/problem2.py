@@ -11,7 +11,7 @@ from .round import *
 from .utils import *
 from .simulation import *
 
-class MinExposedProgram:
+class MinExposedProgram2:
     def __init__(self, info: InfectionState, solver_id="GLOP"):
         
         self.result = None
@@ -176,7 +176,7 @@ class MinExposedProgram:
         min_exposed_objective(self.info.G, self.info.SIR, self.info.transmission_rate, self.result)
 
 
-class MinExposedLP(MinExposedProgram):
+class MinExposedLP2(MinExposedProgram2):
     def __init__(self, info: InfectionState, solver_id="GLOP"):
         super().__init__(info, solver_id)
 
@@ -189,7 +189,7 @@ class MinExposedLP(MinExposedProgram):
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
 
 
-class MinExposedIP(MinExposedProgram):
+class MinExposedIP2(MinExposedProgram2):
     def __init__(self, info: InfectionState, solver_id="GUROBI"):
         super().__init__(info, solver_id)
 
@@ -201,7 +201,7 @@ class MinExposedIP(MinExposedProgram):
         for v in self.contour2:
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
 
-class MinExposedSAADiffusion(MinExposedProgram):
+class MinExposedSAADiffusion2(MinExposedProgram2):
     def __init__(self, info: InfectionState, solver_id="GLOP", num_samples=10, seed=42):
         self.result = None
         self.info = info
@@ -209,7 +209,7 @@ class MinExposedSAADiffusion(MinExposedProgram):
         self.SIR = info.SIR
         self.budget = info.budget
         self.p = info.transmission_rate
-        self.contour1, self.contour2 = self.info.V1, self.info.V2
+        self.contour1, self.contour2 = info.V1, info.V2
         self.solver = pywraplp.Solver.CreateSolver(solver_id)
         self.num_samples = num_samples
 

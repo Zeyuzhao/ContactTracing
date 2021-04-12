@@ -20,7 +20,9 @@ class MinExposedProgram:
         self.SIR = info.SIR
         self.budget = info.budget
         self.p = info.transmission_rate
-        self.contour1, self.contour2 = self.info.V1, self.info.V2
+        #Where V2 is disjoint from V1
+        V2 = info.V1- info.V1
+        self.contour1, self.contour2 = info.V1, V2
         self.solver = pywraplp.Solver.CreateSolver(solver_id)
 
         if self.solver is None:
@@ -28,7 +30,7 @@ class MinExposedProgram:
             
         # Compute P, Q from SIR
         #self.P, self.Q = pq_independent(self.G, self.SIR.I, self.contour1, self.p)
-        self.P, self.Q = pq_independent_edges(self.G, self.SIR.I2, self.contour1, self.countour2)
+        self.P, self.Q = pq_independent_edges(self.G, self.SIR.I2, self.contour1, self.contour2)
     
         # Partial evaluation storage
         self.partials = {}

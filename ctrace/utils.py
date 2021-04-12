@@ -158,7 +158,7 @@ def pq_independent_edges(G: nx.Graph, I: Iterable[int], V1: Iterable[int], V2: I
     #P = {v: 1 - math.prod(1-(G[i][v]["compliance_transmission"][i][1] if check_edge_transmission(G, i, v, compliance_known) else 0) for i in set(set(G.neighbors(v)) & set(I))) for v in V1}
     P = {v: (1 - math.prod(1-(G[i][v]["compliance_transmission"][i][1] if check_edge_transmission(G, i, v, compliance_known) else 0) for i in set(set(G.neighbors(v)) & set(I)))) 
         if v in V1 else 0 for v in (set(V1)|set(V2))}
-    Q = {u: {v: G[u][v]["compliance_transmission"][u][1] for v in set(G.neighbors(u)) & (set(V2)| set(V1))} for u in V1}
+    Q = {u: {v: G[u][v]["compliance_transmission"][u][1] for v in set(G.neighbors(u)) if v in V2} for u in V1}
     return P, Q
 
 def pq_independent(G: nx.Graph, I: Iterable[int], V1: Iterable[int], p: float):
