@@ -21,7 +21,7 @@ class MinExposedProgram:
         self.budget = info.budget
         self.p = info.transmission_rate
         #Where V2 is disjoint from V1
-        V2 = info.V1- info.V1
+        V2 = info.V2-info.V1
         self.contour1, self.contour2 = info.V1, V2
         self.solver = pywraplp.Solver.CreateSolver(solver_id)
 
@@ -31,7 +31,6 @@ class MinExposedProgram:
         # Compute P, Q from SIR
         #self.P, self.Q = pq_independent(self.G, self.SIR.I, self.contour1, self.p)
         self.P, self.Q = pq_independent_edges(self.G, self.SIR.I2, self.contour1, self.contour2)
-    
         # Partial evaluation storage
         self.partials = {}
 
@@ -42,7 +41,7 @@ class MinExposedProgram:
         # non-controllable - contour2
         self.Y2: Dict[int, Variable] = {}
         self.init_variables()
-
+        
         # Initialize constraints
         self.init_constraints()
 
@@ -114,7 +113,6 @@ class MinExposedProgram:
         for i, u in enumerate(self.contour1):
             self.quarantine_raw[i] = self.quarantined_solution[u] = self.X1[u].solution_value()
             self.quarantine_map.append(u)
-
         self.objective_value = self.lp_objective_value()
 
         return self.quarantined_solution
@@ -211,7 +209,8 @@ class MinExposedSAADiffusion(MinExposedProgram):
         self.SIR = info.SIR
         self.budget = info.budget
         self.p = info.transmission_rate
-        self.contour1, self.contour2 = self.info.V1, self.info.V2
+        V2 = info.V2 - info.V1
+        self.contour1, self.contour2 = info.V1, V2
         self.solver = pywraplp.Solver.CreateSolver(solver_id)
         self.num_samples = num_samples
 

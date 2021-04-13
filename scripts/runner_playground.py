@@ -14,7 +14,8 @@ G = load_graph_hid_duration()
 
 config = {
     "G" : [G],
-    "budget": [i for i in range(100, 5000, 10)], #[i for i in range(100, 451, 50)],#[i for i in range(100,3710,10)],
+    "budget":[2000],
+    #"budget": [i for i in range(100, 5000, 10)], #[i for i in range(100, 451, 50)],#[i for i in range(100,3710,10)],
     "transmission_rate": [0.05],
     #"partition": [(0.04, 0.40, 1.0)],
     #"time_stage": [0],
@@ -25,8 +26,8 @@ config = {
     "discovery_rate": [1],
     "snitch_rate":  [1],
     "from_cache": ["b5.json"],
-    "agent": [DegGreedy2, DepRound2]
-    #"agent": [Degree]
+    #"agent": [DepRound2, DegGreedy2]
+    "agent": [DepRound]
 }
 #config["G"] = [load_graph(x) for x in config["G"]]
 
