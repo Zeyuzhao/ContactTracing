@@ -4,14 +4,16 @@ import pandas as pd
 import numpy as np
 import random
 import seaborn as sns
+import math
+import networkx as nx
 
 from ctrace.simulation import *
 from ctrace.dataset import *
 from ctrace.recommender import *
 from ctrace.problem import *
 from ctrace.utils import *
-import networkx as nx
 
+from numpy.random import default_rng
 from typing import Dict
 from numbers import Number
 
@@ -27,6 +29,12 @@ def random_sir(G):
 
 def all_sus(G):
     return SIR_Tuple(set(G.nodes), set(), set())
+
+def prob_round(num: float, rg = None):
+    f, n = math.modf(num)
+    if rg is None:
+        rg = np.random
+    return int(n + (rg.random() < f))
 
 def random_init(G, num_infected=5, seed=42):
     random.seed(seed)
@@ -92,6 +100,7 @@ def small_world_grid(width: int, max_norm=False, sparsity=0, local_range=1, num_
        perspective. Proc. 32nd ACM Symposium on Theory of Computing, 2000.
     """
 
+    rg = np.random.default_rng(seed)
     if r < 0:
         raise ValueError("r must be >= 1")
 
@@ -118,12 +127,14 @@ def small_world_grid(width: int, max_norm=False, sparsity=0, local_range=1, num_
         
         # Normalization
         probs = np.array(probs) / np.sum(probs)
-        targets = np.random.choice(len(probs), size=num_long_range, p=probs)
+        rounded_num = prob_round(num_long_range, rg=rg)
+        
+        targets = rg.choice(len(probs), size=rounded_num, p=probs)
         for t in targets:
             p2 = nodes[t] # Convert int -> real id
             G.add_edge(p1, p2, long=dist(p1,p2) > local_range)
 
-    G.remove_nodes_from(uniform_sample(G.nodes(), sparsity))
+    G.remove_nodes_from(uniform_sample(G.nodes(), sparsity, rg))
     # Remap nodes to 0 - n^2-1
     mapper = {n : i for i, n in enumerate(G.nodes())}
     pos = {i:(y,-x) for i, (x,y) in enumerate(G.nodes())}
@@ -211,7 +222,11 @@ def grid_sir(G: nx.Graph,
     NEW_METHOD=True
     if NEW_METHOD:
         short_edges, short_props = zip(*list(filter(lambda x: not G[x[0][0]][x[0][1]].get("long"), zip(edges, edge_color))))
-        long_edges, long_props = zip(*list(filter(lambda x: G[x[0][0]][x[0][1]].get("long"), zip(edges, edge_color))))
+        longs = list(zip(*list(filter(lambda x: G[x[0][0]][x[0][1]].get("long"), zip(edges, edge_color)))))
+        if len(longs) == 2: # Handle case with no edges (HACK)
+            long_edges, long_props = longs
+        else:
+            long_edges, long_props = ([], [])
         draw_networkx_edges(
             G, 
             pos=pos, 

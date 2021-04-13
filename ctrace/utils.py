@@ -19,9 +19,12 @@ from . import PROJECT_ROOT
 np.random.seed(42)
 
 
-def uniform_sample(l: List[Any], p: float):
+def uniform_sample(l: List[Any], p: float, rg = None):
     """Samples elements from l uniformly with probability p"""
-    return [x for x in l if random.random() < p]
+    if rg is None:
+        rg = np.random
+    arr = rg.random(len(l))
+    return [x for i,x in enumerate(l) if arr[i] < p]
 
 def find_contours(G: nx.Graph, infected):
     """Produces contour1 and contour2 from infected"""

@@ -4,6 +4,7 @@ import pandas as pd
 from ctrace import PROJECT_ROOT
 import seaborn as sns
 import numpy as np
+from scipy.stats import skew
 run_id = "run_jaCJw"
 path = PROJECT_ROOT / "output" / run_id
 
@@ -21,15 +22,19 @@ grader = grader.rename(columns = {0:'id'})
 
 
 df = pd.merge(input, grader, how="left", on=["id", "id"])
+df["grader_skew"] = df["grader_data"].apply(lambda x: skew(x))
 #%%
 import matplotlib.pyplot as plt
 
-shift=400
+shift=175
 n = 5
 fig, axs = plt.subplots(n, n, figsize=(20,20))
+
+
 for i in range(n):
     for j in range(n):
         id = i * n + j + shift
-        ax = sns.histplot(data=list(df.iloc[i * n + j + shift]), binwidth=1, ax=axs[i, j])
+        row = df.iloc[i * n + j + shift]
+        ax = sns.histplot(data=row["grader_data"], bins=20, ax=axs[i, j])
         ax.set_title(f"[{id}]: ")
 # %%

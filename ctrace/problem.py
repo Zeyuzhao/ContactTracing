@@ -253,6 +253,8 @@ class MinExposedSAA(MinExposedProgram):
         solver_id="GUROBI", # "GUORBI" | "GLOP" | "SCIP"
     ):
         self.seed = seed
+        self.rg = np.random.default_rng(seed)
+
         self.result = None
         # Set problem structure
         self.G: nx.Graph = G
@@ -377,7 +379,7 @@ class MinExposedSAA(MinExposedProgram):
             self.sample_data[i]["border_edges"] = [[], []]
             # sampled independently from I_border with transmission probability
             I_border = compute_border_edges(GE, self.SIR[1], self.contour1)
-            I_border_sample = uniform_sample(I_border, self.p)
+            I_border_sample = uniform_sample(I_border, self.p, self.rg)
             self.sample_data[i]["border_edges"][0] = I_border_sample
 
             # relevant_v1 -> set of v1 nodes "infected" by sampled edges
@@ -387,11 +389,11 @@ class MinExposedSAA(MinExposedProgram):
 
             # V1_border - conditional on relevant_v1s only (sampled with transmission probability)
             V1_border = compute_border_edges(GE, relevant_v1, self.contour2)
-            V1_border_sample = uniform_sample(V1_border, self.p)
+            V1_border_sample = uniform_sample(V1_border, self.p, self.rg)
             self.sample_data[i]["border_edges"][1] = V1_border_sample
 
             # COMPLIANCE
-            self.sample_data[i]["non_compliant"] = set(uniform_sample(self.contour1,  1 - self.q))
+            self.sample_data[i]["non_compliant"] = set(uniform_sample(self.contour1,  1 - self.q, self.rg))
 
     def init_variables(self):
         if self.solver_id.upper() == "GUROBI":
@@ -576,7 +578,7 @@ def grader(
     num_samples=1,
     aggregation_method="max",
     solver_id="GUROBI_LP",
-):
+) -> MinExposedSAA:
     """
     Grader works by fixing the quarantine solutions, and solving for the solution
     

@@ -25,7 +25,9 @@ import networkx as nx
 # Create graph (with diagonal connections) to experiment on
 
 seed=42
-G, pos = small_world_grid(8, max_norm=False, sparsity=0.1, local_range=1, num_long_range=0, r=2, seed=42)
+G, pos = small_world_grid(10, max_norm=True, sparsity=0.1, local_range=1, num_long_range=0.5, r=2, seed=42)
+
+#%%
 # G, pos = grid_2d(8, seed=42, diagonals=True, sparsity=0.2, global_rate=0)
 # G = nx.scale_free_graph(100)
 # G = nx.generators.navigable_small_world_graph(10, p=1, q=1, r=2, dim=2, seed=None)
@@ -38,9 +40,9 @@ G, pos = small_world_grid(8, max_norm=False, sparsity=0.1, local_range=1, num_lo
 # pos = nx.nx_agraph.graphviz_layout(G, prog="sfdp", args="-Goverlap=false")
 # pos = nx.nx_agraph.graphviz_layout(G, prog="sfdp", args="")
 SIR = random_init(G, num_infected=10, seed=seed)
-budget=50
+budget=15
 transmission_rate=1
-compliance_rate=0.8
+compliance_rate=1
 structure_rate=0
 
 # Create infection state
@@ -50,6 +52,9 @@ edges = list(G.edges.data("long", default=False))
 # short_edges= list(filter(lambda x: not x[2], edges))
 draw_single(G, pos=pos, sir=SIR, edges=edges, title="Graph Struct", figsize=(5,5))
 
+#%%
+# sigma = nx.algorithms.smallworld.sigma(G, niter=10, nrand=10)
+# print(f"Smallworld {'TRUE' if sigma >= 1 else 'FALSE'} ({sigma})")
 
 #%%
 sample_dim = (2, 2)
@@ -164,7 +169,7 @@ none_obj = grader(G,
     set(),
     structure_rate=0,
     grader_seed=None,
-    num_samples=10,
+    num_samples=50,
     solver_id="GUROBI_LP"
 )
 robust_obj = grader(G,
@@ -175,7 +180,7 @@ robust_obj = grader(G,
     action,
     structure_rate=0,
     grader_seed=None,
-    num_samples=10,
+    num_samples=50,
     solver_id="GUROBI_LP"
 )
 
@@ -216,7 +221,9 @@ fig, ax = viz_saa(gproblem_minex)
 # %%
 fig.savefig("multi.png")
 # %%
+import seaborn as sns
 
+[robust_obj.lp_objective_value(i) for i in range(40)]
 # %%
 
 # %%
