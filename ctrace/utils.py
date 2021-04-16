@@ -351,6 +351,62 @@ def load_graph(dataset_name, graph_folder=None):
     G.__name__ = dataset_name
     return G
 
+def load_graph_cville_labels():
+    G = nx.Graph()
+    G.NAME = "cville"
+    nodes = {}
+    rev_nodes = []
+    cnode_to_labels = {}
+    cnode_to_ages = {}
+    edges_to_duration = {}
+    file = open(PROJECT_ROOT / "data/raw/charlottesville.txt", "r")
+    file.readline()
+    lines = file.readlines()
+    c = 0
+    c_node=0
+
+    labels_df = pd.read_csv(PROJECT_ROOT/"data/raw/cville/cville_labels.txt")
+    labels_df = labels_df[["pid", "hid", "age_group"]]
+    labels_dict = {}
+    map_label = {"a": 0, "g":1, "o":2, "p":3, "s":4}
+    for index, ids in labels_df.iterrows():
+        labels_dict[ids["pid"]] = (ids["hid"], ids["age_group"])
+
+    for line in lines:
+
+        a = line.split()
+        u = int(a[1])
+        v = int(a[2])
+        duration = int(a[3])
+
+        if u in nodes.keys():
+            u = nodes[u]
+        else:
+            nodes[u] = c_node
+            rev_nodes.append(u)
+            cnode_to_labels[c_node] = labels_dict[u][0];
+            cnode_to_ages[c_node] = map_label[labels_dict[u][1]];
+            u = c_node
+            c_node+=1        
+
+        if v in nodes.keys():
+            v = nodes[v]
+        else:
+            nodes[v] = c_node
+            rev_nodes.append(v)
+            cnode_to_labels[c_node] = labels_dict[v][0];
+            cnode_to_ages[c_node] = map_label[labels_dict[v][1]];
+            v = c_node
+            c_node+=1
+
+        G.add_edge(u,v)
+        edges_to_duration[(u,v)] = duration
+
+    nx.set_node_attributes(G, cnode_to_labels, 'hid')
+    nx.set_edge_attributes(G, edges_to_duration, 'duration')
+    nx.set_node_attributes(G, cnode_to_ages, 'age_group')
+    return G;
+    
 def load_graph_hid_duration():
     G = nx.Graph()
     G.NAME = "cville"
@@ -420,6 +476,12 @@ def load_graph_cville(fp = "undirected_albe_1.90.txt"):
     G = nx.from_pandas_edgelist(df, col1, col2)
     G.G["name"] = "cville"
     return G
+
+def filter_label(G: nx.Graph, to_filter: set, label: int):
+    return set(node for node in to_filter if G.nodes[node]["age_group"]==label)
+
+def filter_label_greedy(G: nx.Graph, to_filter: List[Tuple[int, int]], label: int):
+    return [tup for tup in to_filter if G.nodes[tup[1]]["age_group"]==label]
 
 def generate_random_absolute(G, num_infected: int = None, k: int = None, costs: list = None):
     N = G.number_of_nodes()
