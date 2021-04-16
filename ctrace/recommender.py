@@ -4,18 +4,24 @@ import numpy as np
 import networkx as nx
 
 from .round import D_prime
-from .utils import pq_independent_edges, find_excluded_contours_edges, min_exposed_objective
+from .utils import pq_independent_edges, find_excluded_contours_edges, min_exposed_objective, filter_label, filter_label_greedy
 from .simulation import *
 from .problem2 import *
+from .problem_label import *
 from .problem import *
 
 def NoIntervention(state: InfectionState):
     return set()
 
-
 def Random(state: InfectionState):
     return set(random.sample(state.V1, min(state.budget, len(state.V1))))
 
+def Random_label(state: InfectionState):
+    quarantine = set()
+    for label in state.labels:
+        V1_label = set(node for node in state.V1 if state.G.nodes[node]["age_group"]==label)
+        quarantine = quarantine.union(set(random.sample(V1_label, min((state.budget_labels[label]), len(V1_label)))))
+    return quarantine
 
 def Degree(state: InfectionState):
     degrees: List[Tuple[int, int]] = []
@@ -64,6 +70,21 @@ def DegGreedy2(state: InfectionState):
     weights.sort(reverse=True)
     return {i[1] for i in weights[:state.budget]}
 
+def DegGreedy2_label(state: InfectionState):
+    P, Q = pq_independent_edges(state.G, state.SIR.I2, state.V1, state.V2)
+    
+    weights: List[Tuple[int, int]] = []
+    for u in state.V1:
+        w_sum = sum([Q[u][v]*(1-P[v]) for v in state.G.neighbors(u) if v in state.V2]) # V2 is a set!
+        weights.append((P[u] * (w_sum), u))
+    
+    quarantine = set()
+    weights.sort(reverse=True)
+    for label in state.labels:
+        deg = [tup for tup in weights if state.G.nodes[tup[1]]["age_group"]==label]
+        quarantine = quarantine.union({i[1] for i in deg[:min(state.budget_labels[label], len(deg))]})
+    return quarantine
+
 def DepRound(state: InfectionState):
     
     problem = MinExposedLP(state)
@@ -80,6 +101,17 @@ def DepRound2(state: InfectionState):
     probabilities = problem2.get_variables()
     rounded = D_prime(np.array(probabilities))
 
+    return set([problem2.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
+
+def DepRound2_label(state: InfectionState):
+    problem2 = MinExposedLP2_label(state)
+    problem2.solve_lp()
+    probabilities = problem2.get_variables()
+    rounded = np.array([0 for i in range(len(probabilities))])
+    for label in state.labels:
+        partial_prob = [probabilities[k] if state.G.nodes[problem2.quarantine_map[k]]["age_group"]==label else 0 for k in 
+                        range(len(probabilities))]
+        rounded = rounded + D_prime(np.array(partial_prob))
     return set([problem2.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
 
 def SAA_Diffusion(state: InfectionState, debug=False, num_samples=10):

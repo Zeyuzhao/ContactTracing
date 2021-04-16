@@ -20,11 +20,14 @@ class InfectionState:
         self.G = G
         self.SIR = SIR_Tuple(*SIR)
         self.budget = budget
+        self.budget_labels = [budget, budget, budget, budget, budget]
         self.transmission_rate = transmission_rate
         self.compliance_rate = compliance_rate
         self.partial_compliance = partial_compliance
         self.discovery_rate = discovery_rate
         self.snitch_rate = snitch_rate
+        #self.labels = {0:"a", 1:"g", 2:"o", 3:"p", 4:"s"}
+        self.labels = [0, 1, 2, 3, 4]
         
         node_to_compliance = {}
         edge_to_compliance = {}
