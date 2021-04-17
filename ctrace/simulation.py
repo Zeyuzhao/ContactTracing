@@ -25,13 +25,14 @@ class InfectionState:
         self.partial_compliance = partial_compliance
         self.discovery_rate = discovery_rate
         self.snitch_rate = snitch_rate
-        self.policy = "none"
-        self.label_map = {0:"a", 1:"g", 2:"o", 3:"p", 4:"s"}
+        
+        #the policies are: none, old, adult, young, equal --> defaults to "equal", which is proportionate to distribution of V1
+        self.policy = "old"
+        self.label_map = {"a": 0, "g": 1, "o": 2, "p": 3, "s": 4}
         self.labels = [0, 1, 2, 3, 4]
         
         node_to_compliance = {}
         edge_to_compliance = {}
-        #edge_to_transmission = {}
         compliance_edge = 0
         
         mean_duration = np.mean(list(nx.get_edge_attributes(G, "duration").values()))
