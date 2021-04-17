@@ -9,7 +9,7 @@ import math
 from typing import Set
 from collections import namedtuple
 
-from .utils import find_excluded_contours_edges, edge_transmission, edge_transmission_hid
+from .utils import find_excluded_contours_edges, edge_transmission, edge_transmission_hid, allocate_budget
 from . import PROJECT_ROOT
 
 SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I1", "I2", "R"])
@@ -20,18 +20,18 @@ class InfectionState:
         self.G = G
         self.SIR = SIR_Tuple(*SIR)
         self.budget = budget
-        self.budget_labels = [budget, budget, budget, budget, budget]
         self.transmission_rate = transmission_rate
         self.compliance_rate = compliance_rate
         self.partial_compliance = partial_compliance
         self.discovery_rate = discovery_rate
         self.snitch_rate = snitch_rate
-        #self.labels = {0:"a", 1:"g", 2:"o", 3:"p", 4:"s"}
+        self.policy = "none"
+        self.label_map = {0:"a", 1:"g", 2:"o", 3:"p", 4:"s"}
         self.labels = [0, 1, 2, 3, 4]
         
         node_to_compliance = {}
         edge_to_compliance = {}
-       # edge_to_transmission = {}
+        #edge_to_transmission = {}
         compliance_edge = 0
         
         mean_duration = np.mean(list(nx.get_edge_attributes(G, "duration").values()))
@@ -124,5 +124,8 @@ class InfectionState:
     def set_contours(self):
         #For knowledge of which edges are complied along, add parameter compliance_known:bool
         (self.V1, self.V2) = find_excluded_contours_edges(self.G, self.SIR.I2, self.SIR.R, self.discovery_rate, self.snitch_rate)
+    
+    def set_budget_labels(self):
+        self.budget_labels = allocate_budget(self.G, self.V1, self.budget, self.labels, self.label_map, self.policy)
         
         
