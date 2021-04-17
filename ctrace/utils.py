@@ -58,7 +58,29 @@ def edge_transmission(u:int, v:int, G:nx.Graph, partial_compliance:bool = False)
             G[v][ngbr]['compliance_transmission'][v] = compliance_edge
     
     return transmission_edge_determined
-    
+
+def allocate_budget(G: nx.Graph, V1: set, budget: int, labels: list, label_map: dict, policy: str):
+    distribution = []
+    budget_labels = []
+    for i in range(len(labels)):
+        distribution.append(sum([1 for n in V1 if G.nodes[n]["age_group"] == i]))
+
+    if (policy == "old"):
+        distribution[label_map['g']] *= 2
+    elif (policy == "young"):
+        distribution[label_map['p']] *= 2
+        distribution[label_map['s']] *= 2
+    elif (policy == "adult"):
+        distribution[label_map['a']] *= 0.5
+        distribution[label_map['o']] *= 0.5
+
+    distribution_sum = sum(distribution)
+    if distribution_sum == 0:
+        return [0 for i in range(len(labels))]
+    for i in range(len(labels)):
+        budget_labels.append(math.floor(budget*distribution[i]/distribution_sum))
+    return budget_labels
+
 def find_contours(G: nx.Graph, infected):
     """Produces contour1 and contour2 from infected"""
     N = G.number_of_nodes()
@@ -351,6 +373,112 @@ def load_graph(dataset_name, graph_folder=None):
     G.__name__ = dataset_name
     return G
 
+def load_graph_montgomery():
+    G = nx.Graph()
+    G.NAME = "montgomery"
+    file = open(PROJECT_ROOT / "data/raw/charlottesville.txt", "r")
+    file.readline()
+    lines = file.readlines()
+    durations = []
+    for line in lines:
+        a = line.split()
+        duration = int(a[3])
+        durations.append(duration)
+    
+    file = open(PROJECT_ROOT / "data/graphs/montgomery/montgomery.csv", "r")
+    lines = file.readlines()
+    nodes = {}
+    rev_nodes = []
+    edges_to_duration = {}
+    c_node=0
+    
+    for line in lines:
+        a = line.split(",")
+        u = int(a[0])
+        v = int(a[1])
+        duration = durations[random.randint(0, len(durations)-1)]
+    
+        if u in nodes.keys():
+            u = nodes[u]
+        else:
+            nodes[u] = c_node
+            rev_nodes.append(u)
+            u = c_node
+            c_node+=1   
+    
+        if v in nodes.keys():
+            v = nodes[v]
+        else:
+            nodes[v] = c_node
+            rev_nodes.append(v)
+            v = c_node
+            c_node+=1
+    
+        G.add_edge(u,v)
+        edges_to_duration[(u,v)] = duration
+    nx.set_edge_attributes(G, edges_to_duration, 'duration')
+    return G
+
+def load_graph_montgomery_labels():
+    G = nx.Graph()
+    G.NAME = "montgomery"
+    
+    file = open(PROJECT_ROOT / "data/raw/charlottesville.txt", "r")
+    file.readline()
+    lines = file.readlines()
+    durations = []
+    for line in lines:
+        a = line.split()
+        duration = int(a[3])
+        durations.append(duration)
+    
+    labels_df = pd.read_csv(PROJECT_ROOT/"data/raw/cville/cville_labels.txt")
+    labels_df = labels_df["age_group"]
+    labels_array = []
+    map_label = {"a": 0, "g":1, "o":2, "p":3, "s":4}
+    for index, ids in labels_df.items():
+        labels_array.append(map_label[ids])
+    
+    file = open(PROJECT_ROOT / "data/graphs/montgomery/montgomery.csv", "r")
+    lines = file.readlines()
+    nodes = {}
+    rev_nodes = []
+    edges_to_duration = {}
+    cnode_to_labels = {}
+    c_node=0
+    
+    for line in lines:
+        a = line.split(",")
+        u = int(a[0])
+        v = int(a[1])
+        duration = durations[random.randint(0, len(durations)-1)]
+        age_label = labels_array[random.randint(0, len(labels_array)-1)]
+        
+        if u in nodes.keys():
+            u = nodes[u]
+        else:
+            nodes[u] = c_node
+            cnode_to_labels[c_node] = age_label
+            rev_nodes.append(u)
+            u = c_node
+            c_node+=1   
+    
+        if v in nodes.keys():
+            v = nodes[v]
+        else:
+            nodes[v] = c_node
+            cnode_to_labels[c_node] = age_label
+            rev_nodes.append(v)
+            v = c_node
+            c_node+=1
+    
+        G.add_edge(u,v)
+        edges_to_duration[(u,v)] = duration
+    
+    nx.set_edge_attributes(G, edges_to_duration, 'duration')
+    nx.set_node_attributes(G, cnode_to_labels, 'age_group')
+    return G
+
 def load_graph_cville_labels():
     G = nx.Graph()
     G.NAME = "cville"
@@ -476,12 +604,6 @@ def load_graph_cville(fp = "undirected_albe_1.90.txt"):
     G = nx.from_pandas_edgelist(df, col1, col2)
     G.G["name"] = "cville"
     return G
-
-def filter_label(G: nx.Graph, to_filter: set, label: int):
-    return set(node for node in to_filter if G.nodes[node]["age_group"]==label)
-
-def filter_label_greedy(G: nx.Graph, to_filter: List[Tuple[int, int]], label: int):
-    return [tup for tup in to_filter if G.nodes[tup[1]]["age_group"]==label]
 
 def generate_random_absolute(G, num_infected: int = None, k: int = None, costs: list = None):
     N = G.number_of_nodes()

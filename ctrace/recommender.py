@@ -4,7 +4,7 @@ import numpy as np
 import networkx as nx
 
 from .round import D_prime
-from .utils import pq_independent_edges, find_excluded_contours_edges, min_exposed_objective, filter_label, filter_label_greedy
+from .utils import pq_independent_edges, find_excluded_contours_edges, min_exposed_objective
 from .simulation import *
 from .problem2 import *
 from .problem_label import *
@@ -17,6 +17,9 @@ def Random(state: InfectionState):
     return set(random.sample(state.V1, min(state.budget, len(state.V1))))
 
 def Random_label(state: InfectionState):
+    if (state.policy == "none"): return Random(state)
+    
+    state.set_budget_labels()
     quarantine = set()
     for label in state.labels:
         V1_label = set(node for node in state.V1 if state.G.nodes[node]["age_group"]==label)
@@ -71,6 +74,10 @@ def DegGreedy2(state: InfectionState):
     return {i[1] for i in weights[:state.budget]}
 
 def DegGreedy2_label(state: InfectionState):
+    if (state.policy == "none"): return DegGreedy2(state)
+    
+    state.set_budget_labels()
+    
     P, Q = pq_independent_edges(state.G, state.SIR.I2, state.V1, state.V2)
     
     weights: List[Tuple[int, int]] = []
@@ -104,6 +111,10 @@ def DepRound2(state: InfectionState):
     return set([problem2.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
 
 def DepRound2_label(state: InfectionState):
+    if (state.policy == "none"): return DepRound2(state)
+    
+    state.set_budget_labels()
+    
     problem2 = MinExposedLP2_label(state)
     problem2.solve_lp()
     probabilities = problem2.get_variables()
