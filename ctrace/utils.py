@@ -77,8 +77,10 @@ def allocate_budget(G: nx.Graph, V1: set, budget: int, labels: list, label_map: 
     distribution_sum = sum(distribution)
     if distribution_sum == 0:
         return [0 for i in range(len(labels))]
+    
     for i in range(len(labels)):
         budget_labels.append(math.floor(budget*distribution[i]/distribution_sum))
+    print(budget_labels)
     return budget_labels
 
 def find_contours(G: nx.Graph, infected):
