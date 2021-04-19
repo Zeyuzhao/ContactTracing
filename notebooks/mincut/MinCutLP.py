@@ -408,12 +408,47 @@ grid_cut(
 #%%
 # DP testing:
 
+#%%
 
-s = Delta / epsilon * np.log(m * (np.exp(epsilon) - 1) / delta + 1)
-eta = trunc_laplace(support=s, scale=Delta / epsilon)
-# Test here?
-noise.append(float(s - eta))
-b = min(1, s - eta)
+
+def compute_stats(m, epsilon, delta=None, Delta=2):
+    if delta is None:
+        delta = 1/m
+    s = Delta / epsilon * np.log(m * (np.exp(epsilon) - 1) / delta + 1)
+    return s, (Delta / epsilon)
+
+def perturb(m, epsilon, delta=None, Delta=2):
+    if delta is None:
+        delta = 1/m
+    s = Delta / epsilon * np.log(m * (np.exp(epsilon) - 1) / delta + 1)
+    eta = trunc_laplace(support=s, scale=Delta / epsilon)
+    # Test here?
+    # b = min(1, s - eta)
+    return s - eta
+
+def trunc_laplace_pdf(x, support, loc, scale):
+    return np.exp(-abs((x-loc)/scale)) / (2 * scale * (1 - np.exp(-support / scale)))
+
+m = 100
+epsilon = 1
+num_samples = 10000
+
+noise_mean, noise_scale = compute_stats(m, epsilon)
+print(f"Mean: {noise_mean}")
+print(f"Scale: {noise_scale}")
+
+samples = np.array([perturb(m, epsilon) for _ in range(num_samples)])
+fig, ax = plt.subplots(1, 1, figsize=(10,5))
+
+x = np.linspace(0, 2 * noise_mean, num_samples)
+ax.set_title(f"Truncated Laplacian Noise (m={m}, epsilon={epsilon}, samples={num_samples})")
+ax.plot(x, trunc_laplace_pdf(x, noise_mean, noise_mean, noise_scale),
+        'r-', lw=1, alpha=0.6, label=f'trunc_laplace(support={noise_mean:.1f}, scale={noise_scale:.1f})')
+
+ax.hist(samples, density=True, histtype='stepfilled', alpha=0.2, bins=50)
+ax.legend(loc='best', frameon=False)
+plt.show()
+
 
 #%%
 # # %%
