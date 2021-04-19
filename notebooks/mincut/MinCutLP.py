@@ -89,6 +89,7 @@ def min_cut_solver(
         (epsilon, delta) = privacy
         m = len(G.nodes)
         b_constraints = []
+        noise = []
         for i, n in enumerate(G.nodes):
             # DOUBLE CHECK THIS!!!
             if n in SIR.I:
@@ -96,11 +97,15 @@ def min_cut_solver(
             else:
                 s = Delta / epsilon * \
                     np.log(m * (np.exp(epsilon) - 1) / delta + 1)
-                eta = trunc_laplace(b=s, scale=Delta / epsilon)
+                eta = trunc_laplace(support=s, scale=Delta / epsilon)
+                # Test here?
+                noise.append(float(s - eta))
                 b = min(1, s - eta)  # Constraint within 1
                 assert b >= 0
             solver.Add(vertex_vars[n] >= b)
             b_constraints.append(b)
+        print(f"Noise (s-eta): {noise}")
+        print(f"b constraints (constrained to 1): {b_constraints}")
     else:
         for n in SIR.I:
             solver.Add(vertex_vars[n] == 1)
@@ -289,7 +294,7 @@ for b in np.nditer(budgets):
     vertex_solns, edge_solns = min_cut_solver(
         G,
         SIR.I,
-        budget=b,
+        budget=int(b),
         edge_costs=None,
         vertex_costs=None,
         privacy=None,
@@ -339,9 +344,19 @@ def min_cut_d_prime(G, edge_solns, budget=None):
 # <=========================== Sampling utilities ===========================>
 
 
-def trunc_laplace(b, scale, gen=np.random):
-    return (-1) ^ np.random.randint(2) * scipy.stats.truncexpon.rvs(b=b, scale=scale)
+# b = support / scale
+def trunc_laplace(support, scale, gen=np.random, size=1):
+    """
+    Generate laplacian with support [-support, +support], and scale=scale
+    """
+    return ((-1) ** np.random.randint(2, size=size)) * scipy.stats.truncexpon.rvs(b=support / scale, scale=scale, size=size)
 
+fig, ax = plt.subplots(1, 1)
+
+r = trunc_laplace(support=100, scale=1, size=1000)
+ax.hist(r, density=True, histtype='stepfilled', alpha=0.2)
+ax.legend(loc='best', frameon=False)
+plt.show()
 # Test the distribution
 
 # <=========================== Conversion utilities ===========================>
@@ -350,6 +365,57 @@ def trunc_laplace(b, scale, gen=np.random):
 def dict_to_set(G, edge_solns):
     pass
 
+
+#%%
+
+
+vertex_solns, edge_solns = min_cut_solver(
+    G,
+    SIR.I,
+    budget=int(b),
+    edge_costs=None,
+    vertex_costs=None,
+    privacy=(1, 1),
+    partial=None,
+    mip=False
+)
+rounded_edge_solns = min_cut_l_round(G, vertex_solns=vertex_solns, l=0.5)
+
+print(rounded_edge_solns)
+
+display_vertex_solns, display_edge_solns = min_cut_solver(
+    G,
+    SIR.I,
+    budget=10000000,
+    edge_costs=None,
+    vertex_costs=None,
+    privacy=None,
+    partial=rounded_edge_solns,
+    mip=True
+)
+
+assert display_edge_solns == rounded_edge_solns
+
+fig, ax = plt.subplots(1, 1)
+grid_cut(
+    G,
+    ax,
+    pos,
+    SIR.I,
+    display_vertex_solns,
+    display_edge_solns,
+)
+#%%
+# DP testing:
+
+
+s = Delta / epsilon * np.log(m * (np.exp(epsilon) - 1) / delta + 1)
+eta = trunc_laplace(support=s, scale=Delta / epsilon)
+# Test here?
+noise.append(float(s - eta))
+b = min(1, s - eta)
+
+#%%
 # # %%
 # x = np.array([[True,  False,  False],
 #               [{},  4,  6],
