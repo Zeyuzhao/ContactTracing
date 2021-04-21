@@ -1,4 +1,6 @@
 # %%
+import ipywidgets as widgets
+
 import numpy as np
 from ortools.linear_solver import pywraplp
 from ortools.linear_solver.pywraplp import Variable, Constraint, Objective, Solver
@@ -22,9 +24,6 @@ G, pos = small_world_grid(8, max_norm=False, sparsity=0.1,
                           local_range=1, num_long_range=0.2, r=2, seed=42)
 SIR = random_init(G, num_infected=10, seed=seed)
 budget = 20
-transmission_rate = 1
-compliance_rate = 0.8
-structure_rate = 0
 
 # Create infection state
 # # infection_info = InfectionInfo(G, SIR, budget=0, transmission_rate=0)
@@ -273,6 +272,12 @@ grid_cut(
 
 
 def draw_multiple_grid_cut(G, args, a, b):
+    """
+    Draws multiple grid_cut() graphs in a grid (a, b).
+    Args:
+        G: a networks 
+
+    """
     fig, ax = plt.subplots(a, b, figsize=(4 * a, 4 * b))
 
     for i, ((x, y), config) in enumerate(zip(itertools.product(range(a), range(b)), args)):
@@ -429,8 +434,11 @@ def perturb(m, epsilon, delta=None, Delta=2):
 def trunc_laplace_pdf(x, support, loc, scale):
     return np.exp(-abs((x-loc)/scale)) / (2 * scale * (1 - np.exp(-support / scale)))
 
-m = 100
-epsilon = 1
+
+m_slider = widgets.IntSlider(100, 1, 1000, 1)
+eps_slider = widgets.IntSlider(1, 0.01, 10, 0.01)
+m = m_slider.value
+epsilon = eps_slider.value
 num_samples = 10000
 
 noise_mean, noise_scale = compute_stats(m, epsilon)
@@ -450,26 +458,101 @@ ax.legend(loc='best', frameon=False)
 plt.show()
 
 
+
+
 #%%
-# # %%
-# x = np.array([[True,  False,  False],
-#               [{},  4,  6],
-#               [3,  7,  8],
-#               [1, 10, 12]])
-# x[:, x[0, :] == 1]
 
 
-# def array_split(*arr):
-#     mat = np.array(arr)
-#     x[:, x[0, :] == 1]
+def max_degree_edges(G, budget):
+    edge_max_degree = {(u, v): max(G.degree(u), G.degree(v)) for (u, v) in G.edges}
+    edges_by_degree = sorted(
+        edge_max_degree, key=edge_max_degree.get, reverse=True)
+    return edges_by_degree[:budget]
+
+def degree_solver(G, SIR, budget):
+    edges = max_degree_edges(G, budget)
+    return min_cut_solver(
+        G,
+        SIR.I,
+        budget=budget,
+        edge_costs=None,
+        vertex_costs=None,
+        privacy=None,
+        partial=edges,
+        mip=False
+    )
+
+def random_solver(G, SIR, budget):
+    edges = np.random.choice(G.edges, size=budget, replace=False)
+    return min_cut_solver(
+        G,
+        SIR.I,
+        budget=budget,
+        edge_costs=None,
+        vertex_costs=None,
+        privacy=None,
+        partial=edges,
+        mip=False
+    )
 
 
-# # %%
-# np.hsplit(x, 1)
-# # %%
-# data = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-# x, y, z = data.T
 
+# Create a graphical user interface???
+# Define configuration files???
+def visualizer(G, SIR, budget, solver):
+    # Draw different budgets
+    height = 2
+    width = 2
+    N = height * width
+    num_edges = len(G.edges)
+    budgets = np.linspace(0, num_edges, N).astype(int)
+    configs = []
+
+    for b in np.nditer(budgets):
+        # Different MIPs
+        vertex_solns, edge_solns = degree_solver(
+            G,
+            SIR.I,
+            budget=int(b),   
+        )
+        configs.append({
+            "pos": pos,
+            "initial_infected": SIR.I,
+            "vertex_solns": vertex_solns,
+            "edge_solns": edge_solns,
+            "title": f"MinCut MIP Budget={b}/{num_edges}"
+        })
+    fig, ax = draw_multiple_grid_cut(G, configs, height, width)
+
+    fig.savefig("multi.png")
+    fig.savefig("multi.svg")
+
+
+# Evaluate different budgets by degree solver
+#%%
+
+
+# %%
+x = np.array([[True,  False,  False],
+              [{},  4,  6],
+              [3,  7,  8],
+              [1, 10, 12]])
+x[:, x[0, :] == 1]
+
+
+def array_split(*arr):
+    mat = np.array(arr)
+    x[:, x[0, :] == 1]
+
+
+# %%
+np.hsplit(x, 1)
+# %%
+data = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
+x, y, z = data.T
+print(x)
+print(y)
+print(z)
 # %%
 
 # %%

@@ -20,6 +20,8 @@ from numbers import Number
 random.seed(42)
 
 # Utility Functions
+
+
 def random_sir(G):
     nodes = set(G.nodes)
     I = set(random.sample(nodes, 10))
@@ -27,14 +29,17 @@ def random_sir(G):
     S = nodes - I - R
     return SIR_Tuple(list(S), list(I), list(R))
 
+
 def all_sus(G):
     return SIR_Tuple(set(G.nodes), set(), set())
 
-def prob_round(num: float, rg = None):
+
+def prob_round(num: float, rg=None):
     f, n = math.modf(num)
     if rg is None:
         rg = np.random
     return int(n + (rg.random() < f))
+
 
 def random_init(G, num_infected=5, seed=42):
     random.seed(seed)
@@ -43,6 +48,7 @@ def random_init(G, num_infected=5, seed=42):
     R = set()
     S = nodes - I - R
     return SIR_Tuple(list(S), list(I), list(R))
+
 
 def grid_2d(width, seed=42, diagonals=True, sparsity=0.2, global_rate=0):
     random.seed(seed)
@@ -59,13 +65,15 @@ def grid_2d(width, seed=42, diagonals=True, sparsity=0.2, global_rate=0):
             for y in range(width-1)
         ])
     G.remove_nodes_from(uniform_sample(G.nodes(), sparsity))
-    mapper = {n : i for i, n in enumerate(G.nodes())}
-    pos = {i:(y,-x) for i, (x,y) in enumerate(G.nodes())}
+    mapper = {n: i for i, n in enumerate(G.nodes())}
+    pos = {i: (y, -x) for i, (x, y) in enumerate(G.nodes())}
     G = nx.relabel_nodes(G, mapper)
     # Add edges using the small world method
 
-    G.add_edges_from(uniform_sample(list(itertools.product(G.nodes, G.nodes)), global_rate))
+    G.add_edges_from(uniform_sample(
+        list(itertools.product(G.nodes, G.nodes)), global_rate))
     return G, pos
+
 
 def small_world_grid(width: int, max_norm=False, sparsity=0, local_range=1, num_long_range=1, r=2, seed=42):
     """
@@ -85,7 +93,7 @@ def small_world_grid(width: int, max_norm=False, sparsity=0, local_range=1, num_
     sparsity: float
         The independent probability of removing each node
     num_long_range
-    
+
     Returns
     -------
     Undirected graph G, with long=true attributes for long-ranged edges.
@@ -93,7 +101,7 @@ def small_world_grid(width: int, max_norm=False, sparsity=0, local_range=1, num_
     Raises
     ------
     ValueError
-    
+
     References
     ----------
     .. [1] J. Kleinberg. The small-world phenomenon: An algorithmic
@@ -124,31 +132,34 @@ def small_world_grid(width: int, max_norm=False, sparsity=0, local_range=1, num_
             if d <= local_range:
                 G.add_edge(p1, p2)
             probs.append(d ** -r)
-        
+
         # Normalization
         probs = np.array(probs) / np.sum(probs)
         rounded_num = prob_round(num_long_range, rg=rg)
-        
+
         targets = rg.choice(len(probs), size=rounded_num, p=probs)
         for t in targets:
-            p2 = nodes[t] # Convert int -> real id
-            G.add_edge(p1, p2, long=dist(p1,p2) > local_range)
+            p2 = nodes[t]  # Convert int -> real id
+            G.add_edge(p1, p2, long=dist(p1, p2) > local_range)
 
     G.remove_nodes_from(uniform_sample(G.nodes(), sparsity, rg))
     # Remap nodes to 0 - n^2-1
-    mapper = {n : i for i, n in enumerate(G.nodes())}
-    pos = {i:(y,-x) for i, (x,y) in enumerate(G.nodes())}
+    mapper = {n: i for i, n in enumerate(G.nodes())}
+    pos = {i: (y, -x) for i, (x, y) in enumerate(G.nodes())}
     G = nx.relabel_nodes(G, mapper)
+    nx.set_node_attributes(G, pos, 'pos')
     return G, pos
 
-def grid_sir(G: nx.Graph, 
-    ax, 
-    pos:Dict[int,Number], 
-    sir=None, 
-    quarantined_nodes:List[int]=[], 
-    non_compliant_nodes: List[int]=[],
-    exposed_nodes: List[int]=[],
-    edges:List[int]=[], 
+
+def grid_sir(
+    G: nx.Graph,
+    ax,
+    pos: Dict[int, Number],
+    sir=None,
+    quarantined_nodes: List[int] = [],
+    non_compliant_nodes: List[int] = [],
+    exposed_nodes: List[int] = [],
+    edges: List[int] = [],
     edge_color=None,
     **args,
 ):
@@ -177,7 +188,7 @@ def grid_sir(G: nx.Graph,
 
     if pos is None:
         pos = {x: x["pos"] for x in G.nodes}
-    
+
     node_size = [None] * len(G.nodes)
     node_color = [None] * len(G.nodes)
     border_color = [None] * len(G.nodes)
@@ -206,44 +217,47 @@ def grid_sir(G: nx.Graph,
         else:
             border_color[i] = "black"
             linewidths[i] = 1
-    
+
     # Draw edges that are from I, V1, and V2
     nodes = nx.draw_networkx_nodes(
-        G, 
-        pos=pos, 
-        node_color=node_color, 
-        node_size=node_size, 
-        edgecolors=border_color, 
-        linewidths=linewidths, 
+        G,
+        pos=pos,
+        node_color=node_color,
+        node_size=node_size,
+        edgecolors=border_color,
+        linewidths=linewidths,
         ax=ax
     )
-    
 
-    NEW_METHOD=True
+    NEW_METHOD = True
     if NEW_METHOD:
-        short_edges, short_props = zip(*list(filter(lambda x: not G[x[0][0]][x[0][1]].get("long"), zip(edges, edge_color))))
-        longs = list(zip(*list(filter(lambda x: G[x[0][0]][x[0][1]].get("long"), zip(edges, edge_color)))))
-        if len(longs) == 2: # Handle case with no edges (HACK)
+        short_edges, short_props = zip(
+            *list(filter(lambda x: not G[x[0][0]][x[0][1]].get("long"), zip(edges, edge_color))))
+        longs = list(zip(
+            *list(filter(lambda x: G[x[0][0]][x[0][1]].get("long"), zip(edges, edge_color)))))
+
+        if len(longs) == 2:  # Handle case with no edges (HACK)
             long_edges, long_props = longs
         else:
             long_edges, long_props = ([], [])
+            
         draw_networkx_edges(
-            G, 
-            pos=pos, 
-            edgelist=short_edges, 
-            edge_color=short_props, 
-            # width=[], 
+            G,
+            pos=pos,
+            edgelist=short_edges,
+            edge_color=short_props,
+            # width=[],
             node_size=node_size,
             ax=ax,
             arrowstyle='-',
         )
 
         draw_networkx_edges(
-            G, 
-            pos=pos, 
-            edgelist=long_edges, 
-            edge_color=long_props, 
-            # width=[], 
+            G,
+            pos=pos,
+            edgelist=long_edges,
+            edge_color=long_props,
+            # width=[],
             node_size=node_size,
             ax=ax,
             connectionstyle="arc3,rad=0.2",
@@ -251,23 +265,26 @@ def grid_sir(G: nx.Graph,
         )
     else:
         nx.draw_networkx_edges(
-            G, 
-            pos=pos, 
-            edgelist=edges, 
-            edge_color=edge_color, 
-            # width=[], 
+            G,
+            pos=pos,
+            edgelist=edges,
+            edge_color=edge_color,
+            # width=[],
             node_size=node_size,
             ax=ax,
             arrowstyle='-',
         )
 
-def draw_single(G, title=None, figsize=(4,4), **args):
+
+def draw_single(G, title=None, figsize=(4, 4), **args):
     fig, ax = plt.subplots(figsize=figsize)
     ax.set_title(title, fontsize=8)
     grid_sir(G, ax, **args)
 
+
 def draw_multiple(G, args):
     draw_multiple_grid(G, args, 1, len(args))
+
 
 def draw_multiple_grid(G, args, a, b):
     fig, ax = plt.subplots(a, b, figsize=(4 * a, 4 * b))
@@ -278,7 +295,6 @@ def draw_multiple_grid(G, args, a, b):
         ax[x, y].set_title(config.get("title"), fontsize=8)
         grid_sir(G, ax[x, y], **config)
     return fig, ax
-
 
 
 # Patched draw_networkx_edges
@@ -446,9 +462,9 @@ def draw_networkx_edges(
 
     if arrowstyle is None:
         if G.is_directed():
-            arrowstyle='-|>'
+            arrowstyle = '-|>'
         else:
-            arrowstyle='-'
+            arrowstyle = '-'
 
     # set edge positions
     edge_pos = np.asarray([(pos[e[0]], pos[e[1]]) for e in edgelist])
@@ -522,7 +538,8 @@ def draw_networkx_edges(
                 shrink_source = to_marker_edge(source_node_size, node_shape)
                 shrink_target = to_marker_edge(target_node_size, node_shape)
             else:
-                shrink_source = shrink_target = to_marker_edge(node_size, node_shape)
+                shrink_source = shrink_target = to_marker_edge(
+                    node_size, node_shape)
 
             if shrink_source < min_source_margin:
                 shrink_source = min_source_margin
