@@ -256,18 +256,6 @@ def grid_cut(
         arrowstyle='-',
     )
 
-
-fig, ax = plt.subplots(figsize=(5, 5))
-ax.set_title("MinCut Spread", fontsize=8)
-grid_cut(
-    G,
-    ax,
-    pos,
-    SIR.I,
-    vertex_solns,
-    edge_solns,
-)
-
 # %%
 
 
@@ -767,14 +755,14 @@ def draw_style(G, node_style, edge_style, ax=None, DEBUG=False):
     functionwide_params = ["connectionstyle", "arrowstyle"]
 
     # Pandas can't handle None equality!!!
-    NONE = -1
+    NONE = -1 # No functionwide paramter can a -1!
     for p in functionwide_params:
         if p not in df_edges:
             df_edges[p] = NONE
         df_edges[p] = df_edges[p].fillna(NONE)
     
     # print(df_edges)
-
+ 
     for name, group in df_edges.groupby(functionwide_params):
         styled_edges = group.drop(functionwide_params, axis=1).to_dict(orient="list")
 
@@ -784,10 +772,12 @@ def draw_style(G, node_style, edge_style, ax=None, DEBUG=False):
             for k, v in zip(functionwide_params, name)
         }
 
-        print("<======= Group ========>")
-        print(f"Functionwide: {functionwide_styles}")
-        # print(f"Styled: {styled_edges}")
-        print("<======= End Group ========>")
+        if DEBUG:
+            print("<======= Group ========>")
+            print(f"Functionwide: {functionwide_styles}")
+            # print(f"Styled: {styled_edges}")
+            print("<======= End Group ========>")
+            print()
         draw_networkx_edges(
             G,
             edgelist=list(group.index),
@@ -809,7 +799,7 @@ G.nodes[0]["patient0"] = True
 G.nodes[2]["patient0"] = True
 # G.edges[(0,2)]["cut"] = True
 G.edges[(0, 2)]["transmit"] = True
-draw_style(G, node_style, edge_style, ax=ax, DEBUG=True)
+draw_style(G, node_style, edge_style, ax=ax, DEBUG=False)
 
 
 # %%
