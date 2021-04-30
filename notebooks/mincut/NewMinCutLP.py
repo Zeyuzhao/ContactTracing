@@ -1,4 +1,7 @@
 # %%
+import pstats
+import io
+import cProfile
 import ipywidgets as widgets
 
 import numpy as np
@@ -59,12 +62,12 @@ def min_cut_solver(
 
     solver: Solver = pywraplp.Solver.CreateSolver("GUROBI")
     vertex_vars = {}
-    edge_vars = defaultdict(dict)
+    edge_vars = {}
     # 2d dictionary defaulting to 1
 
     # Costs
     if edge_costs is None:
-        edge_costs = defaultdict(lambda: defaultdict(lambda: 1))
+        edge_costs = defaultdict(lambda: 1)
     if vertex_costs is None:
         vertex_costs = defaultdict(lambda: 1)
 
@@ -74,13 +77,13 @@ def min_cut_solver(
             vertex_vars[n] = solver.IntVar(0, 1, f"v_{n}")
 
         for e in G.edges:
-            edge_vars[e[0]][e[1]] = solver.IntVar(0, 1, f"e_{e[0]}_{e[0]}")
+            edge_vars[e] = solver.IntVar(0, 1, f"e_{e[0]}_{e[0]}")
     else:
         for n in G.nodes:
             vertex_vars[n] = solver.NumVar(0, 1, f"v_{n}")
 
         for e in G.edges:
-            edge_vars[e[0]][e[1]] = solver.NumVar(0, 1, f"e_{e[0]}_{e[0]}")
+            edge_vars[e] = solver.NumVar(0, 1, f"e_{e[0]}_{e[0]}")
 
     # Constrain infected (or add (e, d) noise)
     if privacy is not None:
@@ -99,8 +102,11 @@ def min_cut_solver(
                 eta = trunc_laplace(support=s, scale=Delta / epsilon)
                 # Test here?
                 noise.append(float(s - eta))
-                b = min(1, s - eta)  # Constraint within 1
+                b = min(1, float(s - eta))  # Constraint within 1
                 assert b >= 0
+            # print(vertex_vars[n])
+            # print(b)
+            # print(vertex_vars[n] >= b)
             solver.Add(vertex_vars[n] >= b)
             b_constraints.append(b)
         # print(f"Noise (s-eta): {noise}")
@@ -112,22 +118,22 @@ def min_cut_solver(
     # Constrain edge solutions if given partial (solutions)
     if partial is not None:
         for e in G.edges:
-            if e in partial:
-                solver.Add(edge_vars[e[0]][e[1]] == 1)
+            if partial[e] == 1:
+                solver.Add(edge_vars[e] == 1)
             else:
-                solver.Add(edge_vars[e[0]][e[1]] == 0)
+                solver.Add(edge_vars[e] == 0)
 
     # Constrain transmission along edges
     for e in G.edges:
-        solver.Add(edge_vars[e[0]][e[1]] >=
+        solver.Add(edge_vars[e] >=
                    vertex_vars[e[0]] - vertex_vars[e[1]])
-        solver.Add(edge_vars[e[0]][e[1]] >=
+        solver.Add(edge_vars[e] >=
                    vertex_vars[e[1]] - vertex_vars[e[0]])
 
     # Constrain budget for edges
     cost: Constraint = solver.Constraint(0, budget)
     for e in G.edges:
-        cost.SetCoefficient(edge_vars[e[0]][e[1]], edge_costs[e[0]][e[1]])
+        cost.SetCoefficient(edge_vars[e], edge_costs[e])
 
     # Set objecttive for people saved
     objective = solver.Objective()
@@ -151,7 +157,7 @@ def min_cut_solver(
         vertex_solns[n] = vertex_vars[n].solution_value()
 
     for i, e in enumerate(G.edges):
-        edge_solns[e[0]][e[1]] = edge_vars[e[0]][e[1]].solution_value()
+        edge_solns[e] = edge_vars[e].solution_value()
 
     return vertex_solns, edge_solns
 
@@ -166,6 +172,17 @@ vertex_solns, edge_solns = min_cut_solver(
     partial=None,
     mip=True
 )
+
+# vertex_solns, edge_solns = min_cut_solver(
+#     G,
+#     SIR.I,
+#     budget=20,
+#     edge_costs=None,
+#     vertex_costs=None,
+#     privacy=(1, 1),
+#     partial=None,
+#     mip=False
+# )
 
 # %%
 
@@ -183,7 +200,7 @@ def grid_cut(
         vertex_solns = [0] * len(G.edges)
 
     if edge_solns is None:
-        edge_solns = [0] * len(G.nodes)
+        edge_solns = defaultdict(int)
 
     if pos is None:
         pos = {x: x["pos"] for x in G.nodes}
@@ -207,7 +224,7 @@ def grid_cut(
 
     for i, e in enumerate(G.edges):
         # Handle SIR
-        if edge_solns[e[0]][e[1]] < 1:
+        if edge_solns[e] < 1:
             if vertex_solns[e[0]] == 1:
                 edge_color[i] = "red"
             else:
@@ -314,16 +331,16 @@ def min_cut_l_round(G, vertex_solns, l):
     rounded_edge_solns = defaultdict(dict)
     for e in G.edges:
         if (vertex_solns[e[0]] - l) * (vertex_solns[e[1]] - l) <= 0:
-            rounded_edge_solns[e[0]][e[1]] = 1
+            rounded_edge_solns[e] = 1
         else:
-            rounded_edge_solns[e[0]][e[1]] = 0
+            rounded_edge_solns[e] = 0
     return rounded_edge_solns
 
 
 def min_cut_d_prime(G, edge_solns, budget=None):
     dense = []
     for i, e in enumerate(G.edges):
-        dense.append(edge_solns[e[0]][e[1]])
+        dense.append(edge_solns[e])
     result = D_prime(dense)
     if budget is not None:
         summed = sum(result)
@@ -332,7 +349,7 @@ def min_cut_d_prime(G, edge_solns, budget=None):
                 f"Sum of result violated budget ({summed} > {budget})")
     rounded_edge_solns = defaultdict(dict)
     for i, e in enumerate(G.edges):
-        rounded_edge_solns[e[0]][e[1]] = result[i]
+        rounded_edge_solns[e] = result[i]
     return rounded_edge_solns
 # <=========================== Sampling utilities ===========================>
 
@@ -351,14 +368,6 @@ r = trunc_laplace(support=100, scale=1, size=1000)
 ax.hist(r, density=True, histtype='stepfilled', alpha=0.2)
 ax.legend(loc='best', frameon=False)
 plt.show()
-# Test the distribution
-
-# <=========================== Conversion utilities ===========================>
-
-
-def dict_to_set(G, edge_solns):
-    pass
-
 
 # %%
 
@@ -522,127 +531,6 @@ def visualizer(G, SIR, budget, solver):
 
 # Evaluate different budgets by degree solver
 # %%
-
-
-# %%
-x = np.array([[True,  False,  False],
-              [{},  4,  6],
-              [3,  7,  8],
-              [1, 10, 12]])
-print(x[:, x[0, :] == 1])
-
-
-def array_split(*arr):
-    mat = np.array(arr)
-    x[:, x[0, :] == 1]
-
-
-# %%
-np.hsplit(x, 1)
-# %%
-data = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
-x, y, z = data.T
-print(x)
-print(y)
-print(z)
-# %%
-
-
-# def grid_cut(
-#     G: nx.Graph,
-#     ax,
-#     pos: Dict[int, Number] = None,
-#     initial_infected=set(),
-#     vertex_solns=None,
-#     edge_solns=None,
-#     **args,
-# ):
-
-#     if vertex_solns is None:
-#         vertex_solns = [0] * len(G.edges)
-
-#     if edge_solns is None:
-#         edge_solns = [0] * len(G.nodes)
-
-#     if pos is None:
-#         pos = {x: x["pos"] for x in G.nodes}
-
-#     node_size = [10] * len(G.nodes)
-#     node_color = ["black"] * len(G.nodes)
-#     border_color = ["black"] * len(G.nodes)
-
-#     edge_color = ["black"] * len(G.edges)
-#     for i, n in enumerate(G.nodes):
-#         # Handle SIR
-#         if vertex_solns[n] < 1:
-#             node_color[i] = "black"
-#         else:
-#             node_color[i] = "red"
-
-#         if n in initial_infected:
-#             node_size[i] = 50
-#         else:
-#             node_size[i] = 10
-
-#     for i, e in enumerate(G.edges):
-#         # Handle SIR
-#         if edge_solns[e[0]][e[1]] < 1:
-#             if vertex_solns[e[0]] == 1:
-#                 edge_color[i] = "red"
-#             else:
-#                 edge_color[i] = "black"
-#         else:
-#             edge_color[i] = "grey"
-
-#     # Draw edges that are from I, V1, and V2
-#     nodes = nx.draw_networkx_nodes(
-#         G,
-#         pos=pos,
-#         node_color=node_color,
-#         node_size=node_size,
-#         edgecolors=border_color,
-#         ax=ax
-#     )
-
-#     # REDO!!!
-#     short_edges, short_props = zip(
-#         *list(filter(lambda x: not G[x[0][0]][x[0][1]].get("long"), zip(G.edges, edge_color))))
-#     longs = list(zip(
-#         *list(filter(lambda x: G[x[0][0]][x[0][1]].get("long"), zip(G.edges, edge_color)))))
-
-#     if len(longs) == 2:  # Handle case with no edges (HACK)
-#         long_edges, long_props = longs
-#     else:
-#         long_edges, long_props = ([], [])
-#     draw_networkx_edges(
-#         G,
-#         pos=pos,
-#         edgelist=short_edges,
-#         edge_color=short_props,
-#         node_size=node_size,
-#         ax=ax,
-#         arrowstyle='-',
-#     )
-
-#     draw_networkx_edges(
-#         G,
-#         pos=pos,
-#         edgelist=long_edges,
-#         edge_color=long_props,
-#         node_size=node_size,
-#         ax=ax,
-#         connectionstyle="arc3,rad=0.2",
-#         arrowstyle='-',
-#     )
-
-
-fig, ax = plt.subplots(figsize=(5, 5))
-ax.set_title("testing", fontsize=8)
-
-# grid_cut(G, ax, SIR, )
-
-
-# %%
 G_old = G.copy()
 # %%
 
@@ -688,7 +576,7 @@ edge_style = {
     # Overriding (cut overrides transmission)
     "transmit": {
         False: {},
-        True: {"edge_color": "red", "arrowstyle": "->"},
+        True: {"edge_color": "red"},
     },
     "cut": {
         False: {},
@@ -702,7 +590,7 @@ def draw_style(G, node_style, edge_style, ax=None, DEBUG=False):
     edge_style = edge_style.copy()
 
     if ax is None:
-        fig, ax = plt.subplots(figsize=(10, 10))
+        fig, ax = plt.subplots(figsize=(4, 4))
 
     default_node_style = node_style.pop("default", {})
     default_edge_style = edge_style.pop("default", {})
@@ -760,18 +648,19 @@ def draw_style(G, node_style, edge_style, ax=None, DEBUG=False):
     functionwide_params = ["connectionstyle", "arrowstyle"]
 
     # Pandas can't handle None equality!!!
-    NONE = -1 # No functionwide paramter can a -1!
+    NONE = -1  # No functionwide paramter can a -1!
     for p in functionwide_params:
         if p not in df_edges:
             df_edges[p] = NONE
         df_edges[p] = df_edges[p].fillna(NONE)
- 
+
     for name, group in df_edges.groupby(functionwide_params):
-        styled_edges = group.drop(functionwide_params, axis=1).to_dict(orient="list")
+        styled_edges = group.drop(
+            functionwide_params, axis=1).to_dict(orient="list")
 
         # Convert NONE back to None
         functionwide_styles = {
-            k: None if v == NONE else v 
+            k: None if v == NONE else v
             for k, v in zip(functionwide_params, name)
         }
 
@@ -805,21 +694,34 @@ G.edges[(0, 2)]["transmit"] = True
 draw_style(G, node_style, edge_style, DEBUG=False)
 
 
-#%%
+# %%
 
-#%%
+# %%
 # fig, ax = plt.subplots(figsize=(4, 4))
 # ax.set_title("Test Graph", fontsize=8)
+
+
 G = G_old.copy()
+vertex_solns, edge_solns = min_cut_solver(
+    G,
+    SIR.I,
+    budget=20,
+    edge_costs=None,
+    vertex_costs=None,
+    privacy=None,
+    partial=None,
+    mip=True
+)
+
+# Attribute Semantic Painter
+transmit = {e: vertex_solns[e[0]] or vertex_solns[e[1]] for e in G.edges}
 nx.set_node_attributes(G, {n: n in SIR.I for n in G.nodes}, "patient0")
 nx.set_node_attributes(G, vertex_solns, "status")
-
+nx.set_edge_attributes(G, edge_solns, "cut")
+nx.set_edge_attributes(G, transmit, "transmit")
 
 draw_style(G, node_style, edge_style, DEBUG=True)
 # %%
-import cProfile
-import io
-import pstats
 
 with cProfile.Profile() as pr:
     draw_style(G, node_style, edge_style, DEBUG=False)
