@@ -696,7 +696,7 @@ edge_style = {
     # Overriding (cut overrides transmission)
     "transmit": {
         False: {},
-        True: {"edge_color": "red"},
+        True: {"edge_color": "red", "arrowstyle": "->"},
     },
     "cut": {
         False: {},
@@ -763,48 +763,37 @@ def draw_style(G, node_style, edge_style, ax=None, DEBUG=False):
     )
 
     # Creating a fake NONE
-    class NONE(Enum):
-        pass
-    
     # Handling function-wide parameters
-    if "connectionstyle" not in df_edges:
-        df_edges["connectionstyle"] = None
+    functionwide_params = ["connectionstyle", "arrowstyle"]
 
-    for c_style in df_edges["connectionstyle"].unique():
+    # Pandas can't handle None equality!!!
+    NONE = -1
+    for p in functionwide_params:
+        if p not in df_edges:
+            df_edges[p] = NONE
+        df_edges[p] = df_edges[p].fillna(NONE)
+    
+    # print(df_edges)
 
-        # Partial and arrowstyle are grouped for now
-        if c_style is None:
-            # Hack: Handle Nones in dataframe
-            partial = df_edges[df_edges["connectionstyle"].isna()]
-        else:
-            partial = df_edges[df_edges["connectionstyle"] == c_style]
-        # Limits one arrowstyle per connectionstyle
+    for name, group in df_edges.groupby(functionwide_params):
+        styled_edges = group.drop(functionwide_params, axis=1).to_dict(orient="list")
 
-        arrowstyles = partial["arrowstyle"].unique()
-        if len(arrowstyles) > 1:
-            raise ValueError(
-                "Each connectionstyle can have at most ONE arrowstyle\n" +
-                f"connectionstyle {c_style} has arrowstyles {arrowstyles}"
-            )
-        arrowstyle = partial.iloc[0]["arrowstyle"] if len(partial) else None
+        # Convert NONE back to None
+        functionwide_styles = {
+            k: None if v == NONE else v 
+            for k, v in zip(functionwide_params, name)
+        }
 
-        partial = partial.drop("connectionstyle", 1)
-        partial = partial.drop("arrowstyle", 1)
-
-        styled_edges = partial.to_dict(orient="list")
-
-        # print("<======= Group ========>")
-        # print(c_style)
-        # print(arrowstyle)
+        print("<======= Group ========>")
+        print(f"Functionwide: {functionwide_styles}")
         # print(f"Styled: {styled_edges}")
-        # print("<======= End Group ========>")
+        print("<======= End Group ========>")
         draw_networkx_edges(
             G,
-            edgelist=list(partial.index),
+            edgelist=list(group.index),
             pos=pos,
             **styled_edges,
-            connectionstyle=c_style,
-            arrowstyle=arrowstyle,
+            **functionwide_styles,
             node_size=styled_nodes["node_size"],
             ax=ax,
         )
@@ -820,7 +809,7 @@ G.nodes[0]["patient0"] = True
 G.nodes[2]["patient0"] = True
 # G.edges[(0,2)]["cut"] = True
 G.edges[(0, 2)]["transmit"] = True
-draw_style(G, node_style, edge_style, ax=ax)
+draw_style(G, node_style, edge_style, ax=ax, DEBUG=True)
 
 
 # %%
