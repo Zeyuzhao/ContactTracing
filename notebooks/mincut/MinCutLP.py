@@ -15,7 +15,7 @@ from ctrace.utils import *
 from ctrace.drawing import *
 
 import scipy
-
+from enum import Enum
 # %%
 
 # <=========================== Graph/SIR Setup ===========================>
@@ -652,6 +652,10 @@ fig, ax = plt.subplots(figsize=(5, 5))
 ax.set_title("testing", fontsize=8)
 
 grid_cut(G, ax, SIR, )
+
+
+# %%
+G_old = G.copy()
 # %%
 
 
@@ -678,6 +682,8 @@ node_style = {
 }
 
 edge_style = {
+    # connectionstyle and arrowstyle are function-wide parameters
+    # NOTE: For each connectionstyle, we can only have ONE arrowstyle
     "default": {
         "edge_color": "black",
         "arrowstyle": "-",
@@ -709,6 +715,11 @@ def draw_style(G, node_style, edge_style, ax=None, DEBUG=False):
     edge_style_attrs = edge_style.keys()
 
     def apply_style(collection, style, default):
+        """
+        collection: dictionary like
+        style: { attr: {value: style_dict}}
+        default: style_dict
+        """
         processed = {}
         for item in collection:
             # Iteratively merge in styles
@@ -734,7 +745,6 @@ def draw_style(G, node_style, edge_style, ax=None, DEBUG=False):
                     edge_style, default_edge_style),
         orient="index",
     ).replace({np.nan: None})
-    df_edges
     # styled_edges = df_edges.to_dict(orient="list")
 
     if DEBUG:
@@ -752,13 +762,30 @@ def draw_style(G, node_style, edge_style, ax=None, DEBUG=False):
         ax=ax
     )
 
+    # Creating a fake NONE
+    class NONE(Enum):
+        pass
+    
+    # Handling function-wide parameters
     if "connectionstyle" not in df_edges:
         df_edges["connectionstyle"] = None
 
     for c_style in df_edges["connectionstyle"].unique():
 
         # Partial and arrowstyle are grouped for now
-        partial = df_edges[df_edges["connectionstyle"] == c_style]
+        if c_style is None:
+            # Hack: Handle Nones in dataframe
+            partial = df_edges[df_edges["connectionstyle"].isna()]
+        else:
+            partial = df_edges[df_edges["connectionstyle"] == c_style]
+        # Limits one arrowstyle per connectionstyle
+
+        arrowstyles = partial["arrowstyle"].unique()
+        if len(arrowstyles) > 1:
+            raise ValueError(
+                "Each connectionstyle can have at most ONE arrowstyle\n" +
+                f"connectionstyle {c_style} has arrowstyles {arrowstyles}"
+            )
         arrowstyle = partial.iloc[0]["arrowstyle"] if len(partial) else None
 
         partial = partial.drop("connectionstyle", 1)
@@ -766,11 +793,11 @@ def draw_style(G, node_style, edge_style, ax=None, DEBUG=False):
 
         styled_edges = partial.to_dict(orient="list")
 
-        print("<======= Group ========>")
-        print(c_style)
-        print(arrowstyle)
-        print(f"Styled: {styled_edges}")
-        print("<======= End Group ========>")
+        # print("<======= Group ========>")
+        # print(c_style)
+        # print(arrowstyle)
+        # print(f"Styled: {styled_edges}")
+        # print("<======= End Group ========>")
         draw_networkx_edges(
             G,
             edgelist=list(partial.index),
@@ -786,8 +813,17 @@ def draw_style(G, node_style, edge_style, ax=None, DEBUG=False):
 # Edges need to split by connection style
 fig, ax = plt.subplots(figsize=(4, 4))
 ax.set_title("Test Graph", fontsize=8)
-draw_style(G, node_style, edge_style, ax=ax, DEBUG=True)
 
+G = G_old.copy()
+G.nodes[0]["patient0"] = True
+# G.nodes[1]["patient0"] = True
+G.nodes[2]["patient0"] = True
+# G.edges[(0,2)]["cut"] = True
+G.edges[(0, 2)]["transmit"] = True
+draw_style(G, node_style, edge_style, ax=ax)
+
+
+# %%
 
 # %%
 
