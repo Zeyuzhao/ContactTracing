@@ -103,8 +103,8 @@ def min_cut_solver(
                 assert b >= 0
             solver.Add(vertex_vars[n] >= b)
             b_constraints.append(b)
-        print(f"Noise (s-eta): {noise}")
-        print(f"b constraints (constrained to 1): {b_constraints}")
+        # print(f"Noise (s-eta): {noise}")
+        # print(f"b constraints (constrained to 1): {b_constraints}")
     else:
         for n in SIR.I:
             solver.Add(vertex_vars[n] == 1)
@@ -356,6 +356,7 @@ def trunc_laplace(support, scale, gen=np.random, size=1):
     """
     return ((-1) ** np.random.randint(2, size=size)) * scipy.stats.truncexpon.rvs(b=support / scale, scale=scale, size=size)
 
+
 fig, ax = plt.subplots(1, 1)
 
 r = trunc_laplace(support=100, scale=1, size=1000)
@@ -371,7 +372,7 @@ def dict_to_set(G, edge_solns):
     pass
 
 
-#%%
+# %%
 
 
 vertex_solns, edge_solns = min_cut_solver(
@@ -410,10 +411,10 @@ grid_cut(
     display_vertex_solns,
     display_edge_solns,
 )
-#%%
+# %%
 # DP testing:
 
-#%%
+# %%
 
 
 def compute_stats(m, epsilon, delta=None, Delta=2):
@@ -421,6 +422,7 @@ def compute_stats(m, epsilon, delta=None, Delta=2):
         delta = 1/m
     s = Delta / epsilon * np.log(m * (np.exp(epsilon) - 1) / delta + 1)
     return s, (Delta / epsilon)
+
 
 def perturb(m, epsilon, delta=None, Delta=2):
     if delta is None:
@@ -430,6 +432,7 @@ def perturb(m, epsilon, delta=None, Delta=2):
     # Test here?
     # b = min(1, s - eta)
     return s - eta
+
 
 def trunc_laplace_pdf(x, support, loc, scale):
     return np.exp(-abs((x-loc)/scale)) / (2 * scale * (1 - np.exp(-support / scale)))
@@ -446,10 +449,11 @@ print(f"Mean: {noise_mean}")
 print(f"Scale: {noise_scale}")
 
 samples = np.array([perturb(m, epsilon) for _ in range(num_samples)])
-fig, ax = plt.subplots(1, 1, figsize=(10,5))
+fig, ax = plt.subplots(1, 1, figsize=(10, 5))
 
 x = np.linspace(0, 2 * noise_mean, num_samples)
-ax.set_title(f"Truncated Laplacian Noise (m={m}, epsilon={epsilon}, samples={num_samples})")
+ax.set_title(
+    f"Truncated Laplacian Noise (m={m}, epsilon={epsilon}, samples={num_samples})")
 ax.plot(x, trunc_laplace_pdf(x, noise_mean, noise_mean, noise_scale),
         'r-', lw=1, alpha=0.6, label=f'trunc_laplace(support={noise_mean:.1f}, scale={noise_scale:.1f})')
 
@@ -458,16 +462,16 @@ ax.legend(loc='best', frameon=False)
 plt.show()
 
 
-
-
-#%%
+# %%
 
 
 def max_degree_edges(G, budget):
-    edge_max_degree = {(u, v): max(G.degree(u), G.degree(v)) for (u, v) in G.edges}
+    edge_max_degree = {(u, v): max(G.degree(u), G.degree(v))
+                       for (u, v) in G.edges}
     edges_by_degree = sorted(
         edge_max_degree, key=edge_max_degree.get, reverse=True)
     return edges_by_degree[:budget]
+
 
 def degree_solver(G, SIR, budget):
     edges = max_degree_edges(G, budget)
@@ -482,6 +486,7 @@ def degree_solver(G, SIR, budget):
         mip=False
     )
 
+
 def random_solver(G, SIR, budget):
     edges = np.random.choice(G.edges, size=budget, replace=False)
     return min_cut_solver(
@@ -494,7 +499,6 @@ def random_solver(G, SIR, budget):
         partial=edges,
         mip=False
     )
-
 
 
 # Create a graphical user interface???
@@ -513,7 +517,7 @@ def visualizer(G, SIR, budget, solver):
         vertex_solns, edge_solns = degree_solver(
             G,
             SIR.I,
-            budget=int(b),   
+            budget=int(b),
         )
         configs.append({
             "pos": pos,
@@ -529,7 +533,7 @@ def visualizer(G, SIR, budget, solver):
 
 
 # Evaluate different budgets by degree solver
-#%%
+# %%
 
 
 # %%
@@ -537,7 +541,7 @@ x = np.array([[True,  False,  False],
               [{},  4,  6],
               [3,  7,  8],
               [1, 10, 12]])
-x[:, x[0, :] == 1]
+print(x[:, x[0, :] == 1])
 
 
 def array_split(*arr):
@@ -555,7 +559,235 @@ print(y)
 print(z)
 # %%
 
+
+def grid_cut(
+    G: nx.Graph,
+    ax,
+    pos: Dict[int, Number] = None,
+    initial_infected=set(),
+    vertex_solns=None,
+    edge_solns=None,
+    **args,
+):
+
+    if vertex_solns is None:
+        vertex_solns = [0] * len(G.edges)
+
+    if edge_solns is None:
+        edge_solns = [0] * len(G.nodes)
+
+    if pos is None:
+        pos = {x: x["pos"] for x in G.nodes}
+
+    node_size = [10] * len(G.nodes)
+    node_color = ["black"] * len(G.nodes)
+    border_color = ["black"] * len(G.nodes)
+
+    edge_color = ["black"] * len(G.edges)
+    for i, n in enumerate(G.nodes):
+        # Handle SIR
+        if vertex_solns[n] < 1:
+            node_color[i] = "black"
+        else:
+            node_color[i] = "red"
+
+        if n in initial_infected:
+            node_size[i] = 50
+        else:
+            node_size[i] = 10
+
+    for i, e in enumerate(G.edges):
+        # Handle SIR
+        if edge_solns[e[0]][e[1]] < 1:
+            if vertex_solns[e[0]] == 1:
+                edge_color[i] = "red"
+            else:
+                edge_color[i] = "black"
+        else:
+            edge_color[i] = "grey"
+
+    # Draw edges that are from I, V1, and V2
+    nodes = nx.draw_networkx_nodes(
+        G,
+        pos=pos,
+        node_color=node_color,
+        node_size=node_size,
+        edgecolors=border_color,
+        ax=ax
+    )
+
+    # REDO!!!
+    short_edges, short_props = zip(
+        *list(filter(lambda x: not G[x[0][0]][x[0][1]].get("long"), zip(G.edges, edge_color))))
+    longs = list(zip(
+        *list(filter(lambda x: G[x[0][0]][x[0][1]].get("long"), zip(G.edges, edge_color)))))
+
+    if len(longs) == 2:  # Handle case with no edges (HACK)
+        long_edges, long_props = longs
+    else:
+        long_edges, long_props = ([], [])
+    draw_networkx_edges(
+        G,
+        pos=pos,
+        edgelist=short_edges,
+        edge_color=short_props,
+        node_size=node_size,
+        ax=ax,
+        arrowstyle='-',
+    )
+
+    draw_networkx_edges(
+        G,
+        pos=pos,
+        edgelist=long_edges,
+        edge_color=long_props,
+        node_size=node_size,
+        ax=ax,
+        connectionstyle="arc3,rad=0.2",
+        arrowstyle='-',
+    )
+
+
+fig, ax = plt.subplots(figsize=(5, 5))
+ax.set_title("testing", fontsize=8)
+
+grid_cut(G, ax, SIR, )
 # %%
+
+
+# TODO: Implement YAML Loader
+
+node_style = {
+    # Default styling
+    "default": {
+        "node_size": 10,
+        "node_color": "black",
+        "edgecolors": "black",
+    },
+    # Attribute styling
+    "patient0": {
+        # Is patient 0?
+        False: {},
+        True: {"node_size": 50},
+    },
+    "status": {
+        # Is infected?
+        False: {"node_color": "black"},
+        True: {"node_color": "red"},
+    },
+}
+
+edge_style = {
+    "default": {
+        "edge_color": "black",
+        "arrowstyle": "-",
+    },
+    "long": {
+        False: {},
+        True: {"connectionstyle": "arc3,rad=0.2"},
+    },
+
+    # Overriding (cut overrides transmission)
+    "transmit": {
+        False: {},
+        True: {"edge_color": "red"},
+    },
+    "cut": {
+        False: {},
+        True: {"edge_color": "grey"},
+    },
+}
+
+
+def draw_style(G, node_style, edge_style, ax=None, DEBUG=False):
+    if ax is None:
+        fig, ax = plt.subplot(figsize=(10, 10))
+    default_node_style = node_style.pop("default", {})
+    default_edge_style = edge_style.pop("default", {})
+
+    node_style_attrs = node_style.keys()
+    edge_style_attrs = edge_style.keys()
+
+    def apply_style(collection, style, default):
+        processed = {}
+        for item in collection:
+            # Iteratively merge in styles
+            styles = default.copy()
+            for attr in style:
+                val = collection[item].get(attr)
+                new_styles = style[attr].get(val, {})
+                styles = {**styles, **new_styles}
+            processed[item] = styles
+        return processed
+
+    # Handle any missing attributes
+    df_nodes = pd.DataFrame.from_dict(
+        apply_style(G.nodes,
+                    node_style, default_node_style),
+        orient="index"
+    ).replace({np.nan: None})
+    styled_nodes = df_nodes.to_dict(orient="list")
+
+    # Index: Edges
+    df_edges = pd.DataFrame.from_dict(
+        apply_style(G.edges,
+                    edge_style, default_edge_style),
+        orient="index",
+    ).replace({np.nan: None})
+    df_edges
+    # styled_edges = df_edges.to_dict(orient="list")
+
+    if DEBUG:
+        print(df_nodes)
+        print(df_edges)
+
+    # Core non-style attributes
+    pos = [G.nodes[node]["pos"] for node in G.nodes]
+
+    # Drawing
+    nodes = nx.draw_networkx_nodes(
+        G,
+        pos=pos,
+        **styled_nodes,
+        ax=ax
+    )
+
+    if "connectionstyle" not in df_edges:
+        df_edges["connectionstyle"] = None
+
+    for c_style in df_edges["connectionstyle"].unique():
+
+        # Partial and arrowstyle are grouped for now
+        partial = df_edges[df_edges["connectionstyle"] == c_style]
+        arrowstyle = partial.iloc[0]["arrowstyle"] if len(partial) else None
+
+        partial = partial.drop("connectionstyle", 1)
+        partial = partial.drop("arrowstyle", 1)
+
+        styled_edges = partial.to_dict(orient="list")
+
+        print("<======= Group ========>")
+        print(c_style)
+        print(arrowstyle)
+        print(f"Styled: {styled_edges}")
+        print("<======= End Group ========>")
+        draw_networkx_edges(
+            G,
+            edgelist=list(partial.index),
+            pos=pos,
+            **styled_edges,
+            connectionstyle=c_style,
+            arrowstyle=arrowstyle,
+            node_size=styled_nodes["node_size"],
+            ax=ax,
+        )
+
+
+# Edges need to split by connection style
+fig, ax = plt.subplots(figsize=(4, 4))
+ax.set_title("Test Graph", fontsize=8)
+draw_style(G, node_style, edge_style, ax=ax, DEBUG=True)
+
 
 # %%
 
