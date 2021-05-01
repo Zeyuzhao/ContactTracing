@@ -91,10 +91,10 @@ def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: float, compl
     return TrackerInfo(len(G.edges()), len(state.SIR.R), infections)
     #return TrackerInfo(len(state.SIR_known.SIR[2]), len(state.SIR_real.SIR[2]), information_loss_V1, information_loss_V2, information_loss_I, information_loss_V1_iterative, information_loss_V2_iterative, information_loss_V2_nbrs_iterative)
 
-run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
+run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=100)
 # Attempt at making schemas extensible - quite hacky right now
 # run.track_duration()
-run.exec()
+run.exec(max_workers=40)
 
 '''config = {
     "G" : [G2],
