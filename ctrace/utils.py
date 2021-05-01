@@ -3,7 +3,10 @@ Utility Functions, such as contours and PQ
 """
 import json
 import math
+import copy
 import random
+import os
+from os import path
 from collections import defaultdict
 from pathlib import Path
 from statistics import mean
@@ -161,10 +164,10 @@ def pq_independent_edges(G: nx.Graph, I: Iterable[int], V1: Iterable[int], V2: I
     Q = {u: {v: G[u][v]["compliance_transmission"][u][1] for v in set(G.neighbors(u)) if v in V2} for u in V1}
     return P, Q
 
-def pq_independent(G: nx.Graph, I: Iterable[int], V1: Iterable[int], p: float):
+def pq_independent(G: nx.Graph, I: Iterable[int], V1: Iterable[int], V2: Iterable[int], p: float):
     # Returns dictionary P, Q
     # Calculate P, (1-P) ^ [number of neighbors in I]
-    P = {v: 1 - math.pow((1 - p), len(set(G.neighbors(v)) & set(I))) for v in V1}
+    P = {v: (1 - math.pow((1 - p), len(set(G.neighbors(v)) & set(I)))) if v in V1 else 0 for v in (set(V1)|set(V2))}
     Q = defaultdict(lambda: defaultdict(lambda: p)) # Q[-1][0] = p
     return P, Q
 
@@ -351,6 +354,83 @@ def load_graph(dataset_name, graph_folder=None):
     G.__name__ = dataset_name
     return G
 
+def load_graph_portland():
+    G = nx.Graph()
+    G.NAME = "portland"
+    
+    file = open(PROJECT_ROOT / "data/raw/portland/portland.txt", "r")
+    lines = file.readlines()
+    nodes = {}
+    rev_nodes = []
+    edges_to_duration = {}
+    c_node=0
+    
+    for line in lines:
+        a = line.split(",")
+        u = int(a[0])
+        v = int(a[1])
+        duration = int(a[2])
+        
+        if u in nodes.keys():
+            u = nodes[u]
+        else:
+            nodes[u] = c_node
+            rev_nodes.append(u)
+            u = c_node
+            c_node+=1   
+    
+        if v in nodes.keys():
+            v = nodes[v]
+        else:
+            nodes[v] = c_node
+            rev_nodes.append(v)
+            v = c_node
+            c_node+=1
+        
+        G.add_edge(u,v)
+        edges_to_duration[(u,v)] = duration
+    nx.set_edge_attributes(G, edges_to_duration, 'duration')
+    return G
+
+def load_graph_montgomery():
+    G = nx.Graph()
+    G.NAME = "montgomery"
+    
+    file = open(PROJECT_ROOT / "data/graphs/montgomery/montgomery.txt", "r")
+    lines = file.readlines()
+    nodes = {}
+    rev_nodes = []
+    edges_to_duration = {}
+    c_node=0
+    
+    for line in lines:
+        a = line.split(",")
+        u = int(a[0])
+        v = int(a[1])
+        duration = int(a[2])
+        
+        if u in nodes.keys():
+            u = nodes[u]
+        else:
+            nodes[u] = c_node
+            rev_nodes.append(u)
+            u = c_node
+            c_node+=1   
+    
+        if v in nodes.keys():
+            v = nodes[v]
+        else:
+            nodes[v] = c_node
+            rev_nodes.append(v)
+            v = c_node
+            c_node+=1
+        
+        G.add_edge(u,v)
+        edges_to_duration[(u,v)] = duration
+    nx.set_edge_attributes(G, edges_to_duration, 'duration')
+    
+    return G
+
 def load_graph_hid_duration():
     G = nx.Graph()
     G.NAME = "cville"
@@ -402,6 +482,125 @@ def load_graph_hid_duration():
     nx.set_edge_attributes(G, edges_to_duration, 'duration')
     
     return G;
+
+def load_extra_edges(G_o, alpha):
+    
+    G = copy.deepcopy(G_o)
+    nx.set_edge_attributes(G, {e:False for e in G.edges()}, "added")
+
+    file = open(PROJECT_ROOT / "data/raw/charlottesville.txt", "r")
+    file.readline()
+    lines = file.readlines()
+    durations = []
+    node_edges = {}
+    taken_edges = {}
+    node_list = [i for i in range(0,len(G.nodes))]
+    #outfile = open(PROJECT_ROOT / "data/raw/cville/cville_extra_edges.txt", "w")
+    
+    for line in lines:
+        a = line.split()
+        duration = int(a[3])
+        durations.append(duration)
+    
+    for node in G.nodes:
+        if node not in taken_edges:
+            taken_edges[node] = set()
+        ngbrs = set(G.neighbors(node))
+        #possible_connections = list(set(i for i in range(len(G.nodes))) - ngbrs - taken_edges[node])
+        #edges = random.sample(possible_connections, k=max(0, int((alpha)*len(ngbrs))-len(taken_edges[node])))
+        edges = []
+        for i in range(max(0, int((alpha)*len(ngbrs))-len(taken_edges[node]))):
+            e = node_list[random.randint(0, len(G.nodes)-1)]
+            while e in (ngbrs|taken_edges[node]|{node}):
+                e = node_list[random.randint(0, len(G.nodes)-1)]
+            
+            if e in taken_edges:
+                taken_edges[e].add(node)
+            else:
+                taken_edges[e] = {node}
+            edges.append(e)
+        node_edges[node] = edges
+    
+    #print(sum(len(n) for n in node_edges.values()))
+    
+    for node, edges in node_edges.items():
+        for v in edges:
+            G.add_edge(node, v)
+            G[node][v]['added'] = True
+            duration = durations[random.randint(0, len(durations)-1)]
+            G[node][v]["duration"] = duration
+            #outfile.write(str(node) + "," + str(v)+ "," + str(duration) + "\n")
+    
+    return G;
+
+def read_extra_edges(G_o: nx.Graph, alpha):
+    G = copy.deepcopy(G_o)
+    
+    nx.set_edge_attributes(G, {e:False for e in G.edges()}, "added")
+    
+    if G.NAME == "montgomery":
+        filename = "montgomery_extra_edges_" + str(alpha) + ".txt"
+        directory_path = PROJECT_ROOT / "data"/"graphs"/"montgomery"/filename
+        if not path.exists(directory_path):
+            store_extra_edges(G_o, alpha)
+        infile = open(directory_path, "r")
+    else:
+        filename = "cville_extra_edges_" + str(alpha) + ".txt"
+        directory_path = PROJECT_ROOT / "data"/"raw"/"cville"/filename
+        if not path.exists(directory_path):
+            store_extra_edges(G_o, alpha)
+        infile = open(directory_path, "r")
+    
+    lines = infile.readlines()
+    for line in lines:
+        a = line.split(",")
+        u = int(a[0])
+        v = int(a[1])
+        duration = int(a[2])
+        G.add_edge(u, v)
+        G[u][v]['duration'] = duration
+        G[u][v]['added'] = True
+    
+    return G;
+
+def store_extra_edges(G, alpha):
+    
+    if G.NAME == "montgomery":
+        filename = "montgomery_extra_edges" + "_" + str(alpha) + ".txt"
+        outfile = open(PROJECT_ROOT / "data"/"graphs"/"montgomery"/filename, "w")
+    else:
+        filename = "cville_extra_edges" + "_" + str(alpha) + ".txt"
+        outfile = open(PROJECT_ROOT / "data"/"raw"/"cville"/filename, "w")
+    
+    file = open(PROJECT_ROOT / "data/raw/charlottesville.txt", "r")
+    file.readline()
+    lines = file.readlines()
+    
+    durations = []
+    taken_edges = {}
+    node_list = [i for i in range(0,len(G.nodes))]
+    
+    for line in lines:
+        a = line.split()
+        duration = int(a[3])
+        durations.append(duration)
+    
+    for node in G.nodes:
+        if node not in taken_edges:
+            taken_edges[node] = set()
+        ngbrs = set(G.neighbors(node))
+        for i in range(max(0, int((alpha)*len(ngbrs))-len(taken_edges[node]))):
+            e = node_list[random.randint(0, len(G.nodes)-1)]
+            while e in (ngbrs|taken_edges[node]|{node}):
+                e = node_list[random.randint(0, len(G.nodes)-1)]
+            
+            if e in taken_edges:
+                taken_edges[e].add(node)
+            else:
+                taken_edges[e] = {node}
+            
+            duration = durations[random.randint(0, len(durations)-1)]
+            outfile.write(str(node) + "," + str(e)+ "," + str(duration) + "\n")
 
 def load_graph_cville(fp = "undirected_albe_1.90.txt"):
     graph_file = PROJECT_ROOT / "data" / "raw" / fp

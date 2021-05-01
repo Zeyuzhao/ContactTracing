@@ -27,7 +27,7 @@ class MinExposedProgram2:
             raise ValueError("Solver failed to initialize!")
             
         # Compute P, Q from SIR
-        #self.P, self.Q = pq_independent(self.G, self.SIR.I, self.contour1, self.p)
+        #self.P, self.Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, self.p)
         self.P, self.Q = pq_independent_edges(self.G, self.SIR.I2, self.contour1, self.contour2)
     
         # Partial evaluation storage
@@ -190,7 +190,8 @@ class MinExposedLP2(MinExposedProgram2):
 
 
 class MinExposedIP2(MinExposedProgram2):
-    def __init__(self, info: InfectionState, solver_id="GUROBI"):
+    #def __init__(self, info: InfectionState, solver_id="GUROBI"):
+    def __init__(self, info: InfectionState, solver_id="GLOP"):
         super().__init__(info, solver_id)
 
     def init_variables(self):

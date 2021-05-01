@@ -55,11 +55,24 @@ def DegGreedy(state: InfectionState):
 #Accounts for edges between V1
 def DegGreedy2(state: InfectionState):
     P, Q = pq_independent_edges(state.G, state.SIR.I2, state.V1, state.V2)
+    #P, Q = pq_independent(state.G, state.SIR.I2, state.V1, state.V2, state.transmission_rate)
     
     weights: List[Tuple[int, int]] = []
     for u in state.V1:
         w_sum = sum([Q[u][v]*(1-P[v]) for v in state.G.neighbors(u) if v in state.V2]) # V2 is a set!
         weights.append((P[u] * (w_sum), u))
+
+    weights.sort(reverse=True)
+    return {i[1] for i in weights[:state.budget]}
+
+def DegGreedy2_comp(state: InfectionState):
+    P, Q = pq_independent_edges(state.G, state.SIR.I2, state.V1, state.V2)
+    #P, Q = pq_independent(state.G, state.SIR.I2, state.V1, state.V2, state.transmission_rate)
+    
+    weights: List[Tuple[int, int]] = []
+    for u in state.V1:
+        w_sum = sum([Q[u][v]*(1-P[v]) for v in state.G.neighbors(u) if v in state.V2]) # V2 is a set!
+        weights.append((state.G[u]["compliance"]*(P[u] * (w_sum))**2, u))
 
     weights.sort(reverse=True)
     return {i[1] for i in weights[:state.budget]}
