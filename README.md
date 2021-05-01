@@ -2,6 +2,8 @@
 
 Randomized Rounding applied to Contact Tracing
 
+![image](https://user-images.githubusercontent.com/6325738/116792039-5ef21980-aa8c-11eb-97a2-06772fff12a7.png)
+
 ## Setup
 
 1. Ensure that Conda, Git, and Git-LFS are properly set up.
