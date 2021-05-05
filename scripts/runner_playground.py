@@ -2,7 +2,7 @@
 import networkx as nx
 import pandas as pd
 from ctrace.runner2 import *
-from ctrace.utils import load_graph_hid_duration, load_graph_montgomery, load_graph_portland
+from ctrace.utils import load_graph_hid_duration, load_graph_montgomery, load_graph_portland, read_extra_edges
 from ctrace.dataset import load_sir
 from ctrace.simulation import *
 from ctrace.recommender import *
@@ -16,8 +16,9 @@ G2 = load_graph_montgomery()
 #c7 goes with montgomery, b5 goes with cville, d27 goes with portland
 
 config = {
-    "G" : [read_extra_edges(G2, alpha/100) for alpha in range(0, 210, 10)],
-    "budget": [1000],
+    "G" : [read_extra_edges(G2, 0.15)],
+    "budget": [0],
+    #"budget": [i for i in range(500, 1260, 10)],
     #"budget":[i for i in range(10000, 18000, 500)],
     #"budget":[i for i in range(18000, 25500, 500)],
     #"budget":[i for i in range(2020, 2270, 20)],
@@ -35,12 +36,13 @@ config = {
     "from_cache": ["c7.json"],
     #"agent": [Random]
     #"agent": [DepRound2, DegGreedy2]
-    "agent": [Random, DegGreedy2, DepRound2]
+    "agent":[NoIntervention]
+    #"agent": [Random, DegGreedy2, DepRound2]
 }
 #config["G"] = [load_graph(x) for x in config["G"]]
 
 in_schema = list(config.keys())
-out_schema = ["edges", "infection_count", "infections_step"]
+out_schema = ["infection_count", "infections_step"]
 #out_schema = ["infected_count_known", "infected_count_real", "information_loss_V1", "information_loss_V2", "information_loss_I", "information_loss_V1_iterative", "information_loss_V2_iterative", "information_loss_V2_nbrs_iterative"]
 TrackerInfo = namedtuple("TrackerInfo", out_schema)
 
@@ -63,35 +65,10 @@ def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: float, compl
         state.step(to_quarantine)
         infections.append(len(state.SIR.I2))
     
-    '''information_loss_V1 = 0
-    information_loss_V2 = 0
-    information_loss_I = 0
-    information_loss_V1_iterative = 0
-    information_loss_V2_iterative = 0
-    information_loss_V2_nbrs_iterative = 0
-    
-    while len(state.SIR_real.SIR[1]) != 0:
-        to_quarantine = agent(state)
-        state.step(to_quarantine)
-        
-        V1_real = state.SIR_real.V1
-        V1_known = state.SIR_known.V1
-        V2_real = state.SIR_real.V2
-        V2_known = state.SIR_known.V2
-        I_real = set(state.SIR_real.SIR.I)
-        I_known = set(state.SIR_known.SIR.I)
-
-        information_loss_V1 += len(V1_real-V1_known)
-        information_loss_V2 += len(V2_real-V2_known)
-        information_loss_I += len(I_real-I_known)
-        information_loss_V1_iterative += state.SIR_known.il_v1
-        information_loss_V2_iterative += state.SIR_known.il_v2
-        information_loss_V2_nbrs_iterative += state.SIR_known.il_v2_nbrs'''
-    
-    return TrackerInfo(len(G.edges()), len(state.SIR.R), infections)
+    return TrackerInfo(len(state.SIR.R), infections)
     #return TrackerInfo(len(state.SIR_known.SIR[2]), len(state.SIR_real.SIR[2]), information_loss_V1, information_loss_V2, information_loss_I, information_loss_V1_iterative, information_loss_V2_iterative, information_loss_V2_nbrs_iterative)
 
-run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=100)
+run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
 # Attempt at making schemas extensible - quite hacky right now
 # run.track_duration()
 run.exec(max_workers=40)
