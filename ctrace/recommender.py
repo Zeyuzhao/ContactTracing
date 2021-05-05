@@ -77,6 +77,20 @@ def DegGreedy2_comp(state: InfectionState):
     weights.sort(reverse=True)
     return {i[1] for i in weights[:state.budget]}
 
+#average p
+def DegGreedy2bad(state: InfectionState):
+    #P, Q = pq_independent_edges(state.G, state.SIR.I2, state.V1, state.V2)
+    P, Q = pq_independent(state.G, state.SIR.I2, state.V1, state.V2, state.transmission_rate)
+    
+    weights: List[Tuple[int, int]] = []
+    for u in state.V1:
+        w_sum = sum([Q[u][v]*(1-P[v]) for v in state.G.neighbors(u) if v in state.V2]) # V2 is a set!
+        weights.append((P[u] * (w_sum), u))
+
+    weights.sort(reverse=True)
+    return {i[1] for i in weights[:state.budget]}
+
+
 def DepRound(state: InfectionState):
     
     problem = MinExposedLP(state)
@@ -89,6 +103,15 @@ def DepRound(state: InfectionState):
 def DepRound2(state: InfectionState):
     
     problem2 = MinExposedLP2(state)
+    problem2.solve_lp()
+    probabilities = problem2.get_variables()
+    rounded = D_prime(np.array(probabilities))
+
+    return set([problem2.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
+
+def DepRound2bad(state: InfectionState):
+    
+    problem2 = MinExposedLP2(state, bad=True)
     problem2.solve_lp()
     probabilities = problem2.get_variables()
     rounded = D_prime(np.array(probabilities))

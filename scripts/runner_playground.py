@@ -16,8 +16,8 @@ G2 = load_graph_montgomery()
 #c7 goes with montgomery, b5 goes with cville, d27 goes with portland
 
 config = {
-    "G" : [read_extra_edges(G2, alpha/100) for alpha in range(0, 210, 10)],
-    "budget": [1000],
+    "G" : [G2],
+    "budget": [300,400,500,600,700,800,900,1000,1100,1200,1300],
     #"budget":[i for i in range(10000, 18000, 500)],
     #"budget":[i for i in range(18000, 25500, 500)],
     #"budget":[i for i in range(2020, 2270, 20)],
@@ -35,12 +35,12 @@ config = {
     "from_cache": ["c7.json"],
     #"agent": [Random]
     #"agent": [DepRound2, DegGreedy2]
-    "agent": [Random, DegGreedy2, DepRound2]
+    "agent": [DegGreedy2bad, DepRound2bad]
 }
 #config["G"] = [load_graph(x) for x in config["G"]]
 
 in_schema = list(config.keys())
-out_schema = ["edges", "infection_count", "infections_step"]
+out_schema = ["infection_count", "infections_step"]
 #out_schema = ["infected_count_known", "infected_count_real", "information_loss_V1", "information_loss_V2", "information_loss_I", "information_loss_V1_iterative", "information_loss_V2_iterative", "information_loss_V2_nbrs_iterative"]
 TrackerInfo = namedtuple("TrackerInfo", out_schema)
 
@@ -88,10 +88,10 @@ def time_trial_tracker(G: nx.graph, budget: int, transmission_rate: float, compl
         information_loss_V2_iterative += state.SIR_known.il_v2
         information_loss_V2_nbrs_iterative += state.SIR_known.il_v2_nbrs'''
     
-    return TrackerInfo(len(G.edges()), len(state.SIR.R), infections)
+    return TrackerInfo(len(state.SIR.R), infections)
     #return TrackerInfo(len(state.SIR_known.SIR[2]), len(state.SIR_real.SIR[2]), information_loss_V1, information_loss_V2, information_loss_I, information_loss_V1_iterative, information_loss_V2_iterative, information_loss_V2_nbrs_iterative)
 
-run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=100)
+run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=1)
 # Attempt at making schemas extensible - quite hacky right now
 # run.track_duration()
 run.exec(max_workers=40)
