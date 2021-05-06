@@ -16,18 +16,18 @@ G = read_extra_edges(G, 0.15)
 
 config = {
     "G" : [G],
-    "budget":[2000],
+    "budget":[1000],
     "policy": ["none"],
     #"budget": [i for i in range(100, 5000, 10)], #[i for i in range(100, 451, 50)],#[i for i in range(100,3710,10)],
     "transmission_rate": [0.05],
     "compliance_rate": [1],#[i/100 for i in range(50, 101, 5)],#[i/100 for i in range(50,101,5)],
-    "compliance_known": [True],
+    "compliance_known": [True, False],
     "partial_compliance": [False],
     "I_knowledge": [1],
     "discovery_rate": [1],
     "snitch_rate":  [1],
     "from_cache": ["ce6.json"],
-    "agent": [Random, Degree2, DepRound2_comp, DegGreedy2_comp]
+    "agent": [Degree2, DepRound2_comp, DegGreedy2_comp]
 }
 
 in_schema = list(config.keys())
