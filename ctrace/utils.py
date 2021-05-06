@@ -4,6 +4,9 @@ Utility Functions, such as contours and PQ
 import json
 import math
 import random
+import copy
+import os
+from os import path
 from collections import defaultdict
 from pathlib import Path
 from statistics import mean
@@ -40,6 +43,7 @@ def edge_transmission_hid(u:int, v:int, G:nx.Graph, partial_compliance:bool = Fa
     return transmission_edge_determined
 
 def edge_transmission(u:int, v:int, G:nx.Graph, partial_compliance:bool = False):
+    
     transmission_edge_determined = 0
     
     if (G.nodes[v]["quarantine"] > 0):
@@ -127,63 +131,118 @@ def find_excluded_contours(G: nx.Graph, infected: Set[int], excluded: Set[int], 
             if random.uniform(0,1) < (1-((1-snitch_rate) ** len(set(G.neighbors(v)).intersection(v1_k))))}
     return v1_k, v2_k
 
-def find_excluded_contours_edges(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate:float = 1, snitch_rate:float = 1, compliance_known:bool = False):
+def find_excluded_contours_edges(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate:float = 1, snitch_rate:float = 1, compliance_edge_known:bool = False):
     """Finds V1_known and V2_known from a graph without including elements in the excluded set"""
     # probability calculation for v2_k: 1-(1-q)^k; let k = number of nodes in v1_k with an edge connecting to the node v
-    v1 = set().union(*[effective_neighbor(G, v, G.neighbors(v), compliance_known) for v in set(infected)]) - (set(infected) | set(excluded))
+    v1 = set().union(*[effective_neighbor(G, v, G.neighbors(v), compliance_edge_known) for v in set(infected)]) - (set(infected) | set(excluded))
     v1_k = {v for v in v1 if random.uniform(0,1) < discovery_rate}
-    #v1_k_nbrs = set().union(*[G.neighbors(v) for v in v1_k]) - (set(infected) | set(excluded) | set(v1_k))
-    #new definition of v2 to also include v1 neighbors in v1
     v1_k_nbrs = set().union(*[G.neighbors(v) for v in v1_k]) - (set(infected)|set(excluded))
     v2_k = {v for v in v1_k_nbrs
             if random.uniform(0,1) < (1-((1-snitch_rate) ** len(set(G.neighbors(v)).intersection(v1_k))))}
     return v1_k, v2_k
 
-def effective_neighbor(G: nx.Graph, infected: int, target: list, compliance_known:bool = False):
+def find_excluded_contours_edges_PQ(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate:float = 1, snitch_rate:float = 1, compliance_edge_known:bool = False):
+    P = {}
+    Q = {}
+    v1_k = set()
+    v2_k = set()
+    for i in infected:
+        for u in effective_neighbor(G, i, G.neighbors(i), compliance_edge_known)-(set(infected) | set(excluded)):
+            if random.uniform(0,1) < discovery_rate:
+                v1_k.add(u)
+                if u in P:
+                    P[u] *= 1-(G[i][u]["compliance_transmission"][u][1] if check_edge_transmission(G, i, u, compliance_edge_known) else 0)
+                else:
+                    P[u] = 1-(G[i][u]["compliance_transmission"][u][1] if check_edge_transmission(G, i, u, compliance_edge_known) else 0)
+
+                for v in set(G.neighbors(u))-(set(infected) | set(excluded)):
+                    if (random.uniform(0,1) < snitch_rate):
+                        if u in Q:
+                            Q[u][v] = G[u][v]["compliance_transmission"][u][1]
+                        else:
+                            Q[u] = {v: G[u][v]["compliance_transmission"][u][1]}
+                        v2_k.add(v)
+                    if v not in P:
+                        P[v] = 1
+    for u in P.keys():
+        P[u] = 1-P[u]
+
+    return v1_k, v2_k, P, Q
+
+def effective_neighbor(G: nx.Graph, infected: int, target: list, compliance_edge_known:bool = False):
     """
     Filters out edges of no transmission for G.neighbors
     """
     effective_neighbors = set()
     for v in target:
-        if check_edge_transmission(G, infected, v, compliance_known):
+        if check_edge_transmission(G, infected, v, compliance_edge_known):
             effective_neighbors.add(v)
     return effective_neighbors
 
-def check_edge_transmission_hid(G: nx.Graph, infected: int, target: int, compliance_known:bool = False) -> bool:
+def check_edge_transmission_hid(G: nx.Graph, infected: int, target: int, compliance_edge_known:bool = False) -> bool:
     """
     Given node u, infected and node v, neighbor
     Does not transmit when:
-    1) v is quarantined
+    1) v is quarantined and complies along edge uv
     2) u is quarantined and complies along edge uv and u,v are not in the same household
     """
-    if compliance_known:
+    if compliance_edge_known:
         return not (G.nodes[target]["quarantine"]>0 or 
         (G.nodes[infected]["quarantine"]>0 and G[infected][target]["compliance_transmission"][infected][0]==1 and G.nodes[infected]["hid"]!=G.nodes[target]["hid"]))
     else:
         return not (G.nodes[infected]["quarantine"]>0 or G.nodes[target]["quarantine"]>0)
 
-def check_edge_transmission(G: nx.Graph, infected: int, target: int, compliance_known:bool = False) -> bool:
+def check_edge_transmission(G: nx.Graph, infected: int, target: int, compliance_edge_known:bool = False) -> bool:
     """
     Given node u, infected and node v, neighbor
     Does not transmit when:
-    1) v is quarantined  QUESTION: if v is quarantined but noncompliant along that edge, does that mean u can still transmit?
+    1) v is quarantined and complies along edge uv
     2) u is quarantined and complies along edge uv
     """
-    if compliance_known:
+    if compliance_edge_known:
         return not ((G.nodes[target]["quarantine"]>0 and G[infected][target]["compliance_transmission"][target][0]==1) or 
         (G.nodes[infected]["quarantine"]>0 and G[infected][target]["compliance_transmission"][infected][0]==1))
     else:
         return not (G.nodes[infected]["quarantine"]>0 or G.nodes[target]["quarantine"]>0)
 
-def pq_independent_edges(G: nx.Graph, I: Iterable[int], V1: Iterable[int], V2: Iterable[int], compliance_known:bool = False):
+def pq_independent_edges(G: nx.Graph, I: Iterable[int], V1: Iterable[int], V2: Iterable[int], compliance_edge_known:bool = False):
     """
     Precondition: every node in V1 is somehow reachable from I
     """
-    #P = {v: 1 - math.prod(1-(G[i][v]["compliance_transmission"][i][1] if check_edge_transmission(G, i, v, compliance_known) else 0) for i in set(set(G.neighbors(v)) & set(I))) for v in V1}
-    P = {v: (1 - math.prod(1-(G[i][v]["compliance_transmission"][i][1] if check_edge_transmission(G, i, v, compliance_known) else 0) for i in set(set(G.neighbors(v)) & set(I)))) 
+    #P = {v: 1 - math.prod(1-(G[i][v]["compliance_transmission"][i][1] if check_edge_transmission(G, i, v, ) else 0) for i in set(set(G.neighbors(v)) & set(I))) for v in V1}
+    P = {v: (1 - math.prod(1-(G[i][v]["compliance_transmission"][i][1] if check_edge_transmission(G, i, v, compliance_edge_known) else 0) for i in set(set(G.neighbors(v)) & set(I)))) 
         if v in V1 else 0 for v in (set(V1)|set(V2))}
     Q = {u: {v: G[u][v]["compliance_transmission"][u][1] for v in set(G.neighbors(u)) if v in V2} for u in V1}
     return P, Q
+
+def find_excluded_contours_edges_PQ(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate:float = 1, snitch_rate:float = 1, compliance_edge_known:bool = False):
+    P = {}
+    Q = {}
+    v1_k = set()
+    v2_k = set()
+    for i in infected:
+        for u in effective_neighbor(G, i, G.neighbors(i), compliance_edge_known)-(set(infected) | set(excluded)):
+            if random.uniform(0,1) < discovery_rate:
+                v1_k.add(u)
+                if u in P:
+                    P[u] *= 1-(G[i][u]["compliance_transmission"][u][1] if check_edge_transmission(G, i, u, compliance_edge_known) else 0)
+                else:
+                    P[u] = 1-(G[i][u]["compliance_transmission"][u][1] if check_edge_transmission(G, i, u, compliance_edge_known) else 0)
+
+                for v in set(G.neighbors(u))-(set(infected) | set(excluded)):
+                    if (random.uniform(0,1) < snitch_rate):
+                        if u in Q:
+                            Q[u][v] = G[u][v]["compliance_transmission"][u][1]
+                        else:
+                            Q[u] = {v: G[u][v]["compliance_transmission"][u][1]}
+                        v2_k.add(v)
+                    if v not in P:
+                        P[v] = 1
+
+    for u in P.keys():
+        P[u] = 1-P[u]
+
+    return v1_k, v2_k, P, Q
 
 def pq_independent(G: nx.Graph, I: Iterable[int], V1: Iterable[int], p: float):
     # Returns dictionary P, Q
@@ -425,23 +484,7 @@ def load_graph_montgomery_labels():
     G = nx.Graph()
     G.NAME = "montgomery"
     
-    file = open(PROJECT_ROOT / "data/raw/charlottesville.txt", "r")
-    file.readline()
-    lines = file.readlines()
-    durations = []
-    for line in lines:
-        a = line.split()
-        duration = int(a[3])
-        durations.append(duration)
-    
-    labels_df = pd.read_csv(PROJECT_ROOT/"data/raw/cville/cville_labels.txt")
-    labels_df = labels_df["age_group"]
-    labels_array = []
-    map_label = {"a": 0, "g":1, "o":2, "p":3, "s":4}
-    for index, ids in labels_df.items():
-        labels_array.append(map_label[ids])
-    
-    file = open(PROJECT_ROOT / "data/graphs/montgomery/montgomery.csv", "r")
+    file = open(PROJECT_ROOT / "data/graphs/montgomery/montgomery_labels.txt", "r")
     lines = file.readlines()
     nodes = {}
     rev_nodes = []
@@ -453,14 +496,14 @@ def load_graph_montgomery_labels():
         a = line.split(",")
         u = int(a[0])
         v = int(a[1])
-        duration = durations[random.randint(0, len(durations)-1)]
-        age_label = labels_array[random.randint(0, len(labels_array)-1)]
+        duration = int(a[2])
+        age_group_u = int(a[3])
+        age_group_v = int(a[4])
         
         if u in nodes.keys():
             u = nodes[u]
         else:
             nodes[u] = c_node
-            cnode_to_labels[c_node] = age_label
             rev_nodes.append(u)
             u = c_node
             c_node+=1   
@@ -469,16 +512,18 @@ def load_graph_montgomery_labels():
             v = nodes[v]
         else:
             nodes[v] = c_node
-            cnode_to_labels[c_node] = age_label
             rev_nodes.append(v)
             v = c_node
             c_node+=1
-    
+        
         G.add_edge(u,v)
         edges_to_duration[(u,v)] = duration
-    
+        cnode_to_labels[u] = age_group_u
+        cnode_to_labels[v] = age_group_v
+        
     nx.set_edge_attributes(G, edges_to_duration, 'duration')
     nx.set_node_attributes(G, cnode_to_labels, 'age_group')
+    
     return G
 
 def load_graph_cville_labels():
@@ -606,6 +651,124 @@ def load_graph_cville(fp = "undirected_albe_1.90.txt"):
     G = nx.from_pandas_edgelist(df, col1, col2)
     G.G["name"] = "cville"
     return G
+def load_extra_edges(G_o, alpha):
+    
+    G = copy.deepcopy(G_o)
+    nx.set_edge_attributes(G, {e:False for e in G.edges()}, "added")
+
+    file = open(PROJECT_ROOT / "data/raw/charlottesville.txt", "r")
+    file.readline()
+    lines = file.readlines()
+    durations = []
+    node_edges = {}
+    taken_edges = {}
+    node_list = [i for i in range(0,len(G.nodes))]
+    #outfile = open(PROJECT_ROOT / "data/raw/cville/cville_extra_edges.txt", "w")
+    
+    for line in lines:
+        a = line.split()
+        duration = int(a[3])
+        durations.append(duration)
+    
+    for node in G.nodes:
+        if node not in taken_edges:
+            taken_edges[node] = set()
+        ngbrs = set(G.neighbors(node))
+        #possible_connections = list(set(i for i in range(len(G.nodes))) - ngbrs - taken_edges[node])
+        #edges = random.sample(possible_connections, k=max(0, int((alpha)*len(ngbrs))-len(taken_edges[node])))
+        edges = []
+        for i in range(max(0, int((alpha)*len(ngbrs))-len(taken_edges[node]))):
+            e = node_list[random.randint(0, len(G.nodes)-1)]
+            while e in (ngbrs|taken_edges[node]|{node}):
+                e = node_list[random.randint(0, len(G.nodes)-1)]
+            
+            if e in taken_edges:
+                taken_edges[e].add(node)
+            else:
+                taken_edges[e] = {node}
+            edges.append(e)
+        node_edges[node] = edges
+    
+    #print(sum(len(n) for n in node_edges.values()))
+    
+    for node, edges in node_edges.items():
+        for v in edges:
+            G.add_edge(node, v)
+            G[node][v]['added'] = True
+            duration = durations[random.randint(0, len(durations)-1)]
+            G[node][v]["duration"] = duration
+            #outfile.write(str(node) + "," + str(v)+ "," + str(duration) + "\n")
+    
+    return G;
+
+def read_extra_edges(G_o: nx.Graph, alpha):
+    G = copy.deepcopy(G_o)
+    
+    nx.set_edge_attributes(G, {e:False for e in G.edges()}, "added")
+    
+    if G.NAME == "montgomery":
+        filename = "montgomery_extra_edges_" + str(alpha) + ".txt"
+        directory_path = PROJECT_ROOT / "data"/"graphs"/"montgomery"/filename
+        if not path.exists(directory_path):
+            store_extra_edges(G_o, alpha)
+        infile = open(directory_path, "r")
+    else:
+        filename = "cville_extra_edges_" + str(alpha) + ".txt"
+        directory_path = PROJECT_ROOT / "data"/"raw"/"cville"/filename
+        if not path.exists(directory_path):
+            store_extra_edges(G_o, alpha)
+        infile = open(directory_path, "r")
+    
+    lines = infile.readlines()
+    for line in lines:
+        a = line.split(",")
+        u = int(a[0])
+        v = int(a[1])
+        duration = int(a[2])
+        G.add_edge(u, v)
+        G[u][v]['duration'] = duration
+        G[u][v]['added'] = True
+    
+    return G;
+
+def store_extra_edges(G, alpha):
+    
+    if G.NAME == "montgomery":
+        filename = "montgomery_extra_edges" + "_" + str(alpha) + ".txt"
+        outfile = open(PROJECT_ROOT / "data"/"graphs"/"montgomery"/filename, "w")
+    else:
+        filename = "cville_extra_edges" + "_" + str(alpha) + ".txt"
+        outfile = open(PROJECT_ROOT / "data"/"raw"/"cville"/filename, "w")
+    
+    file = open(PROJECT_ROOT / "data/raw/charlottesville.txt", "r")
+    file.readline()
+    lines = file.readlines()
+    
+    durations = []
+    taken_edges = {}
+    node_list = [i for i in range(0,len(G.nodes))]
+    
+    for line in lines:
+        a = line.split()
+        duration = int(a[3])
+        durations.append(duration)
+    
+    for node in G.nodes:
+        if node not in taken_edges:
+            taken_edges[node] = set()
+        ngbrs = set(G.neighbors(node))
+        for i in range(max(0, int((alpha)*len(ngbrs))-len(taken_edges[node]))):
+            e = node_list[random.randint(0, len(G.nodes)-1)]
+            while e in (ngbrs|taken_edges[node]|{node}):
+                e = node_list[random.randint(0, len(G.nodes)-1)]
+            
+            if e in taken_edges:
+                taken_edges[e].add(node)
+            else:
+                taken_edges[e] = {node}
+            
+            duration = durations[random.randint(0, len(durations)-1)]
+            outfile.write(str(node) + "," + str(e)+ "," + str(duration) + "\n")
 
 def generate_random_absolute(G, num_infected: int = None, k: int = None, costs: list = None):
     N = G.number_of_nodes()

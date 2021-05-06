@@ -49,26 +49,26 @@ def Degree2(state: InfectionState):
 # TODO: Test code! V2 -> set V2
 def DegGreedy(state: InfectionState):
     #P, Q = pq_independent(info.G, info.SIR.I, info.V1, info.transmission_rate[info.time_stage])
-    P, Q = pq_independent_edges(state.G, state.SIR.I2, state.V1, state.V2)
+    #P, Q = pq_independent_edges(state.G, state.SIR.I2, state.V1, state.V2)
     
     #only weighs V2 not in V1
     V2_only = state.V2-state.V1
     weights: List[Tuple[int, int]] = []
     for u in state.V1:
-        w_sum = sum([Q[u][v] for v in state.G.neighbors(u) if v in V2_only]) # V2 is a set!
-        weights.append((P[u] * w_sum, u))
+        w_sum = sum([state.Q[u][v] for v in state.G.neighbors(u) if v in V2_only]) # V2 is a set!
+        weights.append((state.P[u] * w_sum, u))
 
     weights.sort(reverse=True)
     return {i[1] for i in weights[:state.budget]}
 
 #Accounts for edges between V1
 def DegGreedy2(state: InfectionState):
-    P, Q = pq_independent_edges(state.G, state.SIR.I2, state.V1, state.V2)
+    #P, Q = pq_independent_edges(state.G, state.SIR.I2, state.V1, state.V2)
     
     weights: List[Tuple[int, int]] = []
     for u in state.V1:
-        w_sum = sum([Q[u][v]*(1-P[v]) for v in state.G.neighbors(u) if v in state.V2]) # V2 is a set!
-        weights.append((P[u] * (w_sum), u))
+        w_sum = sum([state.Q[u][v]*(1-state.P[v]) for v in state.G.neighbors(u) if v in state.V2]) # V2 is a set!
+        weights.append((state.P[u] * (w_sum), u))
 
     weights.sort(reverse=True)
     return {i[1] for i in weights[:state.budget]}
@@ -78,12 +78,12 @@ def DegGreedy2_label(state: InfectionState):
     
     state.set_budget_labels()
     
-    P, Q = pq_independent_edges(state.G, state.SIR.I2, state.V1, state.V2)
+    #P, Q = pq_independent_edges(state.G, state.SIR.I2, state.V1, state.V2)
     
     weights: List[Tuple[int, int]] = []
     for u in state.V1:
-        w_sum = sum([Q[u][v]*(1-P[v]) for v in state.G.neighbors(u) if v in state.V2]) # V2 is a set!
-        weights.append((P[u] * (w_sum), u))
+        w_sum = sum([state.Q[u][v]*(1-state.P[v]) for v in state.G.neighbors(u) if v in state.V2]) # V2 is a set!
+        weights.append((state.P[u] * (w_sum), u))
     
     quarantine = set()
     weights.sort(reverse=True)
@@ -91,6 +91,17 @@ def DegGreedy2_label(state: InfectionState):
         deg = [tup for tup in weights if state.G.nodes[tup[1]]["age_group"]==label]
         quarantine = quarantine.union({i[1] for i in deg[:min(state.budget_labels[label], len(deg))]})
     return quarantine
+
+def DegGreedy2_comp(state: InfectionState):
+    #P, Q = pq_independent_edges(state.G, state.SIR.I2, state.V1, state.V2)
+    
+    weights: List[Tuple[int, int]] = []
+    for u in state.V1:
+        w_sum = sum([state.Q[u][v]*(1-state.P[v]) for v in state.G.neighbors(u) if v in state.V2]) # V2 is a set!
+        weights.append((state.G.nodes[u]['compliance_rate']*(state.P[u] * (w_sum))**2, u))
+
+    weights.sort(reverse=True)
+    return {i[1] for i in weights[:state.budget]}
 
 def DepRound(state: InfectionState):
     
@@ -104,6 +115,15 @@ def DepRound(state: InfectionState):
 def DepRound2(state: InfectionState):
     
     problem2 = MinExposedLP2(state)
+    problem2.solve_lp()
+    probabilities = problem2.get_variables()
+    rounded = D_prime(np.array(probabilities))
+
+    return set([problem2.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
+
+def DepRound2_comp(state: InfectionState):
+    
+    problem2 = MinExposedLP2(state, comp=True)
     problem2.solve_lp()
     probabilities = problem2.get_variables()
     rounded = D_prime(np.array(probabilities))
