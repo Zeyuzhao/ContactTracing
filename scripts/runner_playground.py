@@ -13,7 +13,7 @@ json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 #G = load_graph_hid_duration()
 G2 = load_graph_montgomery()
 #G3 = load_graph_portland()
-#c7 goes with montgomery, b5 goes with cville, d27 goes with portland
+#c7 goes with montgomery, b5 goes with cville, d27 goes with portland, ce6 goes with montgomery + 0.15 edges
 
 config = {
     "G" : [G2],
