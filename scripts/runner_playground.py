@@ -11,12 +11,16 @@ json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 
 #G = load_graph("montgomery")
 G = load_graph_montgomery_labels()
-G = read_extra_edges(G, 0.15)
+G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
+#G = read_extra_edges(G, 0.15)
 #G = load_graph_hid_duration()
+
+#be5 for cville w/ added edges, ce6 for montgomery w/ added edges
 
 config = {
     "G" : [G],
-    "budget":[2000],
+    "budget":[i for i in range(400, 1260, 10)],
+    #"budget":[i for i in range(400, 1260, 50)],
     "policy": ["none"],
     #"budget": [i for i in range(100, 5000, 10)], #[i for i in range(100, 451, 50)],#[i for i in range(100,3710,10)],
     "transmission_rate": [0.05],
@@ -27,7 +31,7 @@ config = {
     "discovery_rate": [1],
     "snitch_rate":  [1],
     "from_cache": ["ce6.json"],
-    "agent": [Random, Degree2, DepRound2_comp, DegGreedy2_comp]
+    "agent": [Random, EC, DepRound2_comp, DegGreedy2_comp]
 }
 
 in_schema = list(config.keys())

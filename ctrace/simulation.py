@@ -33,7 +33,6 @@ class InfectionState:
         self.labels = [0, 1, 2, 3, 4]
         self.compliance_map = [.6, .8, .85, .75, .8]
         
-        node_to_compliance = {}
         edge_to_compliance = {}
         compliance_edge = 0
         
@@ -45,12 +44,10 @@ class InfectionState:
         for node in G.nodes():
             G.nodes[node]['quarantine'] = 0
             
-            if (self.compliance_known):
-                node_to_compliance[node] = self.compliance_map[G.nodes[node]['age_group']] + random.uniform(-0.05, 0.05)
-            else:
-                node_to_compliance[node] = compliance_rate
+            if not self.compliance_known:
+                G.nodes[node]['compliance_rate'] = compliance_rate
             
-            node_compliance_rate = node_to_compliance[node]
+            node_compliance_rate = G.nodes[node]['compliance_rate']
             
             if not partial_compliance: 
                 compliance = 0 if random.random() > node_compliance_rate else 1
@@ -73,7 +70,6 @@ class InfectionState:
                 else: 
                     edge_to_compliance[order][node] = compliance_edge
         
-        nx.set_node_attributes(G, node_to_compliance, 'compliance_rate')
         nx.set_edge_attributes(G, edge_to_compliance, 'compliance_transmission')
         
         # initialize V1 and V2

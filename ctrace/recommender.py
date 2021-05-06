@@ -26,6 +26,16 @@ def Random_label(state: InfectionState):
         quarantine = quarantine.union(set(random.sample(V1_label, min((state.budget_labels[label]), len(V1_label)))))
     return quarantine
 
+def EC(state: InfectionState):
+    
+    eigens: List[Tuple[int, int]] = []
+
+    for u in state.V1:
+        eigens.append((state.G.centrality[u], u))
+    
+    eigens.sort(reverse=True)
+    return {i[1] for i in eigens[:state.budget]}
+
 def Degree(state: InfectionState):
     degrees: List[Tuple[int, int]] = []
     V2_only = state.V2-state.V1
