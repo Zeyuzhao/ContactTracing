@@ -9,27 +9,29 @@ import math
 from typing import Set
 from collections import namedtuple
 
-from .utils import find_excluded_contours_edges, edge_transmission, edge_transmission_hid, allocate_budget
+from .utils import find_excluded_contours_edges_PQ, edge_transmission, edge_transmission_hid, allocate_budget
 from . import PROJECT_ROOT
 
 SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I1", "I2", "R"])
                 
 class InfectionState:
     
-    def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, transmission_rate:float, compliance_rate:float = 1, partial_compliance:bool = False, I_knowledge:float = 1, discovery_rate:float = 1, snitch_rate:float = 1):
+    def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, policy:str, transmission_rate:float, compliance_rate:float = 1, compliance_known: bool = False, partial_compliance:bool = False, I_knowledge:float = 1, discovery_rate:float = 1, snitch_rate:float = 1):
         self.G = G
         self.SIR = SIR_Tuple(*SIR)
         self.budget = budget
         self.transmission_rate = transmission_rate
         self.compliance_rate = compliance_rate
+        self.compliance_known = compliance_known
         self.partial_compliance = partial_compliance
         self.discovery_rate = discovery_rate
         self.snitch_rate = snitch_rate
-        
+       
         #the policies are: none, old, adult, young, equal --> defaults to "equal", which is proportionate to distribution of V1
-        self.policy = "old"
+        self.policy = policy
         self.label_map = {"a": 0, "g": 1, "o": 2, "p": 3, "s": 4}
         self.labels = [0, 1, 2, 3, 4]
+        self.compliance_map = [.6, .8, .85, .75, .8]
         
         node_to_compliance = {}
         edge_to_compliance = {}
@@ -42,10 +44,16 @@ class InfectionState:
         #TODO: Figure out when to modify compliance edges
         for node in G.nodes():
             G.nodes[node]['quarantine'] = 0
-            node_to_compliance[node] = compliance_rate
+            
+            if (self.compliance_known):
+                node_to_compliance[node] = self.compliance_map[G.nodes[node]['age_group']] + random.uniform(-0.05, 0.05)
+            else:
+                node_to_compliance[node] = compliance_rate
+            
+            node_compliance_rate = node_to_compliance[node]
             
             if not partial_compliance: 
-                compliance = 0 if random.random()>compliance_rate else 1
+                compliance = 0 if random.random() > node_compliance_rate else 1
             
             for nbr in G.neighbors(node):
                 order = (node,nbr)
@@ -54,9 +62,9 @@ class InfectionState:
                     order = (nbr, node)
                 
                 transmission_edge = exponential_cdf(G[node][nbr]["duration"])
-                #edge_to_transmission[order] = transmission_edge
+
                 if partial_compliance:
-                    compliance_edge = (0 if random.random()>compliance_rate else 1, transmission_edge)
+                    compliance_edge = (0 if random.random()>node_compliance_rate else 1, transmission_edge)
                 else: 
                     compliance_edge = (compliance, transmission_edge)
                     
@@ -124,7 +132,8 @@ class InfectionState:
     
     def set_contours(self):
         #For knowledge of which edges are complied along, add parameter compliance_known:bool
-        (self.V1, self.V2) = find_excluded_contours_edges(self.G, self.SIR.I2, self.SIR.R, self.discovery_rate, self.snitch_rate)
+        #(self.V1, self.V2) = find_excluded_contours_edges(self.G, self.SIR.I2, self.SIR.R, self.discovery_rate, self.snitch_rate)
+        (self.V1, self.V2, self.P, self.Q) = find_excluded_contours_edges_PQ(self.G, self.SIR.I2, self.SIR.R, self.discovery_rate, self.snitch_rate)
     
     def set_budget_labels(self):
         self.budget_labels = allocate_budget(self.G, self.V1, self.budget, self.labels, self.label_map, self.policy)
