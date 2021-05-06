@@ -16,9 +16,9 @@ G2 = load_graph_montgomery()
 #c7 goes with montgomery, b5 goes with cville, d27 goes with portland, ce6 goes with montgomery + 0.15 edges
 
 config = {
-    "G" : [read_extra_edges(G2, 0.15)],
-    "budget": [0],
-    #"budget": [i for i in range(500, 1260, 10)],
+    "G" : [G2],
+    #"budget": [0],
+    "budget": [i for i in range(500, 1260, 10)],
     #"budget":[i for i in range(10000, 18000, 500)],
     #"budget":[i for i in range(18000, 25500, 500)],
     #"budget":[i for i in range(2020, 2270, 20)],
@@ -36,8 +36,8 @@ config = {
     "from_cache": ["c7.json"],
     #"agent": [Random]
     #"agent": [DepRound2, DegGreedy2]
-    "agent":[NoIntervention]
-    #"agent": [Random, DegGreedy2, DepRound2]
+
+    "agent": [DegGreedy2bad, DepRound2bad]
 }
 #config["G"] = [load_graph(x) for x in config["G"]]
 

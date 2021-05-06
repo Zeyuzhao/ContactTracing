@@ -12,7 +12,7 @@ from .utils import *
 from .simulation import *
 
 class MinExposedProgram2:
-    def __init__(self, info: InfectionState, solver_id="GLOP"):
+    def __init__(self, info: InfectionState, solver_id="GLOP", bad=False):
         
         self.result = None
         #self.info = info
@@ -27,8 +27,10 @@ class MinExposedProgram2:
             raise ValueError("Solver failed to initialize!")
             
         # Compute P, Q from SIR
-        #self.P, self.Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, self.p)
-        self.P, self.Q = pq_independent_edges(self.G, self.SIR.I2, self.contour1, self.contour2)
+        if bad:
+            self.P, self.Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, self.p)
+        else:
+            self.P, self.Q = pq_independent_edges(self.G, self.SIR.I2, self.contour1, self.contour2)
     
         # Partial evaluation storage
         self.partials = {}
@@ -177,8 +179,8 @@ class MinExposedProgram2:
 
 
 class MinExposedLP2(MinExposedProgram2):
-    def __init__(self, info: InfectionState, solver_id="GLOP"):
-        super().__init__(info, solver_id)
+    def __init__(self, info: InfectionState, solver_id="GLOP", bad=False):
+        super().__init__(info, solver_id, bad)
 
     def init_variables(self):
         # Declare Fractional Variables
