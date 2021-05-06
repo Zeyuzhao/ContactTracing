@@ -37,7 +37,7 @@ config = {
     #"agent": [Random]
     #"agent": [DepRound2, DegGreedy2]
 
-    "agent": [DegGreedy2bad, DepRound2bad]
+    "agent": [Degree2, DegGreedy2bad, DepRound2bad]
 }
 #config["G"] = [load_graph(x) for x in config["G"]]
 
