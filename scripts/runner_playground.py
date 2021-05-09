@@ -19,7 +19,7 @@ G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 
 config = {
     "G" : [G],
-    "budget":[i for i in range(400, 1260, 10)],
+    "budget":[750],
     #"budget":[i for i in range(400, 1260, 50)],
     "policy": ["none"],
     #"budget": [i for i in range(100, 5000, 10)], #[i for i in range(100, 451, 50)],#[i for i in range(100,3710,10)],
@@ -28,10 +28,10 @@ config = {
     "compliance_known": [True],
     "partial_compliance": [False],
     "I_knowledge": [1],
-    "discovery_rate": [1],
-    "snitch_rate":  [1],
-    "from_cache": ["ce6.json"],
-    "agent": [Random, EC, DepRound2_comp, DegGreedy2_comp]
+    "discovery_rate": [i/100 for i in range(50,101,1)],
+    "snitch_rate":  [.8],
+    "from_cache": ["c7.json"],
+    "agent": [DepRound2_comp, DegGreedy2_comp]
 }
 
 in_schema = list(config.keys())
