@@ -9,9 +9,9 @@ from ctrace.recommender import *
 from collections import namedtuple
 json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 
-#G = load_graph("montgomery")
-G = load_graph_cville_labels()
-#G = read_extra_edges(G, 0.15)
+G = load_graph_montgomery_labels()
+#G = load_graph_cville_labels()
+G = read_extra_edges(G, 0.15)
 G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 #G = load_graph_hid_duration()
 
@@ -19,7 +19,7 @@ G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 
 config = {
     "G" : [G],
-    "budget":[i for i in range(720, 2260, 20)],
+    "budget":[400, 1250],
     #"budget":[i for i in range(400, 1260, 50)],
     "policy": ["none"],
     #"budget": [i for i in range(100, 5000, 10)], #[i for i in range(100, 451, 50)],#[i for i in range(100,3710,10)],
@@ -30,8 +30,8 @@ config = {
     "I_knowledge": [1],
     "discovery_rate": [1],
     "snitch_rate":  [1],
-    "from_cache": ["b5.json"], #be5 is cville with extra edges
-    "agent": [Random, EC, DepRound2_comp, DegGreedy2_comp]
+    "from_cache": ["ce6.json"], #be5 is cville with extra edges
+    "agent": [NoIntervention]
 }
 
 in_schema = list(config.keys())
