@@ -10,24 +10,28 @@ from collections import namedtuple
 json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 
 #G = load_graph("montgomery")
-G = load_graph_montgomery_labels()
-G = read_extra_edges(G, 0.15)
+G = load_graph_cville_labels()
+#G = read_extra_edges(G, 0.15)
+G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 #G = load_graph_hid_duration()
+
+#be5 for cville w/ added edges, ce6 for montgomery w/ added edges
 
 config = {
     "G" : [G],
-    "budget":[1000],
+    "budget":[i for i in range(720, 2260, 20)],
+    #"budget":[i for i in range(400, 1260, 50)],
     "policy": ["none"],
     #"budget": [i for i in range(100, 5000, 10)], #[i for i in range(100, 451, 50)],#[i for i in range(100,3710,10)],
     "transmission_rate": [0.05],
     "compliance_rate": [1],#[i/100 for i in range(50, 101, 5)],#[i/100 for i in range(50,101,5)],
-    "compliance_known": [True, False],
+    "compliance_known": [True],
     "partial_compliance": [False],
     "I_knowledge": [1],
     "discovery_rate": [1],
     "snitch_rate":  [1],
-    "from_cache": ["ce6.json"],
-    "agent": [Degree2, DepRound2_comp, DegGreedy2_comp]
+    "from_cache": ["b5.json"], #be5 is cville with extra edges
+    "agent": [Random, EC, DepRound2_comp, DegGreedy2_comp]
 }
 
 in_schema = list(config.keys())
@@ -57,7 +61,7 @@ def time_trial_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: 
     return TrackerInfo(len(state.SIR.R), infections)
 
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
-run.exec()
+run.exec(max_workers=40)
 
 '''config = {
     "G" : [G2],
