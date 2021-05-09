@@ -68,8 +68,8 @@ class MinExposedProgram2:
             for u in self.contour1:
                 for v in self.G.neighbors(u):
                     if v in self.contour2:
-                        c = self.Q[u][v] * self.P[u] *(1-self.P[v])* ((1-self.G.nodes[u]['compliance_rate'])*self.X1[u] + self.Y1[u])
-                        self.solver.Add(self.Y2[v] >= c)
+                        c = self.Q[u][v] * self.P[u] *(1-self.P[v])
+                        self.solver.Add(self.Y2[v] >= c* ((1-self.G.nodes[u]['compliance_rate'])*self.X1[u] + self.Y1[u]))
         else:
             for u in self.contour1:
                 for v in self.G.neighbors(u):
