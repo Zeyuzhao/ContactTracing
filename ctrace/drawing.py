@@ -1,3 +1,4 @@
+from ctrace.min_cut import PartitionSIR
 import networkx as nx
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -47,7 +48,7 @@ def random_init(G, num_infected=5, seed=42):
     I = set(random.sample(nodes, num_infected))
     R = set()
     S = nodes - I - R
-    return SIR_Tuple(list(S), list(I), list(R))
+    return PartitionSIR.from_sets(list(S), list(I), list(R))
 
 
 def grid_2d(width, seed=42, diagonals=True, sparsity=0.2, global_rate=0):
@@ -75,7 +76,7 @@ def grid_2d(width, seed=42, diagonals=True, sparsity=0.2, global_rate=0):
     return G, pos
 
 
-def small_world_grid(width: int, max_norm=False, sparsity=0, local_range=1, num_long_range=1, r=2, seed=42):
+def small_world_grid(width: int, max_norm=False, sparsity=0, p=1, local_range=1, num_long_range=1, r=2, seed=42):
     """
     Generates an undirected small_world_grid graph.
     Has two types of connection: local and long-ranged.
@@ -130,7 +131,7 @@ def small_world_grid(width: int, max_norm=False, sparsity=0, local_range=1, num_
                 continue
             d = dist(p1, p2)
             if d <= local_range:
-                G.add_edge(p1, p2)
+                G.add_edge(p1, p2, long=False)
             probs.append(d ** -r)
 
         # Normalization
@@ -143,6 +144,7 @@ def small_world_grid(width: int, max_norm=False, sparsity=0, local_range=1, num_
             G.add_edge(p1, p2, long=dist(p1, p2) > local_range)
 
     G.remove_nodes_from(uniform_sample(G.nodes(), sparsity, rg))
+    G.remove_edges_from(uniform_sample(G.edges(), 1-p, rg))
     # Remap nodes to 0 - n^2-1
     mapper = {n: i for i, n in enumerate(G.nodes())}
     pos = {i: (y, -x) for i, (x, y) in enumerate(G.nodes())}
@@ -240,7 +242,7 @@ def grid_sir(
             long_edges, long_props = longs
         else:
             long_edges, long_props = ([], [])
-            
+
         draw_networkx_edges(
             G,
             pos=pos,
@@ -295,6 +297,151 @@ def draw_multiple_grid(G, args, a, b):
         ax[x, y].set_title(config.get("title"), fontsize=8)
         grid_sir(G, ax[x, y], **config)
     return fig, ax
+
+
+# Styling dictionaries
+# Later attributes take precedence
+# default is skipped as an attribute
+min_cut_node_style = {
+    # Default styling
+    "default": {
+        "node_size": 10,
+        "node_color": "black",
+        "edgecolors": "black",
+    },
+    # Attribute styling
+    "patient0": {
+        # Is patient 0?
+        False: {},
+        True: {"node_size": 50},
+    },
+    "status": {
+        # Is infected?
+        False: {"node_color": "black"},
+        True: {"node_color": "red"},
+    },
+}
+
+min_cut_edge_style = {
+    # connectionstyle and arrowstyle are function-wide parameters
+    # NOTE: For limit the number of unique connectionstyle / arrowstyle pairs
+    "default": {
+        "edge_color": "black",
+        "arrowstyle": "-",
+    },
+    "long": {
+        False: {},
+        True: {"connectionstyle": "arc3,rad=0.2"},
+    },
+
+    # Overriding (cut overrides transmission)
+    "transmit": {
+        False: {},
+        True: {"edge_color": "red"},
+    },
+    "cut": {
+        False: {},
+        True: {"edge_color": "blue"},
+    },
+}
+
+
+def draw_style(G, node_style, edge_style, ax=None, DEBUG=False):
+    node_style = node_style.copy()
+    edge_style = edge_style.copy()
+
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(5, 5))
+
+    default_node_style = node_style.pop("default", {})
+    default_edge_style = edge_style.pop("default", {})
+
+    def apply_style(collection, style, default):
+        """
+        collection: dictionary like
+        style: { attr: {value: style_dict}}
+        default: style_dict
+        """
+        processed = {}
+        for item in collection:
+            # Iteratively merge in styles
+            styles = default.copy()
+            for attr in style:
+                val = collection[item].get(attr)
+                new_styles = style[attr].get(val, {})
+                styles = {**styles, **new_styles}
+            processed[item] = styles
+        return processed
+
+    # Handle any missing attributes
+    # TODO: Allow for functionwide node attributes
+    df_nodes = pd.DataFrame.from_dict(
+        apply_style(G.nodes,
+                    node_style, default_node_style),
+        orient="index"
+    ).replace({np.nan: None})
+    styled_nodes = df_nodes.to_dict(orient="list")
+
+    # Index: Edges
+    df_edges = pd.DataFrame.from_dict(
+        apply_style(G.edges,
+                    edge_style, default_edge_style),
+        orient="index",
+    ).replace({np.nan: None})
+    # styled_edges = df_edges.to_dict(orient="list")
+
+    if DEBUG:
+        print(df_nodes)
+        print(df_edges)
+
+    # Core non-style attributes
+    pos = [G.nodes[node]["pos"] for node in G.nodes]
+
+    # Drawing
+    nodes = nx.draw_networkx_nodes(
+        G,
+        pos=pos,
+        **styled_nodes,
+        ax=ax
+    )
+
+    # Creating a fake NONE
+    # Handling function-wide parameters
+    functionwide_params = ["connectionstyle", "arrowstyle"]
+
+    # Pandas can't handle None equality!!!
+    NONE = -1  # No functionwide parameter can be a -1!
+    for p in functionwide_params:
+        if p not in df_edges:
+            df_edges[p] = NONE
+        df_edges[p] = df_edges[p].fillna(NONE)
+
+    for name, group in df_edges.groupby(functionwide_params):
+        styled_edges = group.drop(
+            functionwide_params, axis=1).to_dict(orient="list")
+
+        # Convert NONE back to None
+        functionwide_styles = {
+            k: None if v == NONE else v
+            for k, v in zip(functionwide_params, name)
+        }
+
+        if DEBUG:
+            print("<======= Group ========>")
+            print(f"Functionwide: {functionwide_styles}")
+            # print(f"Styled: {styled_edges}")
+            print("<======= End Group ========>")
+            print()
+        draw_networkx_edges(
+            G,
+            edgelist=list(group.index),
+            pos=pos,
+            **styled_edges,
+            **functionwide_styles,
+            node_size=styled_nodes["node_size"],
+            ax=ax,
+            arrows=True,
+        )
 
 
 # Patched draw_networkx_edges

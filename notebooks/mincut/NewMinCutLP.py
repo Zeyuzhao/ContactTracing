@@ -580,7 +580,7 @@ edge_style = {
     },
     "cut": {
         False: {},
-        True: {"edge_color": "grey"},
+        True: {"edge_color": "blue"},
     },
 }
 
@@ -691,6 +691,7 @@ G.nodes[0]["patient0"] = True
 G.nodes[2]["patient0"] = True
 # G.edges[(0,2)]["cut"] = True
 G.edges[(0, 2)]["transmit"] = True
+G.edges[(0, 3)]["cut"] = True
 draw_style(G, node_style, edge_style, DEBUG=False)
 
 
@@ -701,7 +702,10 @@ draw_style(G, node_style, edge_style, DEBUG=False)
 # ax.set_title("Test Graph", fontsize=8)
 
 
-G = G_old.copy()
+G, pos = small_world_grid(15, max_norm=False, sparsity=0.1,
+                          local_range=1, num_long_range=0.2, r=2, seed=42)
+SIR = random_init(G, num_infected=10, seed=seed)
+
 vertex_solns, edge_solns = min_cut_solver(
     G,
     SIR.I,

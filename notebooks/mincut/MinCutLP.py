@@ -1,4 +1,7 @@
 # %%
+import pstats
+import io
+import cProfile
 import ipywidgets as widgets
 
 import numpy as np
@@ -760,18 +763,19 @@ def draw_style(G, node_style, edge_style, ax=None, DEBUG=False):
     functionwide_params = ["connectionstyle", "arrowstyle"]
 
     # Pandas can't handle None equality!!!
-    NONE = -1 # No functionwide paramter can a -1!
+    NONE = -1  # No functionwide paramter can a -1!
     for p in functionwide_params:
         if p not in df_edges:
             df_edges[p] = NONE
         df_edges[p] = df_edges[p].fillna(NONE)
- 
+
     for name, group in df_edges.groupby(functionwide_params):
-        styled_edges = group.drop(functionwide_params, axis=1).to_dict(orient="list")
+        styled_edges = group.drop(
+            functionwide_params, axis=1).to_dict(orient="list")
 
         # Convert NONE back to None
         functionwide_styles = {
-            k: None if v == NONE else v 
+            k: None if v == NONE else v
             for k, v in zip(functionwide_params, name)
         }
 
@@ -805,9 +809,9 @@ G.edges[(0, 2)]["transmit"] = True
 draw_style(G, node_style, edge_style, DEBUG=False)
 
 
-#%%
+# %%
 
-#%%
+# %%
 # fig, ax = plt.subplots(figsize=(4, 4))
 # ax.set_title("Test Graph", fontsize=8)
 G = G_old.copy()
@@ -817,9 +821,6 @@ nx.set_node_attributes(G, vertex_solns, "status")
 
 draw_style(G, node_style, edge_style, DEBUG=True)
 # %%
-import cProfile
-import io
-import pstats
 
 with cProfile.Profile() as pr:
     draw_style(G, node_style, edge_style, DEBUG=False)

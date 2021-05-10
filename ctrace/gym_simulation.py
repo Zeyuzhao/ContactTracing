@@ -20,9 +20,9 @@ from ctrace import PROJECT_ROOT
 
 # Declare SIR Enum
 class SIR:
-    S = 0
-    I = 1
-    R = 2
+    S = 1
+    I = 2
+    R = 3
 
 
 # %%
@@ -35,7 +35,7 @@ class PartitionSIR(UserList):
     def __init__(self, size=0):
         # Stored internally as integers
         self._types = ["S", "I", "R"]
-        self.type = IntEnum("type", zip(self._types, range(3)))
+        self.type = IntEnum("type", zip(self._types, range(1,4)))
         self.data = [0] * size
 
     @classmethod
@@ -47,9 +47,9 @@ class PartitionSIR(UserList):
     @classmethod
     def from_dict_letters(cls, n: int, d: Dict[int, str]) -> T:
         mapper = {
-            "S": 0,
-            "I": 1,
-            "R": 2,
+            "S": 1,
+            "I": 2,
+            "R": 3,
         }
         p = PartitionSIR(n)
         for k, v in d.items():
@@ -65,15 +65,15 @@ class PartitionSIR(UserList):
     # TODO: Properties hardcoded - hacky solution
     @property
     def S(self):
-        return (i for i, e in enumerate(self.data) if e == 0)
+        return (i for i, e in enumerate(self.data) if e == SIR.S)
 
     @property
     def I(self):
-        return (i for i, e in enumerate(self.data) if e == 1)
+        return (i for i, e in enumerate(self.data) if e == SIR.I)
 
     @property
     def R(self):
-        return (i for i, e in enumerate(self.data) if e == 2)
+        return (i for i, e in enumerate(self.data) if e == SIR.R)
 
 
 # %%
@@ -82,7 +82,7 @@ class PartitionSIR(UserList):
 # TODO: Create wrapper that tracks history?
 # TODO: Create wrapper that masks observation space
 # TODO: Build a statistics tracker wrapper
-# TODO: Create wrapper that tracks diffs in infection 
+# TODO: Create wrapper that tracks diffs in infection
 # -> nodes can be infected longer than 1 timestep
 class InfectionEnv(gym.Env):
     def __init__(self,
@@ -102,8 +102,10 @@ class InfectionEnv(gym.Env):
         # IO Schema
         self.action_space = spaces.MultiBinary(self.N)
         self.observation_space = spaces.Dict({
-            'sir': spaces.MultiDiscrete([3] * self.N),  # An indicator variable for every vertex
-            'contours': spaces.MultiDiscrete([self.stale + 1] * self.N)  # Vertices in V1 and V2 to consider
+            # An indicator variable for every vertex
+            'sir': spaces.MultiDiscrete([3] * self.N),
+            # Vertices in V1 and V2 to consider
+            'contours': spaces.MultiDiscrete([self.stale + 1] * self.N)
         })
 
         # State information
@@ -188,7 +190,8 @@ class InfectionEnv(gym.Env):
                 quarantine_dict[q] = SIR.R
             # S -> S (nothing)
 
-        result_partition = PartitionSIR.from_dict_letters(self.N, full_data.get_statuses(time=1))
+        result_partition = PartitionSIR.from_dict_letters(
+            self.N, full_data.get_statuses(time=1))
 
         # Move quarantine back into graph (undo the R state)
         for q, status, in quarantine_dict.items():
