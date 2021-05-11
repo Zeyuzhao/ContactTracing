@@ -72,6 +72,4 @@ v_soln.value_counts()
 # %%
 e_soln.value_counts()
 
-
-
 # %%

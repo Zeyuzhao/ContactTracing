@@ -101,15 +101,15 @@ class PartitionSIR(UserList):
 
     @property
     def S(self):
-        return (i for i, e in enumerate(self.data) if e == SIR.S)
+        return set(i for i, e in enumerate(self.data) if e == SIR.S)
 
     @property
     def I(self):
-        return (i for i, e in enumerate(self.data) if e == SIR.I)
+        return set(i for i, e in enumerate(self.data) if e == SIR.I)
 
     @property
     def R(self):
-        return (i for i, e in enumerate(self.data) if e == SIR.R)
+        return set(i for i, e in enumerate(self.data) if e == SIR.R)
 
 # %%
 

@@ -30,7 +30,7 @@ G, pos = small_world_grid(
     width=20,
     max_norm=True,
     sparsity=0.1,
-    p=0.2,
+    p=1,
     local_range=1,
     num_long_range=0.2,
     r=2,
@@ -73,6 +73,7 @@ def reset_attrs(G):
     reset_node_attrs(G)
     reset_edge_attrs(G)
 
+
 print(G.edges[list(G.edges)[0]])
 # %%
 visible_sir = randomize(actual_sir)
@@ -87,11 +88,11 @@ min_cut_node_style = {
         "node_size": 20,
         "node_color": "black",
         "edgecolors": "black",
-        "linewidths": 0,
+        "linewidths": 0.5,
     },
     # Attribute styling
     "visible_sir": {
-        SIR.I: {"edgecolors": "orange", "linewidths": 1.5},
+        SIR.I: {"edgecolors": "purple", "linewidths": 1.5},
     },
     "actual_sir": {
         SIR.I: {"node_size": 50, "node_color": "red"},
@@ -165,8 +166,8 @@ transmit = {e: base_vertex[e[0]] or base_vertex[e[1]] for e in base_G.edges}
 fig, ax = plt.subplots(1, 1, figsize=(5, 5))
 draw_style(base_G, min_cut_node_style, min_cut_edge_style, ax=ax, DEBUG=False)
 
-print(f"Baseline Exposed (Additional): {len(base_sir.I)} ({len(base_sir.I) - len(actual_sir.I)})")
-
+print(
+    f"Baseline Exposed (Additional): {len(set(base_sir.I))} ({len(set(base_sir.I)) - len(set(actual_sir.I))})")
 
 
 # %%
@@ -209,10 +210,10 @@ nx.set_edge_attributes(rand_G, transmit, "transmit")
 draw_style(rand_G, min_cut_node_style,
            min_cut_edge_style, ax=None, DEBUG=False)
 
-
-# %%
-print(f"Predicted Exposed (Addl): {len(rec_sir.I)} ({len(rec_sir.I) - len(actual_sir.I)})")
-print(f"Actual Exposed (Addl): {len(sol_sir.I)} ({len(sol_sir.I) - len(actual_sir.I)})")
+print(
+    f"Predicted Exposed (Addl): {len(rec_sir.I)} ({len(rec_sir.I) - len(actual_sir.I)})")
+print(
+    f"Actual Exposed (Addl): {len(sol_sir.I)} ({len(sol_sir.I) - len(actual_sir.I)})")
 
 # %%
 
@@ -222,5 +223,35 @@ print(f"Num Edges: {len(aG.edges())}")
 # %%
 
 # %%
+G, pos = small_world_grid(
+    width=60,
+    max_norm=True,
+    sparsity=0.3,
+    p=1,
+    local_range=1,
+    num_long_range=3,
+    r=2,
+    seed=42
+)
+actual_sir = random_init(G, num_infected=500, seed=seed)
+#%%
 
+component_sizes = pd.Series([len(c) for c in sorted(
+    nx.connected_components(aG), key=len, reverse=True)])
+component_sizes.max()
+
+
+#%%
+frac_vertex, frac_edge = min_cut_solver(
+    G,
+    actual_sir,
+    budget=500,
+    edge_costs=None,
+    vertex_costs=None,
+    privacy=None,
+    partial=None,
+    mip=False
+)
+print(pd.Series(frac_vertex).value_counts())
+print(pd.Series(frac_edge).value_counts())
 # %%

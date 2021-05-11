@@ -17,6 +17,7 @@ from ctrace.utils import *
 from numpy.random import default_rng
 from typing import Dict
 from numbers import Number
+from tqdm import tqdm
 
 random.seed(42)
 
@@ -124,9 +125,10 @@ def small_world_grid(width: int, max_norm=False, sparsity=0, p=1, local_range=1,
             d = sum(diffs)
         return d
 
-    for p1 in nodes:
+    for p1 in tqdm(nodes, total=len(nodes)):
         probs = [0]
         for p2 in nodes:
+            # O(n^2) - we can speed it up
             if p1 == p2:
                 continue
             d = dist(p1, p2)
