@@ -216,6 +216,9 @@ print(f"Actual Exposed (Addl): {len(sol_sir.I)} ({len(sol_sir.I) - len(actual_si
 
 # %%
 
+active_edges = set(uniform_sample(G.edges, 0.15))
+aG = nx.subgraph_view(G, filter_edge=lambda x, y: (x, y) in active_edges)
+print(f"Num Edges: {len(aG.edges())}")
 # %%
 
 # %%

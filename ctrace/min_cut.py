@@ -22,6 +22,7 @@ import scipy
 from enum import IntEnum
 from typing import Dict, Set, List, Any, TypeVar
 from collections import UserList, namedtuple, defaultdict
+from tqdm import tqdm
 
 # Declare SIR Enum
 
@@ -95,9 +96,9 @@ class PartitionSIR(UserList):
     def to_dict(self):
         return {k: v for k, v in enumerate(self.data)}
 
-
     # Only use the following as generators
     # To check for individual status
+
     @property
     def S(self):
         return (i for i, e in enumerate(self.data) if e == SIR.S)
@@ -121,7 +122,8 @@ def min_cut_solver(
     vertex_costs=None,
     privacy=None,
     partial=None,
-    mip=False
+    mip=False,
+    debug=False,
 ):
     """
     Modes:
@@ -132,6 +134,7 @@ def min_cut_solver(
         throw Error otherwise
     """
 
+    start_ts = time.perf_counter()
     solver: Solver = pywraplp.Solver.CreateSolver("GUROBI")
     vertex_vars = {}
     edge_vars = {}
@@ -197,6 +200,7 @@ def min_cut_solver(
                 solver.Add(edge_vars[e] == 0)
 
     # Constrain transmission along edges
+    # Bottleneck???
     for e in G.edges:
         solver.Add(edge_vars[e] >=
                    vertex_vars[e[0]] - vertex_vars[e[1]])
@@ -214,9 +218,15 @@ def min_cut_solver(
         objective.SetCoefficient(vertex_vars[n], vertex_costs[n])
     objective.SetMinimization()
 
+    init_ts = time.perf_counter()
+    print(f"Init Time: {init_ts - start_ts}")
+
     status = solver.Solve()
     if status == solver.INFEASIBLE:
         raise ValueError("Infeasible solution")
+
+    solve_ts = time.perf_counter()
+    print(f"Solve Time: {solve_ts - init_ts}")
 
     if status == solver.OPTIMAL:
         is_optimal = True
