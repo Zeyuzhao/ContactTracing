@@ -72,4 +72,73 @@ v_soln.value_counts()
 # %%
 e_soln.value_counts()
 
+
+#%%
+
+
+def max_degree_edges(G, edges, budget):
+    edge_max_degree = {(u, v): max(G.degree(u), G.degree(v))
+                       for (u, v) in edges}
+    edges_by_degree = sorted(
+        edge_max_degree, key=edge_max_degree.get, reverse=True)
+    return edges_by_degree[:budget]
+
+def degree_solver(G, SIR, budget):
+    edges = max_degree_edges(G, G.edges(SIR.I))
+    return edges
+
+
+def random_solver(G, SIR, budget):
+    edges = np.random.choice(G.edges(SIR.I), size=budget, replace=False)
+    return edges
+
+
+def randomize(sir, p=0.05):
+    """
+    Flips between S (1) and I (2) with probability p.
+    """
+    out = sir.copy()
+    for n, status in enumerate(sir):
+        rand = np.random.rand()
+        if (status == SIR.S or status == SIR.I) and rand < p:
+            out[n] = 3 - status
+    return out
+
 # %%
+
+
+methods = {}
+
+def runner(
+    G, 
+    num_infected: int, 
+    transmission: float, 
+    rand_resp_prob: float, 
+    budget: int, 
+    method: str, 
+    seed=None
+):
+    # Sample the edges that actually transmit the disease
+    active_edges = set(uniform_sample(G.edges, 0.15))
+    G_transmit = nx.subgraph_view(G, filter_edge=lambda x, y: (x, y) in active_edges)
+
+    actual_sir = random_init(G, num_infected=num_infected, seed=seed)
+    visible_sir = randomize(actual_sir)
+
+    solver = methods[method]
+    edge_rec = solver(G, visible_sir, budget)
+
+    # Evaluation
+
+    vertex_soln, edge_soln = min_cut_solver(
+        G,
+        actual_sir,
+        budget=budget,
+        partial=edge_rec,
+        mip=False
+    )
+    score = sum(vertex_soln.values())
+    return score
+
+
+

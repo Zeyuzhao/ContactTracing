@@ -245,6 +245,28 @@ def min_cut_solver(
     return vertex_solns, edge_solns
 
 
+def min_cut_round(
+    G,
+    sir_map,
+    budget=None,
+    edge_costs=None,
+    vertex_costs=None,
+    debug=False,
+):
+    vertex_frac, edge_frac = min_cut_solver(
+        G,
+        sir_map,
+        budget,
+        edge_costs,
+        vertex_costs,
+        mip=False,
+    )
+    rounded = D_prime(list(edge_frac.values()))
+    edge_frac_rounded = {k: v for k, v in zip(edge_frac, rounded)}
+
+    return edge_frac_rounded
+
+    
 def trunc_laplace(support, scale, gen=np.random, size=1):
     """
     Generate laplacian with support [-support, +support], and scale=scale

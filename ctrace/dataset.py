@@ -14,6 +14,7 @@ from . import PROJECT_ROOT
 from .utils import find_contours
 np.random.seed(42)
 
+
 def prep_labelled_graph(in_path, out_dir, num_lines=None, delimiter=","):
     """Generates a labelled graphs. Converts IDs to ids from 0 to N vertices
     Parameters
@@ -94,7 +95,7 @@ def human_format(num):
         .replace('.', '_')
 
 
-def prep_dataset(name: str, data_dir: Path=None, sizes=(None,)):
+def prep_dataset(name: str, data_dir: Path = None, sizes=(None,)):
     """
     Prepares a variety of sizes of graphs from one input graphs
     Parameters
@@ -109,20 +110,22 @@ def prep_dataset(name: str, data_dir: Path=None, sizes=(None,)):
     group_path = data_dir / name
     for s in sizes:
         instance_folder = f"partial{human_format(s)}" if s else "complete"
-        prep_labelled_graph(in_path=group_path / f"{name}.csv", out_dir=group_path / instance_folder, num_lines=s)
+        prep_labelled_graph(
+            in_path=group_path / f"{name}.csv", out_dir=group_path / instance_folder, num_lines=s)
 
 
 def load_graph(dataset_name, graph_folder=None):
     """Will load the complete folder by default, and set the NAME attribute to dataset_name"""
     if graph_folder is None:
-        graph_folder = PROJECT_ROOT / "data" / "graphs" / dataset_name / "complete"
+        graph_folder = PROJECT_ROOT / "data" / "graph" / dataset_name
     G = nx.read_edgelist(graph_folder / "data.txt", nodetype=int)
 
     # Set name of graphs
     G.graph["name"] = dataset_name
     return G
 
-def load_graph_cville(fp = "undirected_albe_1.90.txt"):
+
+def load_graph_cville(fp="undirected_albe_1.90.txt"):
     graph_file = PROJECT_ROOT / "data" / "raw" / fp
     df = pd.read_csv(graph_file, delim_whitespace=True)
     col1, col2 = 'Node1', 'Node2'
@@ -139,6 +142,7 @@ def load_graph_cville(fp = "undirected_albe_1.90.txt"):
     G = nx.from_pandas_edgelist(df, col1, col2)
     G.G["name"] = "cville"
     return G
+
 
 def generate_random_absolute(G, num_infected: int = None, k: int = None, costs: list = None):
     N = G.number_of_nodes()
@@ -175,7 +179,8 @@ def generate_absolute(G, infected, k: int = None, costs: list = None):
         "k": k,
     }
 
-def load_sir(sir_name, sir_folder: Path=None, merge=False):
+
+def load_sir(sir_name, sir_folder: Path = None, merge=False):
     if sir_folder is None:
         sir_folder = PROJECT_ROOT / "data" / "SIR_Cache"
     dataset_path = sir_folder / sir_name
@@ -185,6 +190,7 @@ def load_sir(sir_name, sir_folder: Path=None, merge=False):
             data["I"] = list(set().union(*data["I_Queue"]))
             del data["I_Queue"]
         return data
+
 
 def load_sir_path(path: Path, merge=False):
     with open(path) as file:

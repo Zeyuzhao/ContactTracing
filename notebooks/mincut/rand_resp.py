@@ -22,27 +22,6 @@ from enum import Enum
 
 # %%
 
-# <=========================== Graph/SIR Setup ===========================>
-seed = 42
-budget = 100
-
-G, pos = small_world_grid(
-    width=20,
-    max_norm=True,
-    sparsity=0.1,
-    p=1,
-    local_range=1,
-    num_long_range=0.2,
-    r=2,
-    seed=42
-)
-actual_sir = random_init(G, num_infected=30, seed=seed)
-long_edges = list(G.edges.data("long", default=False))
-# draw_style(G, min_cut_node_style, min_cut_edge_style, ax=None, DEBUG=False)
-
-# Randomize Response
-
-
 def randomize(sir, p=0.05):
     out = sir.copy()
     for n, status in enumerate(sir):
@@ -72,15 +51,6 @@ def reset_edge_attrs(G, keep=['long']):
 def reset_attrs(G):
     reset_node_attrs(G)
     reset_edge_attrs(G)
-
-
-print(G.edges[list(G.edges)[0]])
-# %%
-visible_sir = randomize(actual_sir)
-
-print(f"Actual Infected: {actual_sir.I}")
-print(f"Visible Infected: {visible_sir.I}")
-# %%
 
 min_cut_node_style = {
     # Default styling
@@ -127,6 +97,36 @@ min_cut_edge_style = {
     },
 }
 
+
+#%%
+# <=========================== Graph/SIR Setup ===========================>
+seed = 42
+budget = 100
+
+G, pos = small_world_grid(
+    width=20,
+    max_norm=True,
+    sparsity=0.1,
+    p=1,
+    local_range=1,
+    num_long_range=0.2,
+    r=2,
+    seed=42
+)
+actual_sir = random_init(G, num_infected=30, seed=seed)
+long_edges = list(G.edges.data("long", default=False))
+
+
+print(G.edges[list(G.edges)[0]])
+visible_sir = randomize(actual_sir)
+
+print(f"Actual Infected: {actual_sir.I}")
+print(f"Visible Infected: {visible_sir.I}")
+
+# draw_style(G, min_cut_node_style, min_cut_edge_style, ax=None, DEBUG=False)
+
+# Randomize Response
+#%%
 
 nx.set_node_attributes(G, actual_sir.to_dict(), "actual_sir")
 
@@ -234,11 +234,15 @@ G, pos = small_world_grid(
     seed=42
 )
 actual_sir = random_init(G, num_infected=500, seed=seed)
-#%%
 
 component_sizes = pd.Series([len(c) for c in sorted(
     nx.connected_components(aG), key=len, reverse=True)])
 component_sizes.max()
+
+
+#%%
+
+
 
 
 #%%

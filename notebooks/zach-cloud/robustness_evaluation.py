@@ -16,7 +16,7 @@ import networkx as nx
 
 
 def grader(
-    G,
+    G,  
     SIR,
     budget,
     transmission_rate,
