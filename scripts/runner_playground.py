@@ -21,15 +21,15 @@ G = load_graph_montgomery_labels()
 
 config = {
     "G" : [G],
-    #"budget": [1000],
-    "budget":[i for i in range(400, 1260, 10)],
+    "budget": [1000],
+    #"budget":[i for i in range(400, 1260, 10)],
     #"budget":[i for i in range(1800, 2270, 20)],
     "policy": ["none"],
     "transmission_rate": [0.05],
     #"compliance_rate": [i/100 for i in range(50, 101)],
     #"compliance_rate": [i/100 for i in range(50, 101)],#[i/100 for i in range(50, 101, 5)],#[i/100 for i in range(50,101,5)],
     "transmission_known": [False],
-    "compliance_rate": [0.8],
+    "compliance_rate": [i/100 for i in range(50, 101, 1)],
     "compliance_known": [False],
     "discovery_rate": [1],
     "snitch_rate":  [1],
@@ -58,7 +58,7 @@ def time_trial_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: 
     
     return TrackerInfo(len(state.SIR.R), infections)
 
-run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=5)
+run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
 run.exec(max_workers=40)
 
 '''config = {
