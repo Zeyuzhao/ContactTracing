@@ -1,18 +1,27 @@
 import concurrent.futures
 import csv
+from ctrace.utils import max_neighbors
 import functools
 import itertools
 import logging
 import time
 from collections import namedtuple
 from typing import Dict, Callable, List, Any, NamedTuple
+import traceback
 
 import shortuuid
+import tracemalloc
 from tqdm import tqdm
 
 from ctrace import PROJECT_ROOT
 
 DEBUG = False
+
+def debug_memory(logger, label=""):
+    snapshot = tracemalloc.take_snapshot()
+    top_stats = snapshot.statistics('lineno')
+    logger.debug(f"[{label}]: {top_stats[:5]}")
+
 
 class GridExecutor():
     """
@@ -97,7 +106,7 @@ class GridExecutor():
         filtered = {}
         for key in self.in_schema:
             if key == "G":
-                 filtered[key] = in_param[key].NAME
+                filtered[key] = in_param[key].NAME
             elif key == "agent":
                 filtered[key] = in_param[key].__name__
             else:
@@ -147,8 +156,13 @@ class GridExecutor():
         formatted_param = self.input_param_formatter(param)
         self.logger.info(f"Launching => {formatted_param}")
 
-        out = self.func(**param)._asdict()
-
+        try:
+            out = self.func(**param)._asdict()
+        except Exception as e:
+            # Find a way to export culprit data?
+            self.logger.error(traceback.format_exc())
+            out = {x: None for x in self.out_schema}
+            
         # TODO: Added as a hack to allow output_param_formatter not to crash
         if self._track_duration:
             out["run_duration"] = None
@@ -168,8 +182,8 @@ class GridExecutor():
 
 class GridExecutorParallel(GridExecutor):
     # Override the exec
-    def exec(self):
-        with concurrent.futures.ProcessPoolExecutor() as executor, \
+    def exec(self, max_workers=20):
+        with concurrent.futures.ProcessPoolExecutor(max_workers) as executor, \
              open(self.result_path, "w+") as result_file: # TODO: Encapsulate "csv file"
             self.init_logger()
 
@@ -188,6 +202,7 @@ class GridExecutorParallel(GridExecutor):
                 result_file.flush()
 
                 self.logger.info(f"Finished => {in_param}")
+                # debug_memory(self.logger, "run")
 
 class GridExecutorLinear(GridExecutor):
     # Override the exec
