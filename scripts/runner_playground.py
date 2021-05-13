@@ -28,8 +28,8 @@ config = {
     "compliance_known": [True],
     "partial_compliance": [False],
     "I_knowledge": [1],
-    "discovery_rate": [i/100 for i in range(50,101,1)],
-    "snitch_rate":  [.8],
+    "discovery_rate": [.8],
+    "snitch_rate":  [i/100 for i in range(50,101,1)],
     "from_cache": ["c7.json"],
     "agent": [DepRound2_comp, DegGreedy2_comp]
 }
@@ -60,7 +60,7 @@ def time_trial_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: 
     
     return TrackerInfo(len(state.SIR.R), infections)
 
-run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
+run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=40)
 run.exec()
 
 '''config = {
