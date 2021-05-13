@@ -18,19 +18,29 @@ class MinExposedProgram2_label:
         #self.info = info
         self.G = info.G
         self.SIR = info.SIR
+        
         self.budget = info.budget
+        self.policy = info.policy
         self.budget_labels = info.budget_labels
         self.labels = info.labels
+        
         self.p = info.transmission_rate
+        self.transmission_known = info.transmission_known
+        self.compliance_known = info.compliance_known
+        
         self.contour1, self.contour2 = info.V1, info.V2
         self.solver = pywraplp.Solver.CreateSolver(solver_id)
+        
+        if self.transmission_known:
+            #print("full transmission knowledge!")
+            self.P = info.P
+            self.Q = info.Q
+        else:
+            #print("avg transmission knowledge!")
+            self.P, self.Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, info.Q, self.p)
 
         if self.solver is None:
             raise ValueError("Solver failed to initialize!")
-            
-        # Compute P, Q from SIR
-        #self.P, self.Q = pq_independent(self.G, self.SIR.I, self.contour1, self.p)
-        self.P, self.Q = pq_independent_edges(self.G, self.SIR.I2, self.contour1, self.contour2)
     
         # Partial evaluation storage
         self.partials = {}
@@ -56,23 +66,81 @@ class MinExposedProgram2_label:
         # X-Y are complements
         for u in self.contour1:
             self.solver.Add(self.X1[u] + self.Y1[u] == 1)
-
-        # cost (number of people quarantined) must be within budget
-        for label in self.labels:
-            cost: Constraint = self.solver.Constraint(0, self.budget_labels[label])
+        
+        if self.policy == "none":
+            #print("no fairess :(")
+            cost: Constraint = self.solver.Constraint(0, self.budget)
             for u in self.contour1:
-                if (self.G.nodes[u]["age_group"]==label):
-                    cost.SetCoefficient(self.X1[u], 1)
-                else:
-                    cost.SetCoefficient(self.X1[u], 0)
-
-        # Y2[v] becomes a lower bound for the probability that vertex v is infected
+                cost.SetCoefficient(self.X1[u], 1)
+        else:
+            #print("fairness")
+            # cost (number of people quarantined) must be within budget
+            for label in self.labels:
+                cost: Constraint = self.solver.Constraint(0, self.budget_labels[label])
+                for u in self.contour1:
+                    if (self.G.nodes[u]["age_group"]==label):
+                        cost.SetCoefficient(self.X1[u], 1)
+                    else:
+                        cost.SetCoefficient(self.X1[u], 0)
+        
+        if self.compliance_known:
+            #print("full compliance knowledge!")
+            for u in self.contour1:
+                for v in self.G.neighbors(u):
+                    if v in self.contour2:
+                        c = self.Q[u][v] * self.P[u] *(1-self.P[v])
+                        self.solver.Add(self.Y2[v] >= c* ((1-self.G.nodes[u]['compliance_rate'])*self.X1[u] + self.Y1[u]))
+        else:
+            #print("incomplete compliance knowledge!")
+            for u in self.contour1:
+                for v in self.G.neighbors(u):
+                    if v in self.contour2:
+                        c = self.Q[u][v] * self.P[u] *(1-self.P[v])
+                        self.solver.Add(self.Y2[v] >= c * self.Y1[u])
+      
+        '''# Y2[v] becomes a lower bound for the probability that vertex v is infected
         for u in self.contour1:
             for v in self.G.neighbors(u):
                 if v in self.contour2:
                     c = self.Q[u][v] * self.P[u] *(1-self.P[v])
-                    self.solver.Add(self.Y2[v] >= c * self.Y1[u])
-
+                    self.solver.Add(self.Y2[v] >= c * ((1-self.G.nodes[u]['compliance_rate'])*self.X1[u] + self.Y1[u]))'''
+        '''
+        for u in self.contour1:
+            for v in self.G.neighbors(u):
+                if v in self.contour2:
+                    c = self.Q[u][v] * self.P[u] *(1-self.P[v])
+                    self.solver.Add(self.Y2[v] >= c * self.Y1[u])'''
+        #Case 1: Average transmission
+        '''if self.compliance_known and not self.transmission_known:
+            P, Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, self.p)
+            for u in self.contour1:
+                for v in self.G.neighbors(u):
+                    if v in self.contour2 and self.Q[u][v]!=0:
+                        c = Q[u][v] * P[u] *(1-P[v])
+                        self.solver.Add(self.Y2[v] >= c* ((1-self.G.nodes[u]['compliance_rate'])*self.X1[u] + self.Y1[u]))
+        #Case 2: Full knowledge
+        elif self.compliance_known and self.transmission_known:
+            for u in self.contour1:
+                for v in self.G.neighbors(u):
+                    if v in self.contour2:
+                        c = self.Q[u][v] * self.P[u] *(1-self.P[v])
+                        self.solver.Add(self.Y2[v] >= c* ((1-self.G.nodes[u]['compliance_rate'])*self.X1[u] + self.Y1[u]))
+        #Case 3: Average both
+        elif not self.compliance_known and not self.transmission_known:
+            P, Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, self.p)
+            for u in self.contour1:
+                for v in self.G.neighbors(u):
+                    if v in self.contour2 and self.Q[u][v]!=0:
+                        c = Q[u][v] * P[u] *(1-P[v])
+                        self.solver.Add(self.Y2[v] >= c * self.Y1[u])
+        #Case 4: Average compliance
+        else:
+            for u in self.contour1:
+                for v in self.G.neighbors(u):
+                    if v in self.contour2:
+                        c = self.Q[u][v] * self.P[u] *(1-self.P[v])
+                        self.solver.Add(self.Y2[v] >= c * self.Y1[u])'''
+        
         # Objective: Minimize number of people exposed in contour2
         num_exposed: Objective = self.solver.Objective()
         for v in self.contour2:
