@@ -9,21 +9,26 @@ import math
 from typing import Set
 from collections import namedtuple
 
-from .utils import find_excluded_contours_edges_PQ, edge_transmission, edge_transmission_hid, allocate_budget
+from .utils import find_excluded_contours_edges_PQ, edge_transmission, allocate_budget
 from . import PROJECT_ROOT
 
 SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I1", "I2", "R"])
                 
 class InfectionState:
     
-    def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, policy:str, transmission_rate:float, compliance_rate:float = 1, compliance_known: bool = False, partial_compliance:bool = False, I_knowledge:float = 1, discovery_rate:float = 1, snitch_rate:float = 1):
+    #TODO: Can we get rid of I_knowledge and partial_compliance? And add transmission_known for infoloss where we use averaged transmissions?
+    def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, policy:str, transmission_rate:float, transmission_known: bool = False, compliance_rate:float = 1, compliance_known: bool = False, discovery_rate:float = 1, snitch_rate:float = 1):
+    #def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, policy:str, transmission_rate:float, compliance_rate:float = 1, compliance_known: bool = False, partial_compliance:bool = False, I_knowledge:float = 1, discovery_rate:float = 1, snitch_rate:float = 1):
         self.G = G
         self.SIR = SIR_Tuple(*SIR)
         self.budget = budget
+        
         self.transmission_rate = transmission_rate
+        self.transmission_known = transmission_known
         self.compliance_rate = compliance_rate
         self.compliance_known = compliance_known
-        self.partial_compliance = partial_compliance
+        self.partial_compliance = False
+        
         self.discovery_rate = discovery_rate
         self.snitch_rate = snitch_rate
        
@@ -36,20 +41,31 @@ class InfectionState:
         edge_to_compliance = {}
         compliance_edge = 0
         
+        #Convert duration times to transmission rates
         mean_duration = np.mean(list(nx.get_edge_attributes(G, "duration").values()))
         lambda_cdf = -math.log(1-transmission_rate)/mean_duration
         exponential_cdf = lambda x: 1-math.exp(-lambda_cdf*x)
         
-        #TODO: Figure out when to modify compliance edges
+        #Scale noncompliances such that the weighted average of compliances equals the parameter
+        frequencies = list(nx.get_node_attributes(self.G, 'age_group').values())
+        #k = 1
+        k = max(0, len(G.nodes)*(self.compliance_rate-1)/sum([frequencies.count(i)*(self.compliance_map[i]-1) for i in range(len(self.compliance_map))]))
+        self.compliance_map = [(1-k*(1-self.compliance_map[i])) for i in range(len(self.compliance_map))]
+        
         for node in G.nodes():
             G.nodes[node]['quarantine'] = 0
             
-            if not self.compliance_known:
-                G.nodes[node]['compliance_rate'] = compliance_rate
+            new_compliance = 1-k*(1-G.nodes[node]['compliance_rate'])
+            if new_compliance < 0:
+                G.nodes[node]['compliance_rate'] = 0
+            elif new_compliance > 1:
+                G.nodes[node]['compliance_rate'] = 1
+            else:
+                G.nodes[node]['compliance_rate'] = new_compliance
             
             node_compliance_rate = G.nodes[node]['compliance_rate']
             
-            if not partial_compliance: 
+            if not self.partial_compliance: 
                 compliance = 0 if random.random() > node_compliance_rate else 1
             
             for nbr in G.neighbors(node):
@@ -60,7 +76,7 @@ class InfectionState:
                 
                 transmission_edge = exponential_cdf(G[node][nbr]["duration"])
 
-                if partial_compliance:
+                if self.partial_compliance:
                     compliance_edge = (0 if random.random()>node_compliance_rate else 1, transmission_edge)
                 else: 
                     compliance_edge = (compliance, transmission_edge)
@@ -110,7 +126,6 @@ class InfectionState:
     def step(self, quarantine: Set[int]):
         # moves the SIR forward by 1 timestep
         full_data = EoN.discrete_SIR(G = self.G, test_transmission = edge_transmission, args = (self.G,), initial_infecteds=self.SIR.I1 + self.SIR.I2, initial_recovereds=self.SIR.R, tmin=0, tmax=1, return_full_data=True)
-        #full_data = EoN.basic_discrete_SIR(G=self.G, p=self.transmission_rate, initial_infecteds=self.SIR.I1 + self.SIR.I2, initial_recovereds=self.SIR.R, tmin=0, tmax=1, return_full_data=True)
         
         S = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'S']
         I1 = [k for (k, v) in full_data.get_statuses(time=1).items() if v == 'I']
@@ -128,7 +143,6 @@ class InfectionState:
     
     def set_contours(self):
         #For knowledge of which edges are complied along, add parameter compliance_known:bool
-        #(self.V1, self.V2) = find_excluded_contours_edges(self.G, self.SIR.I2, self.SIR.R, self.discovery_rate, self.snitch_rate)
         (self.V1, self.V2, self.P, self.Q) = find_excluded_contours_edges_PQ(self.G, self.SIR.I2, self.SIR.R, self.discovery_rate, self.snitch_rate)
     
     def set_budget_labels(self):

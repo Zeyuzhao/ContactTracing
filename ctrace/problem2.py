@@ -12,17 +12,19 @@ from .utils import *
 from .simulation import *
 
 class MinExposedProgram2:
-    def __init__(self, info: InfectionState, solver_id="GLOP", comp = False):
+    def __init__(self, info: InfectionState, solver_id="GLOP"):
         
         self.result = None
         #self.info = info
         self.G = info.G
         self.SIR = info.SIR
         self.budget = info.budget
+        self.compliance_rate = info.compliance_rate
         self.p = info.transmission_rate
         self.contour1, self.contour2 = info.V1, info.V2
         self.solver = pywraplp.Solver.CreateSolver(solver_id)
-        self.comp = comp
+        self.transmission_known = state.transmission_known
+        self.compliance_known = state.compliance_known
         self.P = info.P
         self.Q = info.Q
 
@@ -64,12 +66,29 @@ class MinExposedProgram2:
             cost.SetCoefficient(self.X1[u], 1)
 
         # Y2[v] becomes a lower bound for the probability that vertex v is infected
-        if self.comp:
+        if self.compliance_known and not self.transmission_known:
+            P, Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, self.p)
+            for u in self.contour1:
+                for v in self.G.neighbors(u):
+                    if v in self.contour2 and self.Q[u][v]!=0:
+                        c = Q[u][v] * P[u] *(1-P[v])
+                        self.solver.Add(self.Y2[v] >= c* ((1-self.G.nodes[u]['compliance_rate'])*self.X1[u] + self.Y1[u]))
+        
+        elif self.compliance_known and self.transmission_known:
             for u in self.contour1:
                 for v in self.G.neighbors(u):
                     if v in self.contour2:
                         c = self.Q[u][v] * self.P[u] *(1-self.P[v])
                         self.solver.Add(self.Y2[v] >= c* ((1-self.G.nodes[u]['compliance_rate'])*self.X1[u] + self.Y1[u]))
+        
+        elif not self.compliance_known and not self.transmission_known:
+            P, Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, self.p)
+            for u in self.contour1:
+                for v in self.G.neighbors(u):
+                    if v in self.contour2 and self.Q[u][v]!=0:
+                        c = Q[u][v] * P[u] *(1-P[v])
+                        self.solver.Add(self.Y2[v] >= c * self.Y1[u])
+        
         else:
             for u in self.contour1:
                 for v in self.G.neighbors(u):
@@ -187,8 +206,8 @@ class MinExposedProgram2:
 
 
 class MinExposedLP2(MinExposedProgram2):
-    def __init__(self, info: InfectionState, solver_id="GLOP", comp = False):
-        super().__init__(info, solver_id, comp)
+    def __init__(self, info: InfectionState, solver_id="GLOP", comp = False, bad = False):
+        super().__init__(info, solver_id, comp, bad)
 
     def init_variables(self):
         # Declare Fractional Variables
@@ -200,8 +219,8 @@ class MinExposedLP2(MinExposedProgram2):
 
 
 class MinExposedIP2(MinExposedProgram2):
-    def __init__(self, info: InfectionState, solver_id="GUROBI", comp = False):
-        super().__init__(info, solver_id, comp)
+    def __init__(self, info: InfectionState, solver_id="GUROBI", comp = False, bad = False):
+        super().__init__(info, solver_id, comp, bad)
 
     def init_variables(self):
         # Declare Variables (With Integer Constraints)
