@@ -97,49 +97,6 @@ class MinExposedProgram2_label:
                     if v in self.contour2:
                         c = self.Q[u][v] * self.P[u] *(1-self.P[v])
                         self.solver.Add(self.Y2[v] >= c * self.Y1[u])
-      
-        '''# Y2[v] becomes a lower bound for the probability that vertex v is infected
-        for u in self.contour1:
-            for v in self.G.neighbors(u):
-                if v in self.contour2:
-                    c = self.Q[u][v] * self.P[u] *(1-self.P[v])
-                    self.solver.Add(self.Y2[v] >= c * ((1-self.G.nodes[u]['compliance_rate'])*self.X1[u] + self.Y1[u]))'''
-        '''
-        for u in self.contour1:
-            for v in self.G.neighbors(u):
-                if v in self.contour2:
-                    c = self.Q[u][v] * self.P[u] *(1-self.P[v])
-                    self.solver.Add(self.Y2[v] >= c * self.Y1[u])'''
-        #Case 1: Average transmission
-        '''if self.compliance_known and not self.transmission_known:
-            P, Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, self.p)
-            for u in self.contour1:
-                for v in self.G.neighbors(u):
-                    if v in self.contour2 and self.Q[u][v]!=0:
-                        c = Q[u][v] * P[u] *(1-P[v])
-                        self.solver.Add(self.Y2[v] >= c* ((1-self.G.nodes[u]['compliance_rate'])*self.X1[u] + self.Y1[u]))
-        #Case 2: Full knowledge
-        elif self.compliance_known and self.transmission_known:
-            for u in self.contour1:
-                for v in self.G.neighbors(u):
-                    if v in self.contour2:
-                        c = self.Q[u][v] * self.P[u] *(1-self.P[v])
-                        self.solver.Add(self.Y2[v] >= c* ((1-self.G.nodes[u]['compliance_rate'])*self.X1[u] + self.Y1[u]))
-        #Case 3: Average both
-        elif not self.compliance_known and not self.transmission_known:
-            P, Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, self.p)
-            for u in self.contour1:
-                for v in self.G.neighbors(u):
-                    if v in self.contour2 and self.Q[u][v]!=0:
-                        c = Q[u][v] * P[u] *(1-P[v])
-                        self.solver.Add(self.Y2[v] >= c * self.Y1[u])
-        #Case 4: Average compliance
-        else:
-            for u in self.contour1:
-                for v in self.G.neighbors(u):
-                    if v in self.contour2:
-                        c = self.Q[u][v] * self.P[u] *(1-self.P[v])
-                        self.solver.Add(self.Y2[v] >= c * self.Y1[u])'''
         
         # Objective: Minimize number of people exposed in contour2
         num_exposed: Objective = self.solver.Objective()
@@ -264,7 +221,8 @@ class MinExposedLP2_label(MinExposedProgram2_label):
 
 
 class MinExposedIP2_label(MinExposedProgram2_label):
-    def __init__(self, info: InfectionState, solver_id="GUROBI"):
+    #def __init__(self, info: InfectionState, solver_id="GUROBI"):
+    def __init__(self, info: InfectionState, solver_id="GLOP"):
         super().__init__(info, solver_id)
 
     def init_variables(self):

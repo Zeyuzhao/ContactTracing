@@ -504,7 +504,7 @@ def load_graph_montgomery_labels():
         
     nx.set_edge_attributes(G, edges_to_duration, 'duration')
     nx.set_node_attributes(G, cnode_to_labels, 'age_group')
-    nx.set_node_attributes(G, cnode_to_comp, 'compliance_rate')
+    nx.set_node_attributes(G, cnode_to_comp, 'compliance_rate_og')
     
     return G
 
@@ -558,7 +558,7 @@ def load_graph_cville_labels():
 
     nx.set_edge_attributes(G, edges_to_duration, 'duration')
     nx.set_node_attributes(G, cnode_to_labels, 'age_group')
-    nx.set_node_attributes(G, cnode_to_comp, 'compliance_rate')
+    nx.set_node_attributes(G, cnode_to_comp, 'compliance_rate_og')
     
     return G;
 
