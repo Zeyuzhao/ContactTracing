@@ -38,6 +38,8 @@ class InfectionState:
         self.labels = [0, 1, 2, 3, 4]
         self.compliance_map = [.6, .8, .85, .75, .8]
         
+        frequencies = list(nx.get_node_attributes(self.G, 'age_group').values())
+        
         edge_to_compliance = {}
         compliance_edge = 0
         
@@ -47,7 +49,6 @@ class InfectionState:
         exponential_cdf = lambda x: 1-math.exp(-lambda_cdf*x)
         
         #Scale noncompliances such that the weighted average of compliances equals the parameter
-        frequencies = list(nx.get_node_attributes(self.G, 'age_group').values())
         #k = 1
         k = max(0, len(G.nodes)*(self.compliance_rate-1)/sum([frequencies.count(i)*(self.compliance_map[i]-1) for i in range(len(self.compliance_map))]))
         self.compliance_map = [(1-k*(1-self.compliance_map[i])) for i in range(len(self.compliance_map))]
@@ -55,7 +56,8 @@ class InfectionState:
         for node in G.nodes():
             G.nodes[node]['quarantine'] = 0
             
-            new_compliance = 1-k*(1-G.nodes[node]['compliance_rate'])
+            new_compliance = 1-k*(1-G.nodes[node]['compliance_rate_og'])
+            #new_compliance = 1-k*(1-G.nodes[node]['compliance_rate'])
             if new_compliance < 0:
                 G.nodes[node]['compliance_rate'] = 0
             elif new_compliance > 1:

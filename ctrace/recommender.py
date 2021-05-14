@@ -6,7 +6,7 @@ import networkx as nx
 from .round import D_prime
 from .utils import min_exposed_objective
 from .simulation import *
-from .problem2 import *
+#from .problem2 import *
 from .problem_label import *
 from .problem import *
 

@@ -11,6 +11,8 @@ json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 
 #G = load_graph("montgomery")
 G = load_graph_montgomery_labels()
+G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
+
 #G2 = load_graph_cville_labels()
 #G2 = read_extra_edges(G2, 0.15)
 #G2.centrality = nx.algorithms.eigenvector_centrality_numpy(G2)
@@ -18,20 +20,25 @@ G = load_graph_montgomery_labels()
 #G = load_graph_hid_duration()
 
 #be5 for cville w/ added edges, ce6 for montgomery w/ added edges
+#b5 for cville, c7 for montgomery
 
 config = {
     "G" : [G],
     "budget": [1000],
-    #"budget":[i for i in range(400, 1260, 10)],
+    #"budget": [i for i in range(400, 1260, 10)],
+    #"budget": [i for i in range(720, 2270, 20)],
     "policy": ["none"],
     "transmission_rate": [0.05],
     "transmission_known": [False],
+    #"compliance_rate": [0.8],
     "compliance_rate": [i/100 for i in range(50, 101, 1)],
     "compliance_known": [False],
-    "discovery_rate": [.8],
-    "snitch_rate":  [i/100 for i in range(50,101,1)],
+    "discovery_rate": [1],
+    "snitch_rate": [1],
+    #"discovery_rate": [.8],
+    #"snitch_rate":  [i/100 for i in range(50,101,1)],
     "from_cache": ["c7.json"],
-    "agent": [DegGreedy2_fair, DepRound2_fair]
+    "agent": [DegGreedy2_fair, DepRound2_fair, Random, EC]
 }
 
 in_schema = list(config.keys())
@@ -55,7 +62,7 @@ def time_trial_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: 
     
     return TrackerInfo(len(state.SIR.R), infections)
 
-run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
+run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=5)
 run.exec(max_workers=40)
 
 '''config = {
