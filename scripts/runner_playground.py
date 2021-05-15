@@ -58,7 +58,7 @@ def time_trial_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: 
     
     return TrackerInfo(len(state.SIR.R), infections)
 
-run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=80)
+run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=100)
 run.exec()
 
 config = {
@@ -79,7 +79,7 @@ config = {
     "agent": [DegGreedy2_fair, DepRound2_fair]
 }
 
-run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=80)
+run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=100)
 run.exec()
 
 '''config = {
