@@ -28,10 +28,10 @@ G2.centrality = nx.algorithms.eigenvector_centrality_numpy(G2)
     #"budget": [i for i in range(720, 2270, 20)],
     "policy": ["none"],
     "transmission_rate": [0.05],
-    "transmission_known": [True],
+    "transmission_known": [False],
     #"compliance_rate": [0.8],
     "compliance_rate": [i/100 for i in range(50, 101, 1)],
-    "compliance_known": [True],
+    "compliance_known": [False],
     "discovery_rate": [1],
     "snitch_rate": [1],
     #"discovery_rate": [.8],
@@ -54,6 +54,7 @@ config = {
     "agent": [Random, EC, DegGreedy_fair, DepRound_fair]
 }
 
+
 in_schema = list(config.keys())
 out_schema = ["infection_count", "infections_step"]
 TrackerInfo = namedtuple("TrackerInfo", out_schema)
@@ -74,6 +75,7 @@ def time_trial_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: 
         infections.append(len(state.SIR.I2))
     
     return TrackerInfo(len(state.SIR.R), infections)
+
 
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
 run.exec(max_workers=40)
