@@ -45,8 +45,8 @@ class InfectionState:
         
         #Scale noncompliances such that the weighted average of compliances equals the parameter
         frequencies = list(nx.get_node_attributes(self.G, 'age_group').values())
-        k = 1
-        #k = max(0, len(G.nodes)*(self.compliance_rate-1)/sum([frequencies.count(i)*(self.compliance_map[i]-1) for i in range(len(self.compliance_map))]))
+        #k = 1
+        k = max(0, len(G.nodes)*(self.compliance_rate-1)/sum([frequencies.count(i)*(self.compliance_map[i]-1) for i in range(len(self.compliance_map))]))
         self.compliance_map = [(1-k*(1-self.compliance_map[i])) for i in range(len(self.compliance_map))]
         
         for node in G.nodes():

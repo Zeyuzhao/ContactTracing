@@ -90,18 +90,19 @@ def find_contours(G: nx.Graph, infected):
 def find_excluded_contours_edges_PQ(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate:float = 1, snitch_rate:float = 1):
     v1 = set().union(*[effective_neighbor(G, v, G.neighbors(v)) for v in set(infected)]) - (set(infected) | set(excluded))
     v1_k = {v for v in v1 if random.uniform(0,1) < discovery_rate}
-    
-    P = {v: (1 - math.prod(1-(G[i][v]["transmission"]if check_edge_transmission(G, i, v) else 0) for i in set(set(G.neighbors(v)) & set(infected)))) for v in v1_k}
+    P = {v: (1 - math.prod(1-(G[i][v]["transmission"] if check_edge_transmission(G, i, v) else 0) for i in set(set(G.neighbors(v)) & set(infected)))) for v in v1_k}
     
     v2_k = set()
     Q = {}
+    exclusion = (set(infected) | set(excluded) | set(v1_k) )
     for u in v1_k:
-        for v in set(G.neighbors(u))- (set(infected) | set(excluded) | set(v1_k) ):
+        for v in set(G.neighbors(u))-exclusion:
             if check_edge_transmission(G, u, v) and (random.uniform(0,1) < snitch_rate):
                 if u in Q:
                     Q[u][v] = G[u][v]["transmission"]
                 else:
                     Q[u] = {v: G[u][v]["transmission"]}
+                v2_k.add(v)
             else:
                 if u in Q:
                     Q[u][v] = 0
