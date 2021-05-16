@@ -32,9 +32,17 @@ class MinExposedProgram2_label:
         self.solver = pywraplp.Solver.CreateSolver(solver_id)
         
         if self.transmission_known:
+<<<<<<< HEAD
             self.P = info.P
             self.Q = info.Q
         else:
+=======
+            #print("full transmission knowledge!")
+            self.P = info.P
+            self.Q = info.Q
+        else:
+            #print("avg transmission knowledge!")
+>>>>>>> 5c28841870cbd94b5a8811b8e8a51d32f5d6917c
             self.P, self.Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, info.Q, self.p)
 
         if self.solver is None:
@@ -66,10 +74,19 @@ class MinExposedProgram2_label:
             self.solver.Add(self.X1[u] + self.Y1[u] == 1)
         
         if self.policy == "none":
+<<<<<<< HEAD
+=======
+            #print("no fairess :(")
+>>>>>>> 5c28841870cbd94b5a8811b8e8a51d32f5d6917c
             cost: Constraint = self.solver.Constraint(0, self.budget)
             for u in self.contour1:
                 cost.SetCoefficient(self.X1[u], 1)
         else:
+<<<<<<< HEAD
+=======
+            #print("fairness")
+            # cost (number of people quarantined) must be within budget
+>>>>>>> 5c28841870cbd94b5a8811b8e8a51d32f5d6917c
             for label in self.labels:
                 cost: Constraint = self.solver.Constraint(0, self.budget_labels[label])
                 for u in self.contour1:
@@ -79,6 +96,7 @@ class MinExposedProgram2_label:
                         cost.SetCoefficient(self.X1[u], 0)
         
         if self.compliance_known:
+<<<<<<< HEAD
             for u in self.contour1:
                 for v in self.G.neighbors(u):
                     if v in self.contour2:
@@ -91,6 +109,20 @@ class MinExposedProgram2_label:
                     if v in self.contour2:
                         #c = self.Q[u][v] * self.P[u] *(1-self.P[v])
                         c = self.Q[u][v] * self.P[u]
+=======
+            #print("full compliance knowledge!")
+            for u in self.contour1:
+                for v in self.G.neighbors(u):
+                    if v in self.contour2:
+                        c = self.Q[u][v] * self.P[u] *(1-self.P[v])
+                        self.solver.Add(self.Y2[v] >= c* ((1-self.G.nodes[u]['compliance_rate'])*self.X1[u] + self.Y1[u]))
+        else:
+            #print("incomplete compliance knowledge!")
+            for u in self.contour1:
+                for v in self.G.neighbors(u):
+                    if v in self.contour2:
+                        c = self.Q[u][v] * self.P[u] *(1-self.P[v])
+>>>>>>> 5c28841870cbd94b5a8811b8e8a51d32f5d6917c
                         self.solver.Add(self.Y2[v] >= c * self.Y1[u])
         
         # Objective: Minimize number of people exposed in contour2

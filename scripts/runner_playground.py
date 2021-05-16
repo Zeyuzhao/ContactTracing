@@ -22,22 +22,34 @@ G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 #be5 for cville w/ added edges, ce6 for montgomery w/ added edges
 #b5 for cville, c7 for montgomery
 
+<<<<<<< HEAD
 '''config = {
+=======
+config = {
+>>>>>>> 5c28841870cbd94b5a8811b8e8a51d32f5d6917c
     "G" : [G],
     "budget": [1000],
     #"budget": [i for i in range(400, 1260, 10)],
     #"budget": [i for i in range(720, 2270, 20)],
     "policy": ["none"],
     "transmission_rate": [0.05],
+<<<<<<< HEAD
     "transmission_known": [True],
     #"compliance_rate": [0.8],
     "compliance_rate": [i/100 for i in range(50, 101, 1)],
     "compliance_known": [True],
+=======
+    "transmission_known": [False],
+    #"compliance_rate": [0.8],
+    "compliance_rate": [i/100 for i in range(50, 101, 1)],
+    "compliance_known": [False],
+>>>>>>> 5c28841870cbd94b5a8811b8e8a51d32f5d6917c
     "discovery_rate": [1],
     "snitch_rate": [1],
     #"discovery_rate": [.8],
     #"snitch_rate":  [i/100 for i in range(50,101,1)],
     "from_cache": ["c7.json"],
+<<<<<<< HEAD
     "agent": [DegGreedy2_fair, DepRound2_fair]
 }'''
 
@@ -56,6 +68,11 @@ config = {
 }
 
 
+=======
+    "agent": [DegGreedy2_fair, DepRound2_fair, Random, EC]
+}
+
+>>>>>>> 5c28841870cbd94b5a8811b8e8a51d32f5d6917c
 in_schema = list(config.keys())
 out_schema = ["infection_count", "infections_step"]
 TrackerInfo = namedtuple("TrackerInfo", out_schema)
@@ -77,7 +94,11 @@ def time_trial_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: 
     
     return TrackerInfo(len(state.SIR.R), infections)
 
+<<<<<<< HEAD
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
+=======
+run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=5)
+>>>>>>> 5c28841870cbd94b5a8811b8e8a51d32f5d6917c
 run.exec(max_workers=40)
 
 '''config = {

@@ -121,7 +121,11 @@ def DegGreedy2(state: InfectionState):
     return {i[1] for i in weights[:state.budget]}'''
 
 #Fairness
+<<<<<<< HEAD
 '''def DegGreedy2_fair(state: InfectionState):
+=======
+def DegGreedy2_fair(state: InfectionState):
+>>>>>>> 5c28841870cbd94b5a8811b8e8a51d32f5d6917c
     if not state.transmission_known:
         P, Q = pq_independent(state.G, state.SIR.I2, state.V1, state.V2, state.Q, state.transmission_rate)
     else:
@@ -148,6 +152,7 @@ def DegGreedy2(state: InfectionState):
     for label in state.labels:
         deg = [tup for tup in weights if state.G.nodes[tup[1]]["age_group"]==label]
         quarantine = quarantine.union({i[1] for i in deg[:min(state.budget_labels[label], len(deg))]})
+<<<<<<< HEAD
     return quarantine'''
 
 def DegGreedy_fair(state: InfectionState):
@@ -176,6 +181,8 @@ def DegGreedy_fair(state: InfectionState):
     for label in state.labels:
         deg = [tup for tup in weights if state.G.nodes[tup[1]]["age_group"]==label]
         quarantine = quarantine.union({i[1] for i in deg[:min(state.budget_labels[label], len(deg))]})
+=======
+>>>>>>> 5c28841870cbd94b5a8811b8e8a51d32f5d6917c
     return quarantine
 
 '''def DepRound(state: InfectionState):
@@ -230,7 +237,11 @@ def DepRound2(state: InfectionState):
     return set([problem2.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])'''
 
 #Fairness
+<<<<<<< HEAD
 def DepRound_fair(state: InfectionState):
+=======
+def DepRound2_fair(state: InfectionState):
+>>>>>>> 5c28841870cbd94b5a8811b8e8a51d32f5d6917c
     state.set_budget_labels()
     
     problem2 = MinExposedLP2_label(state)
