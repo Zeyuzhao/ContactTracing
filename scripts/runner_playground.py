@@ -10,18 +10,17 @@ from collections import namedtuple
 json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 
 #G = load_graph("montgomery")
-G = load_graph_montgomery_labels()
-G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
+#G2 = load_graph_montgomery_labels()
+G2 = load_graph_cville_labels()
+G2 = read_extra_edges(G2, 0.15)
+G2.centrality = nx.algorithms.eigenvector_centrality_numpy(G2)
 
 #G2 = load_graph_cville_labels()
-#G2 = read_extra_edges(G2, 0.15)
 #G2.centrality = nx.algorithms.eigenvector_centrality_numpy(G2)
 #G = read_extra_edges(G, 0.15)
 #G = load_graph_hid_duration()
-
 #be5 for cville w/ added edges, ce6 for montgomery w/ added edges
 #b5 for cville, c7 for montgomery
-
 '''config = {
     "G" : [G],
     "budget": [1000],
@@ -42,8 +41,8 @@ G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 }'''
 
 config = {
-    "G" : [G],
-    "budget": [i for i in range(400, 1260, 10)],
+    "G" : [G2],
+    "budget": [i for i in range(720, 2270, 20)],
     "policy": ["none"],
     "transmission_rate": [0.05],
     "transmission_known": [True],
@@ -51,10 +50,9 @@ config = {
     "compliance_known": [True],
     "discovery_rate": [1],
     "snitch_rate": [1],
-    "from_cache": ["c7.json"],
+    "from_cache": ["be5.json"],
     "agent": [Random, EC, DegGreedy_fair, DepRound_fair]
 }
-
 
 in_schema = list(config.keys())
 out_schema = ["infection_count", "infections_step"]

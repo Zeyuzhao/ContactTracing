@@ -23,10 +23,17 @@ def calculateExpected(state: InfectionState, quarantine):
             else:
                 expected *= (1-(1-state.G.nodes[u]['compliance_rate'])*P[u]*Q[u][v])
         
+<<<<<<< HEAD
         #if v in quarantine:
         #    total += (1-P[v])*(1-expected)*(1-state.G.nodes[v]['compliance_rate'])
         #else:
         total += (1-P[v])*(1-expected)
+=======
+        if v in quarantine:
+            total += (1-P[v])*(1-expected)*(1-state.G.nodes[v]['compliance_rate'])
+        else:
+            total += (1-P[v])*(1-expected)
+>>>>>>> 5c28841870cbd94b5a8811b8e8a51d32f5d6917c
     return total
     
 G = load_graph_montgomery_labels()

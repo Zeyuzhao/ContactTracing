@@ -15,6 +15,7 @@ from . import PROJECT_ROOT
 SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I1", "I2", "R"])
                 
 class InfectionState:
+    #TODO: Can we get rid of I_knowledge and partial_compliance? And add transmission_known for infoloss where we use averaged transmissions?
     def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, policy:str, transmission_rate:float, transmission_known: bool = False, compliance_rate:float = 1, compliance_known: bool = False, discovery_rate:float = 1, snitch_rate:float = 1):
     #def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, policy:str, transmission_rate:float, compliance_rate:float = 1, compliance_known: bool = False, partial_compliance:bool = False, I_knowledge:float = 1, discovery_rate:float = 1, snitch_rate:float = 1):
         self.G = G
@@ -25,7 +26,6 @@ class InfectionState:
         self.transmission_known = transmission_known
         self.compliance_rate = compliance_rate
         self.compliance_known = compliance_known
-        #self.partial_compliance = False
         
         self.discovery_rate = discovery_rate
         self.snitch_rate = snitch_rate
@@ -38,6 +38,10 @@ class InfectionState:
         
         edge_to_transmission = {}
         #compliance_edge = 0
+        self.labels = [0, 1, 2, 3, 4]
+        self.compliance_map = [.6, .8, .85, .75, .8]
+        
+        frequencies = list(nx.get_node_attributes(self.G, 'age_group').values())
         
         #Convert duration times to transmission rates
         mean_duration = np.mean(list(nx.get_edge_attributes(G, "duration").values()))
