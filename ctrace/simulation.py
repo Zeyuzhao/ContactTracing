@@ -15,8 +15,6 @@ from . import PROJECT_ROOT
 SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I1", "I2", "R"])
                 
 class InfectionState:
-    
-    #TODO: Can we get rid of I_knowledge and partial_compliance? And add transmission_known for infoloss where we use averaged transmissions?
     def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, policy:str, transmission_rate:float, transmission_known: bool = False, compliance_rate:float = 1, compliance_known: bool = False, discovery_rate:float = 1, snitch_rate:float = 1):
     #def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, policy:str, transmission_rate:float, compliance_rate:float = 1, compliance_known: bool = False, partial_compliance:bool = False, I_knowledge:float = 1, discovery_rate:float = 1, snitch_rate:float = 1):
         self.G = G
@@ -27,19 +25,18 @@ class InfectionState:
         self.transmission_known = transmission_known
         self.compliance_rate = compliance_rate
         self.compliance_known = compliance_known
-        self.partial_compliance = False
-        
         self.discovery_rate = discovery_rate
         self.snitch_rate = snitch_rate
        
         #the policies are: none, old, adult, young, equal --> defaults to "equal", which is proportionate to distribution of V1
         self.policy = policy
         self.label_map = {"a": 0, "g": 1, "o": 2, "p": 3, "s": 4}
+        self.labels = [0, 1, 2, 3, 4]                               #the labels used for fairness
+        self.compliance_map = [.6, .8, .85, .75, .8]                #the compliance_rate average for each label demographic
+        
+        edge_to_transmission = {}
         self.labels = [0, 1, 2, 3, 4]
         self.compliance_map = [.6, .8, .85, .75, .8]
-        
-        edge_to_compliance = {}
-        compliance_edge = 0
         
         #Convert duration times to transmission rates
         mean_duration = np.mean(list(nx.get_edge_attributes(G, "duration").values()))
@@ -55,7 +52,8 @@ class InfectionState:
         for node in G.nodes():
             G.nodes[node]['quarantine'] = 0
             
-            new_compliance = 1-k*(1-G.nodes[node]['compliance_rate'])
+            new_compliance = 1-k*(1-G.nodes[node]['compliance_rate_og'])
+            #new_compliance = 1-k*(1-G.nodes[node]['compliance_rate'])
             if new_compliance < 0:
                 G.nodes[node]['compliance_rate'] = 0
             elif new_compliance > 1:
@@ -65,28 +63,15 @@ class InfectionState:
             
             node_compliance_rate = G.nodes[node]['compliance_rate']
             
-            if not self.partial_compliance: 
-                compliance = 0 if random.random() > node_compliance_rate else 1
-            
             for nbr in G.neighbors(node):
                 order = (node,nbr)
-                
                 if node>nbr: 
                     order = (nbr, node)
-                
                 transmission_edge = exponential_cdf(G[node][nbr]["duration"])
-
-                if self.partial_compliance:
-                    compliance_edge = (0 if random.random()>node_compliance_rate else 1, transmission_edge)
-                else: 
-                    compliance_edge = (compliance, transmission_edge)
-                    
-                if order not in edge_to_compliance: 
-                    edge_to_compliance[order] = {node: compliance_edge}
-                else: 
-                    edge_to_compliance[order][node] = compliance_edge
+                if order not in edge_to_transmission: 
+                    edge_to_transmission[order] = transmission_edge
         
-        nx.set_edge_attributes(G, edge_to_compliance, 'compliance_transmission')
+        nx.set_edge_attributes(G, edge_to_transmission, 'transmission')
         
         # initialize V1 and V2
         self.set_contours()
@@ -137,7 +122,8 @@ class InfectionState:
         #Update the quarantined nodes, each quarantined node is quarantined for 2 timesteps
         for node in self.G.nodes:
             self.G.nodes[node]['quarantine'] -= 1
-            self.G.nodes[node]['quarantine'] = 2 if node in quarantine and self.G.nodes[node]['quarantine']<=0 else max(self.G.nodes[node]['quarantine'], 0)
+            #Update labels of nodes that adhere to quarantine
+            self.G.nodes[node]['quarantine'] = 2 if node in quarantine and random.random() < self.G.nodes[node]['compliance_rate'] else max(self.G.nodes[node]['quarantine'], 0)
         
         self.set_contours()
     

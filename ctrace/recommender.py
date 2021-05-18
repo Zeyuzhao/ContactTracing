@@ -6,7 +6,7 @@ import networkx as nx
 from .round import D_prime
 from .utils import min_exposed_objective
 from .simulation import *
-from .problem2 import *
+#from .problem2 import *
 from .problem_label import *
 from .problem import *
 
@@ -121,7 +121,7 @@ def DegGreedy2(state: InfectionState):
     return {i[1] for i in weights[:state.budget]}'''
 
 #Fairness
-def DegGreedy2_fair(state: InfectionState):
+'''def DegGreedy2_fair(state: InfectionState):
     if not state.transmission_known:
         P, Q = pq_independent(state.G, state.SIR.I2, state.V1, state.V2, state.Q, state.transmission_rate)
     else:
@@ -137,6 +137,34 @@ def DegGreedy2_fair(state: InfectionState):
     else:
         for u in state.V1:
             w_sum = sum([Q[u][v]*(1-P[v]) for v in state.G.neighbors(u) if v in state.V2])
+            weights.append((state.P[u] * (w_sum), u))
+    
+    weights.sort(reverse=True)
+    if (state.policy == "none"):
+        return {i[1] for i in weights[:state.budget]}
+    
+    quarantine = set()
+    state.set_budget_labels()
+    for label in state.labels:
+        deg = [tup for tup in weights if state.G.nodes[tup[1]]["age_group"]==label]
+        quarantine = quarantine.union({i[1] for i in deg[:min(state.budget_labels[label], len(deg))]})
+    return quarantine'''
+
+def DegGreedy_fair(state: InfectionState):
+    if not state.transmission_known:
+        P, Q = pq_independent(state.G, state.SIR.I2, state.V1, state.V2, state.Q, state.transmission_rate)
+    else:
+        P, Q = state.P, state.Q
+    
+    weights: List[Tuple[int, int]] = []
+    
+    if state.compliance_known:
+        for u in state.V1:
+            w_sum = sum([Q[u][v] for v in state.G.neighbors(u) if v in state.V2])
+            weights.append((state.G.nodes[u]['compliance_rate']*P[u]*(w_sum), u))
+    else:
+        for u in state.V1:
+            w_sum = sum([Q[u][v] for v in state.G.neighbors(u) if v in state.V2])
             weights.append((state.P[u] * (w_sum), u))
     
     weights.sort(reverse=True)
@@ -202,7 +230,7 @@ def DepRound2(state: InfectionState):
     return set([problem2.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])'''
 
 #Fairness
-def DepRound2_fair(state: InfectionState):
+def DepRound_fair(state: InfectionState):
     state.set_budget_labels()
     
     problem2 = MinExposedLP2_label(state)
