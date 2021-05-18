@@ -21,18 +21,19 @@ G = load_graph_montgomery_labels()
 
 config = {
     "G" : [G],
-    #"budget": [1000],
-    "budget":[750],
-    #"budget":[i for i in range(1800, 2270, 20)],
+    "budget": [1000],
+    #"budget": [i for i in range(400, 1260, 10)],
+    #"budget": [i for i in range(720, 2270, 20)],
     "policy": ["none"],
     "transmission_rate": [0.05],
     "transmission_known": [False],
-    "compliance_rate": [1],#[i/100 for i in range(50, 101, 5)],#[i/100 for i in range(50,101,5)],
+    "compliance_rate": [0.8],
+    #"compliance_rate": [i/100 for i in range(50, 101, 1)],
     "compliance_known": [False],
-    "partial_compliance": [False],
-    "I_knowledge": [1],
-    "discovery_rate": [.8],
-    "snitch_rate":  [i/100 for i in range(50,101,1)],
+    "discovery_rate": [1],
+    "snitch_rate": [1],
+    #"discovery_rate": [.8],
+    #"snitch_rate":  [i/100 for i in range(50,101,1)],
     "from_cache": ["c7.json"],
     "agent": [DegGreedy2_fair, DepRound2_fair]
 }

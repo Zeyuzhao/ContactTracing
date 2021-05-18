@@ -11,7 +11,7 @@ json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 
 G = load_graph_montgomery_labels()
 #G = load_graph_cville_labels()
-G = read_extra_edges(G, 0.15)
+#G = read_extra_edges(G, 0.15)
 G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 #G = load_graph_hid_duration()
 
@@ -19,46 +19,58 @@ G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 
 config = {
     "G" : [G],
-    "budget":[400, 1250],
     #"budget":[i for i in range(400, 1260, 50)],
     "policy": ["none"],
     #"budget": [i for i in range(100, 5000, 10)], #[i for i in range(100, 451, 50)],#[i for i in range(100,3710,10)],
     "transmission_rate": [0.05],
+    "transmission_known": [True],
     "compliance_rate": [1],#[i/100 for i in range(50, 101, 5)],#[i/100 for i in range(50,101,5)],
     "compliance_known": [True],
-    "partial_compliance": [False],
-    "I_knowledge": [1],
     "discovery_rate": [1],
     "snitch_rate":  [1],
-    "from_cache": ["ce6.json"], #be5 is cville with extra edges
-    "agent": [NoIntervention]
+    "from_cache": ["c7.json"], #be5 is cville with extra edges
+    "agent": [DegGreedy_fair],
+    "target": [33800]
 }
 
 in_schema = list(config.keys())
-out_schema = ["infection_count", "infections_step"]
+out_schema = ["equivalent_budget"]
 TrackerInfo = namedtuple("TrackerInfo", out_schema)
 
-def time_trial_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: float, compliance_rate: float, compliance_known:bool, partial_compliance:bool, I_knowledge:float, discovery_rate: float, snitch_rate: float, from_cache: str, agent, **kwargs):
+def time_trial_tracker(G: nx.graph, policy:str, transmission_rate: float, transmission_known:bool, compliance_rate: float, compliance_known:bool, discovery_rate: float, snitch_rate: float, from_cache: str, agent, target: int, **kwargs):
 
     with open(PROJECT_ROOT / "data" / "SIR_Cache" / from_cache, 'r') as infile:
             j = json.load(infile)
-            
-            #(S, infected_queue, R) = (j["S"], j["I_Queue"], j["R"])
             (S, I1, I2, R) = (j["S"], j["I1"], j["I2"], j["R"])
             infections = j["infections"]
-            # Make infected_queue a list of sets
-            #infected_queue = [set(s) for s in infected_queue]
-            #I = I.union(*infected_queue)
-            #I = list(I)
+            
+    l = 0
+    r = 20000 
 
-    state = InfectionState(G, (S, I1, I2, R), budget, policy, transmission_rate, compliance_rate, compliance_known, partial_compliance, I_knowledge, discovery_rate, snitch_rate)
-    
-    while len(state.SIR.I1) + len(state.SIR.I2) != 0:
-        to_quarantine = agent(state)
-        state.step(to_quarantine)
-        infections.append(len(state.SIR.I2))
-    
-    return TrackerInfo(len(state.SIR.R), infections)
+    iters = 0
+
+    while l <= r:
+        m = l + (r-l)//2
+
+        average = 0
+
+        iters += 1
+        for i in range(20):
+
+            state = InfectionState(G, (S, I1, I2, R), m, policy, transmission_rate, transmission_known, compliance_rate, compliance_known, discovery_rate, snitch_rate)
+
+            while len(state.SIR.I1) + len(state.SIR.I2) != 0:
+                to_quarantine = agent(state)
+                state.step(to_quarantine)
+
+            average += len(state.SIR.R)
+
+        if average >= 35000:
+            l = m+1
+        else: 
+            r = m-1
+
+    return TrackerInfo(m)
 
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
 run.exec(max_workers=40)
