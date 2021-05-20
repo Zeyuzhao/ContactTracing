@@ -17,6 +17,7 @@ from ctrace import PROJECT_ROOT
 
 DEBUG = False
 
+
 def debug_memory(logger, label=""):
     snapshot = tracemalloc.take_snapshot()
     top_stats = snapshot.statistics('lineno')
@@ -29,6 +30,7 @@ class GridExecutor():
     GridExecutor is an abstract class for running a cartesian product of lists of arguments.
     Input and output arguments specified by schemas are assumed to have pretty __str__.
     """
+
     def __init__(self, config: Dict, in_schema: List[str], out_schema: List[str], func: Callable[..., NamedTuple]):
         """
         Parameters
@@ -55,7 +57,8 @@ class GridExecutor():
         print(f"Logging Directory Initialized: {self.output_directory}")
 
         # Expand configurations
-        self.expanded_config = list(GridExecutor.cartesian_product(self.compact_config))
+        self.expanded_config = list(
+            GridExecutor.cartesian_product(self.compact_config))
 
         # TODO: Hack Fix
         self._track_duration = False
@@ -72,9 +75,9 @@ class GridExecutor():
         in_schema.append("trial_id")
         return cls(compact_config, in_schema, out_schema, func)
 
-
     # TODO: Find a workaround for decorations???
     # <================== Problem ====================>
+
     def track_duration(self):
         """Adds a wrapper to runner to track duration, and another column to out_schema for run_duration"""
         # raise NotImplementedError
@@ -157,7 +160,7 @@ class GridExecutor():
             # Find a way to export culprit data?
             self.logger.error(traceback.format_exc())
             out = {x: None for x in self.out_schema}
-            
+
         # TODO: Added as a hack to allow output_param_formatter not to crash
         if self._track_duration:
             out["run_duration"] = None
@@ -175,11 +178,12 @@ class GridExecutor():
     def exec(self):
         raise NotImplementedError
 
+
 class GridExecutorParallel(GridExecutor):
     # Override the exec
     def exec(self, max_workers=20):
         with concurrent.futures.ProcessPoolExecutor(max_workers) as executor, \
-             open(self.result_path, "w+") as result_file: # TODO: Encapsulate "csv file"
+                open(self.result_path, "w+") as result_file:  # TODO: Encapsulate "csv file"
             self.init_logger()
 
             # TODO: Encapsulate "initialize csv writer" - perhaps use a context managers
@@ -187,7 +191,8 @@ class GridExecutorParallel(GridExecutor):
             writer = csv.DictWriter(result_file, fieldnames=row_names)
             writer.writeheader()
 
-            results = [executor.submit(self.runner, arg) for arg in self.expanded_config]
+            results = [executor.submit(self.runner, arg)
+                       for arg in self.expanded_config]
 
             for finished_task in tqdm(concurrent.futures.as_completed(results), total=len(self.expanded_config)):
                 (in_param, out_param) = finished_task.result()
@@ -199,14 +204,16 @@ class GridExecutorParallel(GridExecutor):
                 self.logger.info(f"Finished => {in_param}")
                 # debug_memory(self.logger, "run")
 
+
 class GridExecutorLinear(GridExecutor):
     # Override the exec
     def exec(self):
-        with open(self.result_path, "w") as result_file: # TODO: Encapsulate "csv file"
+        with open(self.result_path, "w") as result_file:  # TODO: Encapsulate "csv file"
             self.init_logger()
 
             # TODO: Encapsulate "initialize csv writer" - perhaps use a context managers
-            writer = csv.DictWriter(result_file, fieldnames=self.in_schema + self.out_schema)
+            writer = csv.DictWriter(
+                result_file, fieldnames=self.in_schema + self.out_schema)
             writer.writeheader()
 
             for arg in tqdm(self.expanded_config):

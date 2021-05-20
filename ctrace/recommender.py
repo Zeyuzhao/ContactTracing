@@ -13,11 +13,11 @@ from typing import *
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
-file_handler = logging.FileHandler(PROJECT_ROOT / 'logs' / 'problem.log')
-file_handler.setFormatter(formatter)
+# formatter = logging.Formatter('%(levelname)s:%(name)s:%(message)s')
+# file_handler = logging.FileHandler(PROJECT_ROOT / 'logs' / 'problem.log')
+# file_handler.setFormatter(formatter)
 
-logger.addHandler(file_handler)
+# logger.addHandler(file_handler)
 
 def NoIntervention(state: SimulationState):
     return set()

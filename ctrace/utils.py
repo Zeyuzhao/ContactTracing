@@ -14,17 +14,23 @@ import networkx as nx
 import numpy as np
 import pandas as pd
 
+from enum import IntEnum
+from typing import Dict, Set, List, Any, TypeVar, Optional
+from collections import UserList, namedtuple, defaultdict
+from tqdm import tqdm
+
 from . import PROJECT_ROOT
 
 np.random.seed(42)
 
 
-def uniform_sample(l: List[Any], p: float, rg = None):
+def uniform_sample(l: List[Any], p: float, rg=None):
     """Samples elements from l uniformly with probability p"""
     if rg is None:
         rg = np.random
     arr = rg.random(len(l))
-    return [x for i,x in enumerate(l) if arr[i] < p]
+    return [x for i, x in enumerate(l) if arr[i] < p]
+
 
 def find_contours(G: nx.Graph, infected):
     """Produces contour1 and contour2 from infected"""
@@ -61,34 +67,39 @@ def union_neighbors(G: nx.Graph, initial: Set[int], excluded: Set[int]):
 
 
 def find_excluded_contours(
-    G: nx.Graph, 
-    infected: Set[int], 
-    excluded: Set[int], 
-    discovery_rate:float = 1, 
-    snitch_rate:float = 1
+    G: nx.Graph,
+    infected: Set[int],
+    excluded: Set[int],
+    discovery_rate: float = 1,
+    snitch_rate: float = 1
 ) -> Tuple[Set[int], Set[int]]:
     """Finds V1_known and V2_known from a graph without including elements in the excluded set"""
     # probability calculation for v2_k: 1-(1-q)^k; let k = number of nodes in v1_k with an edge connecting to the node v
-    v1 = set().union(*[G.neighbors(v) for v in (set(infected)-set(excluded))]) - (set(infected)|set(excluded))
-    v1_k = {v for v in v1 if random.uniform(0,1) < discovery_rate}
-    v1_k_nbrs = set().union(*[G.neighbors(v) for v in v1_k]) - (set(infected)|set(excluded)|set(v1_k))
+    v1 = set().union(*[G.neighbors(v) for v in (set(infected) -
+                                                set(excluded))]) - (set(infected) | set(excluded))
+    v1_k = {v for v in v1 if random.uniform(0, 1) < discovery_rate}
+    v1_k_nbrs = set().union(*[G.neighbors(v) for v in v1_k]) - \
+        (set(infected) | set(excluded) | set(v1_k))
     v2_k = {v for v in v1_k_nbrs
-            if random.uniform(0,1) < (1-((1-snitch_rate) ** len(set(G.neighbors(v)).intersection(v1_k))))}
+            if random.uniform(0, 1) < (1-((1-snitch_rate) ** len(set(G.neighbors(v)).intersection(v1_k))))}
     return v1_k, v2_k
 
 
 def pq_independent(G: nx.Graph, I: Iterable[int], V1: Iterable[int], p: float):
     # Returns dictionary P, Q
     # Calculate P, (1-P) ^ [number of neighbors in I]
-    P = {v: 1 - math.pow((1 - p), len(set(G.neighbors(v)) & set(I))) for v in V1}
-    Q = defaultdict(lambda: defaultdict(lambda: p)) # Q[-1][0] = p
+    P = {v: 1 - math.pow((1 - p), len(set(G.neighbors(v)) & set(I)))
+         for v in V1}
+    Q = defaultdict(lambda: defaultdict(lambda: p))  # Q[-1][0] = p
     return P, Q
+
 
 def max_neighbors(G, V_1, V_2):
     return max(len(set(G.neighbors(u)) & V_2) for u in V_1)
 
+
 def MinExposedTrial(G: nx.Graph, SIR: Tuple[List[int], List[int],
-                        List[int]], contours: Tuple[List[int], List[int]], p: float, quarantined_solution: Dict[int, int]):
+                                            List[int]], contours: Tuple[List[int], List[int]], p: float, quarantined_solution: Dict[int, int]):
     """
 
     Parameters
@@ -135,26 +146,28 @@ def MinExposedTrial(G: nx.Graph, SIR: Tuple[List[int], List[int],
     objective_value = len(set(I) & set(contours[1]))
     return objective_value
 
+
 def min_exposed_objective(G: nx.Graph,
                           SIR: Tuple[List[int], List[int], List[int]],
                           contours: Tuple[List[int], List[int]],
                           p: float,
                           quarantined_solution: Dict[int, int],
                           trials=5):
-    runs = [MinExposedTrial(G, SIR, contours, p, quarantined_solution) for _ in range(trials)]
-    return mean(runs) #, np.std(runs, ddof=1)
+    runs = [MinExposedTrial(G, SIR, contours, p, quarantined_solution)
+            for _ in range(trials)]
+    return mean(runs)  # , np.std(runs, ddof=1)
+
 
 def indicatorToSet(quarantined_solution: Dict[int, int]):
     return {q for q in quarantined_solution if quarantined_solution[q] == 1}
 
 
-
 # ==================================== Dataset Functions ==========================================
-
 
 """
 Handles loading of datasets
 """
+
 
 def prep_labelled_graph(in_path, out_dir, num_lines=None, delimiter=","):
     """Generates a labelled graphs. Converts IDs to ids from 0 to N vertices
@@ -238,7 +251,7 @@ def human_format(num):
         .replace('.', '_')
 
 
-def prep_dataset(name: str, data_dir: Path=None, sizes=(None,)):
+def prep_dataset(name: str, data_dir: Path = None, sizes=(None,)):
     """
     Prepares a variety of sizes of graphs from one input graphs
 
@@ -254,7 +267,8 @@ def prep_dataset(name: str, data_dir: Path=None, sizes=(None,)):
     group_path = data_dir / name
     for s in sizes:
         instance_folder = f"partial{human_format(s)}" if s else "complete"
-        prep_labelled_graph(in_path=group_path / f"{name}.csv", out_dir=group_path / instance_folder, num_lines=s)
+        prep_labelled_graph(
+            in_path=group_path / f"{name}.csv", out_dir=group_path / instance_folder, num_lines=s)
 
 
 def load_graph(dataset_name, graph_folder=None):
@@ -267,7 +281,8 @@ def load_graph(dataset_name, graph_folder=None):
     G.graph["name"] = dataset_name
     return G
 
-def load_graph_cville(fp = "undirected_albe_1.90.txt"):
+
+def load_graph_cville(fp="undirected_albe_1.90.txt"):
     graph_file = PROJECT_ROOT / "data" / "raw" / fp
     df = pd.read_csv(graph_file, delim_whitespace=True)
     col1, col2 = 'Node1', 'Node2'
@@ -284,6 +299,7 @@ def load_graph_cville(fp = "undirected_albe_1.90.txt"):
     G = nx.from_pandas_edgelist(df, col1, col2)
     G.G["name"] = "cville"
     return G
+
 
 def generate_random_absolute(G, num_infected: int = None, k: int = None, costs: list = None):
     N = G.number_of_nodes()
@@ -320,7 +336,8 @@ def generate_absolute(G, infected, k: int = None, costs: list = None):
         "k": k,
     }
 
-def load_sir(sir_name, sir_folder: Path=None, merge=False):
+
+def load_sir(sir_name, sir_folder: Path = None, merge=False):
     if sir_folder is None:
         sir_folder = PROJECT_ROOT / "data" / "SIR_Cache"
     dataset_path = sir_folder / sir_name
@@ -331,6 +348,7 @@ def load_sir(sir_name, sir_folder: Path=None, merge=False):
             del data["I_Queue"]
         return data
 
+
 def load_sir_path(path: Path, merge=False):
     with open(path) as file:
         data = json.load(file)
@@ -339,3 +357,87 @@ def load_sir_path(path: Path, merge=False):
             del data["I_Queue"]
         return data
 
+
+class SIR:
+    S = 1
+    I = 2
+    R = 3
+
+
+T = TypeVar('T', bound='PartitionSIR')
+
+
+class PartitionSIR(UserList):
+    """
+    Stored internally as an array.
+    Supports querying as .S, .I, .R
+    Supports imports from different formats
+    """
+
+    def __init__(self, lst=None, size=0):
+        # Stored internally as integers
+        self._types = ["S", "I", "R"]
+        self.type = IntEnum("type", self._types)
+
+        self.data: List[int]
+        if lst is not None:
+            self.data = lst.data.copy()
+        else:
+            self.data = [SIR.S] * size
+
+    @classmethod
+    def from_list(cls, l):
+        p = PartitionSIR()
+        p.data = l.copy()
+        return p
+
+    @classmethod
+    def from_dict(cls, n: Optional[int], d: Dict[int, int]) -> T:
+        if n is None:
+            n = len(d)
+        p = PartitionSIR(n)
+        for k, v in d.items():
+            p[k] = v
+        return p
+
+    @classmethod
+    def from_sets(cls, S, I, R):
+        p = PartitionSIR(size=len(S) + len(I) + len(R))
+        for v in S:
+            p[v] = SIR.S
+        for v in I:
+            p[v] = SIR.I
+        for v in R:
+            p[v] = SIR.R
+        return p
+
+    @classmethod
+    def from_I(cls, I, size):
+        p = PartitionSIR(size=size)
+        for v in I:
+            p[v] = SIR.I
+        return p
+
+    def __getitem__(self, item: int) -> int:
+        return self.data[item]
+
+    def __setitem__(self, key: int, value: int) -> None:
+        self.data[key] = value
+
+    def to_dict(self):
+        return {k: v for k, v in enumerate(self.data)}
+
+    # Only use the following as generators
+    # To check for individual status
+
+    @property
+    def S(self):
+        return set(i for i, e in enumerate(self.data) if e == SIR.S)
+
+    @property
+    def I(self):
+        return set(i for i, e in enumerate(self.data) if e == SIR.I)
+
+    @property
+    def R(self):
+        return set(i for i, e in enumerate(self.data) if e == SIR.R)

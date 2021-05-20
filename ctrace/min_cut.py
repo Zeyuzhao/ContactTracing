@@ -27,90 +27,6 @@ from tqdm import tqdm
 # Declare SIR Enum
 
 
-class SIR:
-    S = 1
-    I = 2
-    R = 3
-
-
-T = TypeVar('T', bound='PartitionSIR')
-
-
-class PartitionSIR(UserList):
-    """
-    Stored internally as an array.
-    Supports querying as .S, .I, .R
-    Supports imports from different formats
-    """
-
-    def __init__(self, lst=None, size=0):
-        # Stored internally as integers
-        self._types = ["S", "I", "R"]
-        self.type = IntEnum("type", self._types)
-
-        self.data: List[int]
-        if lst is not None:
-            self.data = lst.data.copy()
-        else:
-            self.data = [SIR.S] * size
-
-    @classmethod
-    def from_list(cls, l):
-        p = PartitionSIR()
-        p.data = l.copy()
-        return p
-
-    @classmethod
-    def from_dict(cls, n: Optional[int], d: Dict[int, int]) -> T:
-        if n is None:
-            n = len(d)
-        p = PartitionSIR(n)
-        for k, v in d.items():
-            p[k] = v
-        return p
-
-    @classmethod
-    def from_sets(cls, S, I, R):
-        p = PartitionSIR(size=len(S) + len(I) + len(R))
-        for v in S:
-            p[v] = SIR.S
-        for v in I:
-            p[v] = SIR.I
-        for v in R:
-            p[v] = SIR.R
-        return p
-
-    @classmethod
-    def from_I(cls, I, size):
-        p = PartitionSIR(size=size)
-        for v in I:
-            p[v] = SIR.I
-        return p
-
-    def __getitem__(self, item: int) -> int:
-        return self.data[item]
-
-    def __setitem__(self, key: int, value: int) -> None:
-        self.data[key] = value
-
-    def to_dict(self):
-        return {k: v for k, v in enumerate(self.data)}
-
-    # Only use the following as generators
-    # To check for individual status
-
-    @property
-    def S(self):
-        return set(i for i, e in enumerate(self.data) if e == SIR.S)
-
-    @property
-    def I(self):
-        return set(i for i, e in enumerate(self.data) if e == SIR.I)
-
-    @property
-    def R(self):
-        return set(i for i, e in enumerate(self.data) if e == SIR.R)
-
 # %%
 
 
@@ -194,7 +110,7 @@ def min_cut_solver(
     # Constrain edge solutions if given partial (solutions)
     if partial is not None:
         for e in G.edges:
-            if partial[e] == 1:
+            if partial.get(e) == 1:
                 solver.Add(edge_vars[e] == 1)
             else:
                 solver.Add(edge_vars[e] == 0)
@@ -219,14 +135,14 @@ def min_cut_solver(
     objective.SetMinimization()
 
     init_ts = time.perf_counter()
-    print(f"Init Time: {init_ts - start_ts}")
+    # print(f"Init Time: {init_ts - start_ts}")
 
     status = solver.Solve()
     if status == solver.INFEASIBLE:
         raise ValueError("Infeasible solution")
 
     solve_ts = time.perf_counter()
-    print(f"Solve Time: {solve_ts - init_ts}")
+    # print(f"Solve Time: {solve_ts - init_ts}")
 
     if status == solver.OPTIMAL:
         is_optimal = True
@@ -266,7 +182,7 @@ def min_cut_round(
 
     return edge_frac_rounded
 
-    
+
 def trunc_laplace(support, scale, gen=np.random, size=1):
     """
     Generate laplacian with support [-support, +support], and scale=scale

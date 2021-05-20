@@ -1,4 +1,4 @@
-from ctrace.min_cut import PartitionSIR
+# from ctrace.min_cut import PartitionSIR
 import networkx as nx
 import matplotlib.pyplot as plt
 import pandas as pd

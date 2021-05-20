@@ -28,52 +28,52 @@ class SIR:
 # %%
 # TODO: Add testing?
 
-T = TypeVar('T', bound='PartitionSIR')
+# T = TypeVar('T', bound='PartitionSIR')
 
 
-class PartitionSIR(UserList):
-    def __init__(self, size=0):
-        # Stored internally as integers
-        self._types = ["S", "I", "R"]
-        self.type = IntEnum("type", zip(self._types, range(1,4)))
-        self.data = [0] * size
+# class PartitionSIR(UserList):
+#     def __init__(self, size=0):
+#         # Stored internally as integers
+#         self._types = ["S", "I", "R"]
+#         self.type = IntEnum("type", zip(self._types, range(1,4)))
+#         self.data = [0] * size
 
-    @classmethod
-    def from_list(cls, l):
-        p = PartitionSIR()
-        p.data = l.copy()
-        return p
+#     @classmethod
+#     def from_list(cls, l):
+#         p = PartitionSIR()
+#         p.data = l.copy()
+#         return p
 
-    @classmethod
-    def from_dict_letters(cls, n: int, d: Dict[int, str]) -> T:
-        mapper = {
-            "S": 1,
-            "I": 2,
-            "R": 3,
-        }
-        p = PartitionSIR(n)
-        for k, v in d.items():
-            p[k] = mapper[v]
-        return p
+#     @classmethod
+#     def from_dict_letters(cls, n: int, d: Dict[int, str]) -> T:
+#         mapper = {
+#             "S": 1,
+#             "I": 2,
+#             "R": 3,
+#         }
+#         p = PartitionSIR(n)
+#         for k, v in d.items():
+#             p[k] = mapper[v]
+#         return p
 
-    def __getitem__(self, item: int) -> int:
-        return self.data[item]
+#     def __getitem__(self, item: int) -> int:
+#         return self.data[item]
 
-    def __setitem__(self, key: int, value: int) -> None:
-        self.data[key] = value
+#     def __setitem__(self, key: int, value: int) -> None:
+#         self.data[key] = value
 
-    # TODO: Properties hardcoded - hacky solution
-    @property
-    def S(self):
-        return (i for i, e in enumerate(self.data) if e == SIR.S)
+#     # TODO: Properties hardcoded - hacky solution
+#     @property
+#     def S(self):
+#         return (i for i, e in enumerate(self.data) if e == SIR.S)
 
-    @property
-    def I(self):
-        return (i for i, e in enumerate(self.data) if e == SIR.I)
+#     @property
+#     def I(self):
+#         return (i for i, e in enumerate(self.data) if e == SIR.I)
 
-    @property
-    def R(self):
-        return (i for i, e in enumerate(self.data) if e == SIR.R)
+#     @property
+#     def R(self):
+#         return (i for i, e in enumerate(self.data) if e == SIR.R)
 
 
 # %%

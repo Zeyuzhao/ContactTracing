@@ -1,16 +1,15 @@
 # %%
-import networkx as nx
-from ctrace.min_cut import *
-from ctrace.drawing import *
-from ctrace.utils import *
-from ctrace.problem import *
-from ctrace.recommender import *
-from ctrace.dataset import *
-from ctrace.simulation import *
 from ctrace.exec.runner import GridExecutorLinear, GridExecutorParallel
-%load_ext autoreload
+from ctrace.simulation import *
+from ctrace.dataset import *
+from ctrace.recommender import *
+from ctrace.problem import *
+from ctrace.utils import *
+from ctrace.drawing import *
+from ctrace.min_cut import *
+import networkx as nx
 
-%autoreload 2
+
 # %%
 
 
@@ -23,12 +22,12 @@ def max_degree_edges(G, edges, budget):
 
 
 def degree_solver(G, SIR, budget):
-    edges = max_degree_edges(G, G.edges(SIR.I), budget)
+    edges = max_degree_edges(G, list(G.edges(SIR.I)), budget)
     return edges
 
 
 def random_solver(G, SIR, budget, seed=None):
-    edges = np.random.choice(G.edges(SIR.I), size=budget, replace=False)
+    edges = np.random.choice(list(G.edges(SIR.I)), size=budget, replace=False)
     return edges
 
 
@@ -45,14 +44,8 @@ def randomize(sir, p=0.05, seed=None):
 
 # %%
 
-methods = {
-    "LP": min_cut_round,
-    "greedy": degree_solver,
-    "random": random_solver,
-}
 
-
-def runner(
+def min_cut_evaluation(
     G,
     num_infected: int,
     transmission: float,
@@ -61,7 +54,13 @@ def runner(
     method: str,
     seed=None,
     logging_dir=None,
+    **args,
 ):
+    methods = {
+        "LP": min_cut_round,
+        "greedy": degree_solver,
+        "random": random_solver,
+    }
     # Sample the edges that actually transmit the disease
     active_edges = set(uniform_sample(G.edges, transmission))
     G_transmit = nx.subgraph_view(
@@ -72,9 +71,9 @@ def runner(
 
     solver = methods[method]
     edge_rec = solver(G, visible_sir, budget=budget)
-
+    if method in ["greedy", "random"]:
+        edge_rec = {e: 1 for e in edge_rec}
     # Evaluation
-    dict(list(edge_rec.items())[0:2])
     vertex_soln, edge_soln = min_cut_solver(
         G_transmit,
         actual_sir,
@@ -83,7 +82,7 @@ def runner(
         mip=False
     )
     score = sum(vertex_soln.values())
-    return score
+    return TrackerInfo(score)
 
 
 config = {
@@ -91,7 +90,7 @@ config = {
     "num_infected": [100, 200, 300, 400, 500],
     "transmission": [0.1],
     "rand_resp_prob": [0.1, 0.2, 0.3, 0.4],
-    "budget": [500, 600, 700, 800],
+    "budget": [500, 600, 700, 800, 900, 1000, 1100, 1200, 1300],
     "method": ["LP", "greedy", "random"],
 }
 
@@ -101,18 +100,17 @@ in_schema = list(config.keys())
 out_schema = ["total_infected"]
 TrackerInfo = namedtuple("TrackerInfo", out_schema)
 
-run = GridExecutorLinear.init_multiple(
-    config, in_schema, out_schema, func=runner, trials=5)
+run = GridExecutorParallel.init_multiple(
+    config, in_schema, out_schema, func=min_cut_evaluation, trials=5)
 
 # print(f"First 5 trials: {run.expanded_config[:10]}")
 print(f"Number of trials: {len(run.expanded_config)}")
 # %%
-run.track_duration()
+# run.track_duration()
 # 40 sample size -> 20 workers
 # 20 sample size -> 60
-run.exec()
+run.exec(max_workers=40)
 
-exit()
 
 # %%
 

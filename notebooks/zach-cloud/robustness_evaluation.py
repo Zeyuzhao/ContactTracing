@@ -3,7 +3,7 @@
 
 # %autoreload 2
 # %%
-from ctrace.runner import GridExecutorLinear, GridExecutorParallel
+from ctrace.exec.runner import GridExecutorLinear, GridExecutorParallel
 from ctrace.simulation import *
 from ctrace.dataset import *
 from ctrace.recommender import *
@@ -179,6 +179,8 @@ run.track_duration()
 run.exec(max_workers=None)
 
 exit()
+
+# %%
 
 # %%
 
