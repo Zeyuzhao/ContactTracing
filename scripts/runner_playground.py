@@ -10,6 +10,7 @@ from collections import namedtuple
 json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 
 G = load_graph_montgomery_labels()
+G = read_extra_edges(G, 0.15)
 G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 
 #G2 = load_graph_cville_labels()
@@ -19,26 +20,84 @@ G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 #G2 = load_graph_cville_labels()
 #G2.centrality = nx.algorithms.eigenvector_centrality_numpy(G2)
 
-
 #be5 for cville w/ added edges, ce6 for montgomery w/ added edges
 #b5 for cville, c7 for montgomery
 
-config = {
+#defaults: snitch = 0.8, discovery = 0.8, compliance = 0.8
+#montgomery budget: 750
+#cville budget: 1350
+
+'''config = {
     "G" : [G],
-    "budget": [i for i in range(400, 1260, 10)],
-    #"budget": [i for i in range(400, 1260, 50)],
+    "budget": [750],
     "policy": ["none"],
     "transmission_rate": [0.05],
     "transmission_known": [True],
     "compliance_rate": [0.8],
     "compliance_known": [True],
+    "discovery_rate": [i/100 for i in range(50, 101, 1)],
+    "snitch_rate": [i/100 for i in range(50, 101, 1)],
+    "from_cache": ["c7.json"],
+    "agent": [DegGreedy_fair, DepRound_fair]
+}'''
+
+'''config = {
+    "G" : [G2],
+    "budget": [1800],
+    "policy": ["none"],
+    "transmission_rate": [0.05],
+    "transmission_known": [True],
+    "compliance_rate": [i/100 for i in range(50, 101, 1)],
+    "compliance_known": [True],
     "discovery_rate": [1],
     "snitch_rate": [1],
-    "from_cache": ["c7.json"],
+    "from_cache": ["b5.json"],
+    "agent": [DegGreedy_fair, DepRound_fair]
+}'''
+
+'''config = {
+    "G" : [G2],
+    "budget": [i for i in range(720, 2270, 20)],
+    "policy": ["none"],
+    "transmission_rate": [0.05],
+    "transmission_known": [False],
+    "compliance_rate": [0.8],
+    "compliance_known": [False],
+    "discovery_rate": [1],
+    "snitch_rate": [1],
+    "from_cache": ["b5.json"],
+    "agent": [DegGreedy_fair, DepRound_fair, Degree, DepRound_simplified]
+}'''
+
+config = {
+    "G" : [G],
+    "budget": [750],
+    "policy": ["none"],
+    "transmission_rate": [0.05],
+    "transmission_known": [True],
+    "compliance_rate": [i/100 for i in range(50, 101, 1)],
+    "compliance_known": [True],
+    "discovery_rate": [1],
+    "snitch_rate": [1],
+    "from_cache": ["ce6.json"],
     "agent": [DegGreedy_fair, DepRound_fair, Random, EC]
 }
 
-'''config_cville_extra = {
+'''config = {
+    "G" : [G2],
+    "budget": [720, 2250],
+    "policy": ["none"],
+    "transmission_rate": [0.05],
+    "transmission_known": [True],
+    "compliance_rate": [0.8],
+    "compliance_known": [True],
+    "discovery_rate": [i/100 for i in range(50, 101, 1)],
+    "snitch_rate": [1],
+    "from_cache": ["be5.json"],
+    "agent": [NoIntervention]
+}'''
+
+'''config = {
     "G" : [G2],
     "budget": [i for i in range(720, 2270, 20)],
     "policy": ["none"],
@@ -48,7 +107,7 @@ config = {
     "compliance_known": [True],
     "discovery_rate": [1],
     "snitch_rate": [1],
-    "from_cache": ["be5.json"],
+    "from_cache": ["b5.json"],
     "agent": [Random, EC, DegGreedy_fair, DepRound_fair]
 }'''
 
@@ -73,9 +132,35 @@ def time_trial_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: 
     
     return TrackerInfo(len(state.SIR.R), infections)
 
+<<<<<<< HEAD
+run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=50)
+run.exec()
+
+config = {
+    "G" : [G],
+    #"budget": [1000],
+    "budget":[750],
+    #"budget":[i for i in range(1800, 2270, 20)],
+    "policy": ["none"],
+    "transmission_rate": [0.05],
+    "transmission_known": [False],
+    "compliance_rate": [1],#[i/100 for i in range(50, 101, 5)],#[i/100 for i in range(50,101,5)],
+    "compliance_known": [False],
+    "partial_compliance": [False],
+    "I_knowledge": [1],
+    "discovery_rate": [i/100 for i in range(50,101,1)],
+    "snitch_rate":  [.8],
+    "from_cache": ["c7.json"],
+    "agent": [DegGreedy2_fair, DepRound2_fair]
+}
+
+run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=50)
+run.exec()
+=======
 
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
 run.exec(max_workers=40)
+>>>>>>> e686804a160a378c0efc0d813710322eb1fcd96a
 
 '''config = {
     "G" : [G2],

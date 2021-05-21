@@ -38,15 +38,14 @@ def EC(state: InfectionState):
     eigens.sort(reverse=True)
     return {i[1] for i in eigens[:state.budget]}
 
-'''def Degree(state: InfectionState):
+def Degree(state: InfectionState):
     degrees: List[Tuple[int, int]] = []
-    V2_only = state.V2-state.V1
     for u in state.V1:
-        count = sum([1 for v in state.G.neighbors(u) if v in V2_only])
+        count = sum([1 for v in state.G.neighbors(u) if v in state.V2 and state.Q[u][v]!=0])
         degrees.append((count, u))
         
     degrees.sort(reverse=True)
-    return {i[1] for i in degrees[:state.budget]}'''
+    return {i[1] for i in degrees[:state.budget]}
 
 #Accounts for edges between V1
 '''def Degree2(state: InfectionState):
@@ -246,7 +245,26 @@ def DepRound_fair(state: InfectionState):
         partial_prob = [probabilities[k] if state.G.nodes[problem2.quarantine_map[k]]["age_group"]==label else 0 for k in 
                         range(len(probabilities))]
         rounded = rounded + D_prime(np.array(partial_prob))
+
+    return set([problem2.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
+
+def DepRound_simplified(state: InfectionState):
+    state.set_budget_labels()
     
+    problem2 = MinExposedLP2_label(state, simp = True)
+    problem2.solve_lp()
+    probabilities = problem2.get_variables()
+    
+    if state.policy == "none":
+        rounded = D_prime(np.array(probabilities))
+        return set([problem2.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
+    
+    rounded = np.array([0 for i in range(len(probabilities))])
+    for label in state.labels:
+        partial_prob = [probabilities[k] if state.G.nodes[problem2.quarantine_map[k]]["age_group"]==label else 0 for k in 
+                        range(len(probabilities))]
+        rounded = rounded + D_prime(np.array(partial_prob))
+
     return set([problem2.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
 
 def SAA_Diffusion(state: InfectionState, debug=False, num_samples=10):

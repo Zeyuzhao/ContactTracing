@@ -12,7 +12,7 @@ from .utils import *
 from .simulation import *
 
 class MinExposedProgram2_label:
-    def __init__(self, info: InfectionState, solver_id="GLOP"):
+    def __init__(self, info: InfectionState, solver_id="GLOP", simp = False):
         
         self.result = None
         #self.info = info
@@ -31,11 +31,14 @@ class MinExposedProgram2_label:
         self.contour1, self.contour2 = info.V1, info.V2
         self.solver = pywraplp.Solver.CreateSolver(solver_id)
         
-        if self.transmission_known:
+        if simp:
+            self.P, self.Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, info.Q, 1)
+        elif self.transmission_known:
             self.P = info.P
             self.Q = info.Q
         else:
             self.P, self.Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, info.Q, self.p)
+        
 
         if self.solver is None:
             raise ValueError("Solver failed to initialize!")
@@ -203,8 +206,8 @@ class MinExposedProgram2_label:
 
 
 class MinExposedLP2_label(MinExposedProgram2_label):
-    def __init__(self, info: InfectionState, solver_id="GLOP"):
-        super().__init__(info, solver_id)
+    def __init__(self, info: InfectionState, solver_id="GLOP", simp = False):
+        super().__init__(info, solver_id, simp)
 
     def init_variables(self):
         # Declare Fractional Variables
@@ -217,8 +220,8 @@ class MinExposedLP2_label(MinExposedProgram2_label):
 
 class MinExposedIP2_label(MinExposedProgram2_label):
     #def __init__(self, info: InfectionState, solver_id="GUROBI"):
-    def __init__(self, info: InfectionState, solver_id="GLOP"):
-        super().__init__(info, solver_id)
+    def __init__(self, info: InfectionState, solver_id="SCIP", simp = False):
+        super().__init__(info, solver_id, simp)
 
     def init_variables(self):
         # Declare Variables (With Integer Constraints)

@@ -12,7 +12,6 @@ from collections import namedtuple
 json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 
 def calculateExpected(state: InfectionState, quarantine):
-    #P, Q = pq_independent(state.G, state.SIR.I2, state.V1, state.V2, state.Q, state.transmission_rate)
     P, Q = state.P, state.Q
     total = 0
     for v in state.V2:
@@ -22,29 +21,16 @@ def calculateExpected(state: InfectionState, quarantine):
                 expected *= (1-P[u]*Q[u][v])
             else:
                 expected *= (1-(1-state.G.nodes[u]['compliance_rate'])*P[u]*Q[u][v])
-        
-<<<<<<< HEAD
-        #if v in quarantine:
-        #    total += (1-P[v])*(1-expected)*(1-state.G.nodes[v]['compliance_rate'])
-        #else:
-        total += (1-P[v])*(1-expected)
-=======
-        if v in quarantine:
-            total += (1-P[v])*(1-expected)*(1-state.G.nodes[v]['compliance_rate'])
-        else:
-            total += (1-P[v])*(1-expected)
->>>>>>> 5c28841870cbd94b5a8811b8e8a51d32f5d6917c
+        total += (1-expected)
     return total
-    
+
 G = load_graph_montgomery_labels()
 
 config = {
     "G" : [G],
-    "budget": [1000],
+    "budget": [750],
     "policy": ["none"],
     "transmission_rate": [i/100 for i in range(0, 100, 5)],
-    #"compliance_rate": [i/100 for i in range(50, 101)],
-    #"compliance_rate": [i/100 for i in range(50, 101)],#[i/100 for i in range(50, 101, 5)],#[i/100 for i in range(50,101,5)],
     "transmission_known": [True],
     "compliance_rate": [0.8],
     "compliance_known": [True],
@@ -72,20 +58,18 @@ def optimal_ratio(G: nx.graph, budget: int, policy: str, transmission_rate: floa
     
     start = time.time()
     optimal_obj = MinExposedIP2_label(state)
-    optimal_obj.solve_lp()
-    probabilities = optimal_obj.get_variables()
-    rounded = D_prime(np.array(probabilities))
-    quarantine = set([optimal_obj.quarantine_map[k] for (k,v) in enumerate(rounded) if v==1])
+    q = optimal_obj.solve_lp()
     time_ip = time.time()-start
+    quarantine = set([k for (k,v) in q.items() if v==1])
     ip_expect = calculateExpected(state, quarantine)
     
     start = time.time()
-    quarantine = DepRound2_fair(state)
+    quarantine = DepRound_fair(state)
     time_dep = time.time()-start
     dep_expect = calculateExpected(state, quarantine)
     
     start = time.time()
-    quarantine = DegGreedy2_fair(state)
+    quarantine = DegGreedy_fair(state)
     time_deg = time.time()-start
     deg_expect = calculateExpected(state, quarantine)
     
