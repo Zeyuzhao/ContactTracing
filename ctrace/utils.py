@@ -10,7 +10,9 @@ from os import path
 from collections import defaultdict
 from pathlib import Path
 from statistics import mean
-from typing import Set, Iterable, Tuple, List, Dict
+from typing import Set, Iterable, Tuple, List, Dict, Any, TypeVar, Optional
+from collections import UserList
+from enum import IntEnum
 
 import EoN
 import networkx as nx
@@ -23,25 +25,29 @@ np.random.seed(42)
 
 np.random.seed(42)
 
-def edge_transmission(u:int, v:int, G:nx.Graph):
-    #1) Does not transmit if either u or v are effectively quarantined
-    #2) Otherwise: transmits with probability of transmission along edge
-    
-    if (G.nodes[u]['quarantine'] > 0 or G.nodes[v]['quarantine']>0):
+
+def edge_transmission(u: int, v: int, G: nx.Graph):
+    # 1) Does not transmit if either u or v are effectively quarantined
+    # 2) Otherwise: transmits with probability of transmission along edge
+
+    if (G.nodes[u]['quarantine'] > 0 or G.nodes[v]['quarantine'] > 0):
         return 0
     else:
         if random.random() < G[u][v]['transmission']:
             return 1
         return 0
 
+
 def allocate_budget(G: nx.Graph, V1: set, budget: int, labels: list, label_map: dict, policy: str):
     distribution = []
     budget_labels = []
-    
-    if policy == "none": return []
-    
+
+    if policy == "none":
+        return []
+
     for i in range(len(labels)):
-        distribution.append(sum([1 for n in V1 if G.nodes[n]["age_group"] == i]))
+        distribution.append(
+            sum([1 for n in V1 if G.nodes[n]["age_group"] == i]))
 
     if (policy == "old"):
         distribution[label_map['g']] *= 2
@@ -55,10 +61,12 @@ def allocate_budget(G: nx.Graph, V1: set, budget: int, labels: list, label_map: 
     distribution_sum = sum(distribution)
     if distribution_sum == 0:
         return [0 for i in range(len(labels))]
-    
+
     for i in range(len(labels)):
-        budget_labels.append(math.floor(budget*distribution[i]/distribution_sum))
+        budget_labels.append(math.floor(
+            budget*distribution[i]/distribution_sum))
     return budget_labels
+
 
 def find_contours(G: nx.Graph, infected):
     """Produces contour1 and contour2 from infected"""
@@ -87,17 +95,20 @@ def find_contours(G: nx.Graph, infected):
 
     return (V1, V2)
 
-def find_excluded_contours_edges_PQ(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate:float = 1, snitch_rate:float = 1):
-    v1 = set().union(*[effective_neighbor(G, v, G.neighbors(v)) for v in set(infected)]) - (set(infected) | set(excluded))
-    v1_k = {v for v in v1 if random.uniform(0,1) < discovery_rate}
-    P = {v: (1 - math.prod(1-(G[i][v]["transmission"] if check_edge_transmission(G, i, v) else 0) for i in set(set(G.neighbors(v)) & set(infected)))) for v in v1_k}
-    
+
+def find_excluded_contours_edges_PQ(G: nx.Graph, infected: Set[int], excluded: Set[int], discovery_rate: float = 1, snitch_rate: float = 1):
+    v1 = set().union(*[effective_neighbor(G, v, G.neighbors(v))
+                       for v in set(infected)]) - (set(infected) | set(excluded))
+    v1_k = {v for v in v1 if random.uniform(0, 1) < discovery_rate}
+    P = {v: (1 - math.prod(1-(G[i][v]["transmission"] if check_edge_transmission(
+        G, i, v) else 0) for i in set(set(G.neighbors(v)) & set(infected)))) for v in v1_k}
+
     v2_k = set()
     Q = {}
-    exclusion = (set(infected) | set(excluded) | set(v1_k) )
+    exclusion = (set(infected) | set(excluded) | set(v1_k))
     for u in v1_k:
         for v in set(G.neighbors(u))-exclusion:
-            if check_edge_transmission(G, u, v) and (random.uniform(0,1) < snitch_rate):
+            if check_edge_transmission(G, u, v) and (random.uniform(0, 1) < snitch_rate):
                 if u in Q:
                     Q[u][v] = G[u][v]["transmission"]
                 else:
@@ -107,15 +118,17 @@ def find_excluded_contours_edges_PQ(G: nx.Graph, infected: Set[int], excluded: S
                 if u in Q:
                     Q[u][v] = 0
                 else:
-                    Q[u] = {v:0}
+                    Q[u] = {v: 0}
     return v1_k, v2_k, P, Q
-    
+
+
 '''def union_neighbors(G: nx.Graph, initial: Set[int], excluded: Set[int]):
     """Finds the union of neighbors of an initial set and remove excluded"""
     total = set().union(*[G.neighbors(v) for v in initial])
     return total - excluded'''
 
-def effective_neighbor(G: nx.Graph, infected: int, target: list, compliance_edge_known:bool = False):
+
+def effective_neighbor(G: nx.Graph, infected: int, target: list, compliance_edge_known: bool = False):
     """
     Filters out edges of no transmission for G.neighbors
     """
@@ -125,30 +138,36 @@ def effective_neighbor(G: nx.Graph, infected: int, target: list, compliance_edge
             effective_neighbors.add(v)
     return effective_neighbors
 
+
 def check_edge_transmission(G: nx.Graph, infected: int, target: int) -> bool:
     """
     Given node u, infected and node v, neighbor
     Does not transmit when:
     1) v or u are effectively quarantined
     """
-    return not (G.nodes[infected]["quarantine"]>0 or G.nodes[target]["quarantine"]>0)
+    return not (G.nodes[infected]["quarantine"] > 0 or G.nodes[target]["quarantine"] > 0)
 
-#Only know average transmission, assume uniformity
-#Zeroes out the edges between u in V1 and v in V2 if they are not found during snitch rate process
+# Only know average transmission, assume uniformity
+# Zeroes out the edges between u in V1 and v in V2 if they are not found during snitch rate process
+
+
 def pq_independent(G: nx.Graph, I: Iterable[int], V1: Iterable[int], V2: Iterable[int], Q_state, p: float):
     # Returns dictionary P, Q
     # Calculate P, (1-P) ^ [number of neighbors in I]
-    P = {v: (1 - math.pow((1 - p), len(set(G.neighbors(v)) & set(I)))) for v in set(V1)}
+    P = {v: (1 - math.pow((1 - p), len(set(G.neighbors(v)) & set(I))))
+         for v in set(V1)}
     Q = {}
     for key, values in Q_state.items():
-        Q[key] = {v: p if values[v]!=0 else 0 for v in values.keys()}
+        Q[key] = {v: p if values[v] != 0 else 0 for v in values.keys()}
     return P, Q
+
 
 def max_neighbors(G, V_1, V_2):
     return max(len(set(G.neighbors(u)) & V_2) for u in V_1)
 
+
 def MinExposedTrial(G: nx.Graph, SIR: Tuple[List[int], List[int],
-                        List[int]], contours: Tuple[List[int], List[int]], p: float, quarantined_solution: Dict[int, int]):
+                                            List[int]], contours: Tuple[List[int], List[int]], p: float, quarantined_solution: Dict[int, int]):
     """
 
     Parameters
@@ -195,26 +214,28 @@ def MinExposedTrial(G: nx.Graph, SIR: Tuple[List[int], List[int],
     objective_value = len(set(I) & set(contours[1]))
     return objective_value
 
+
 def min_exposed_objective(G: nx.Graph,
                           SIR: Tuple[List[int], List[int], List[int]],
                           contours: Tuple[List[int], List[int]],
                           p: float,
                           quarantined_solution: Dict[int, int],
                           trials=5):
-    runs = [MinExposedTrial(G, SIR, contours, p, quarantined_solution) for _ in range(trials)]
-    return mean(runs) #, np.std(runs, ddof=1)
+    runs = [MinExposedTrial(G, SIR, contours, p, quarantined_solution)
+            for _ in range(trials)]
+    return mean(runs)  # , np.std(runs, ddof=1)
+
 
 def indicatorToSet(quarantined_solution: Dict[int, int]):
     return {q for q in quarantined_solution if quarantined_solution[q] == 1}
 
 
-
 # ==================================== Dataset Functions ==========================================
-
 
 """
 Handles loading of datasets
 """
+
 
 def prep_labelled_graph(in_path, out_dir, num_lines=None, delimiter=","):
     """Generates a labelled graphs. Converts IDs to ids from 0 to N vertices
@@ -298,7 +319,7 @@ def human_format(num):
         .replace('.', '_')
 
 
-def prep_dataset(name: str, data_dir: Path=None, sizes=(None,)):
+def prep_dataset(name: str, data_dir: Path = None, sizes=(None,)):
     """
     Prepares a variety of sizes of graphs from one input graphs
 
@@ -314,7 +335,9 @@ def prep_dataset(name: str, data_dir: Path=None, sizes=(None,)):
     group_path = data_dir / name
     for s in sizes:
         instance_folder = f"partial{human_format(s)}" if s else "complete"
-        prep_labelled_graph(in_path=group_path / f"{name}.csv", out_dir=group_path / instance_folder, num_lines=s)
+        prep_labelled_graph(
+            in_path=group_path / f"{name}.csv", out_dir=group_path / instance_folder, num_lines=s)
+
 
 '''def load_graph(dataset_name, graph_folder=None):
     """Will load the complete folder by default, and set the NAME attribute to dataset_name"""
@@ -330,16 +353,17 @@ def prep_dataset(name: str, data_dir: Path=None, sizes=(None,)):
 def load_graph_montgomery_labels():
     G = nx.Graph()
     G.NAME = "montgomery"
-    
-    file = open(PROJECT_ROOT / "data/graphs/montgomery/montgomery_labels_all.txt", "r")
+
+    file = open(PROJECT_ROOT /
+                "data/graphs/montgomery/montgomery_labels_all.txt", "r")
     lines = file.readlines()
     nodes = {}
     rev_nodes = []
     edges_to_duration = {}
     cnode_to_labels = {}
     cnode_to_comp = {}
-    c_node=0
-    
+    c_node = 0
+
     for line in lines:
         a = line.split(",")
         u = int(a[0])
@@ -349,35 +373,36 @@ def load_graph_montgomery_labels():
         age_group_v = int(a[4])
         compliance_u = float(a[5])
         compliance_v = float(a[6])
-        
+
         if u in nodes.keys():
             u = nodes[u]
         else:
             nodes[u] = c_node
             rev_nodes.append(u)
             u = c_node
-            c_node+=1   
-    
+            c_node += 1
+
         if v in nodes.keys():
             v = nodes[v]
         else:
             nodes[v] = c_node
             rev_nodes.append(v)
             v = c_node
-            c_node+=1
-        
-        G.add_edge(u,v)
-        edges_to_duration[(u,v)] = duration
+            c_node += 1
+
+        G.add_edge(u, v)
+        edges_to_duration[(u, v)] = duration
         cnode_to_labels[u] = age_group_u
         cnode_to_labels[v] = age_group_v
         cnode_to_comp[u] = compliance_u
         cnode_to_comp[v] = compliance_v
-        
+
     nx.set_edge_attributes(G, edges_to_duration, 'duration')
     nx.set_node_attributes(G, cnode_to_labels, 'age_group')
     nx.set_node_attributes(G, cnode_to_comp, 'compliance_rate_og')
-    
+
     return G
+
 
 def load_graph_cville_labels():
     G = nx.Graph()
@@ -391,7 +416,7 @@ def load_graph_cville_labels():
     file.readline()
     lines = file.readlines()
     c = 0
-    c_node=0
+    c_node = 0
 
     for line in lines:
 
@@ -410,7 +435,7 @@ def load_graph_cville_labels():
             nodes[u] = c_node
             rev_nodes.append(u)
             u = c_node
-            c_node+=1        
+            c_node += 1
 
         if v in nodes.keys():
             v = nodes[v]
@@ -418,10 +443,10 @@ def load_graph_cville_labels():
             nodes[v] = c_node
             rev_nodes.append(v)
             v = c_node
-            c_node+=1
+            c_node += 1
 
-        G.add_edge(u,v)
-        edges_to_duration[(u,v)] = duration
+        G.add_edge(u, v)
+        edges_to_duration[(u, v)] = duration
         cnode_to_labels[u] = age_group_u
         cnode_to_labels[v] = age_group_v
         cnode_to_comp[u] = compliance_u
@@ -430,14 +455,15 @@ def load_graph_cville_labels():
     nx.set_edge_attributes(G, edges_to_duration, 'duration')
     nx.set_node_attributes(G, cnode_to_labels, 'age_group')
     nx.set_node_attributes(G, cnode_to_comp, 'compliance_rate_og')
-    
-    return G;
+
+    return G
+
 
 def read_extra_edges(G_o: nx.Graph, alpha):
     G = copy.deepcopy(G_o)
-    
-    nx.set_edge_attributes(G, {e:False for e in G.edges()}, "added")
-    
+
+    nx.set_edge_attributes(G, {e: False for e in G.edges()}, "added")
+
     if G.NAME == "montgomery":
         G.NAME = "montgomery_extra"
         filename = "montgomery_extra_edges_" + str(alpha) + ".txt"
@@ -452,7 +478,7 @@ def read_extra_edges(G_o: nx.Graph, alpha):
         if not path.exists(directory_path):
             store_extra_edges(G_o, alpha)
         infile = open(directory_path, "r")
-    
+
     lines = infile.readlines()
     for line in lines:
         a = line.split(",")
@@ -462,47 +488,51 @@ def read_extra_edges(G_o: nx.Graph, alpha):
         G.add_edge(u, v)
         G[u][v]['duration'] = duration
         G[u][v]['added'] = True
-    
-    return G;
+
+    return G
+
 
 def store_extra_edges(G, alpha):
-    
+
     if G.NAME == "montgomery":
         filename = "montgomery_extra_edges" + "_" + str(alpha) + ".txt"
-        outfile = open(PROJECT_ROOT / "data"/"graphs"/"montgomery"/filename, "w")
+        outfile = open(PROJECT_ROOT / "data"/"graphs" /
+                       "montgomery"/filename, "w")
     else:
         filename = "cville_extra_edges" + "_" + str(alpha) + ".txt"
         outfile = open(PROJECT_ROOT / "data"/"raw"/"cville"/filename, "w")
-    
+
     file = open(PROJECT_ROOT / "data/raw/charlottesville.txt", "r")
     file.readline()
     lines = file.readlines()
-    
+
     durations = []
     taken_edges = {}
-    node_list = [i for i in range(0,len(G.nodes))]
-    
+    node_list = [i for i in range(0, len(G.nodes))]
+
     for line in lines:
         a = line.split()
         duration = int(a[3])
         durations.append(duration)
-    
+
     for node in G.nodes:
         if node not in taken_edges:
             taken_edges[node] = set()
         ngbrs = set(G.neighbors(node))
         for i in range(max(0, int((alpha)*len(ngbrs))-len(taken_edges[node]))):
             e = node_list[random.randint(0, len(G.nodes)-1)]
-            while e in (ngbrs|taken_edges[node]|{node}):
+            while e in (ngbrs | taken_edges[node] | {node}):
                 e = node_list[random.randint(0, len(G.nodes)-1)]
-            
+
             if e in taken_edges:
                 taken_edges[e].add(node)
             else:
                 taken_edges[e] = {node}
-            
+
             duration = durations[random.randint(0, len(durations)-1)]
-            outfile.write(str(node) + "," + str(e)+ "," + str(duration) + "\n")
+            outfile.write(str(node) + "," + str(e) +
+                          "," + str(duration) + "\n")
+
 
 def generate_random_absolute(G, num_infected: int = None, k: int = None, costs: list = None):
     N = G.number_of_nodes()
@@ -539,7 +569,8 @@ def generate_absolute(G, infected, k: int = None, costs: list = None):
         "k": k,
     }
 
-def load_sir(sir_name, sir_folder: Path=None, merge=False):
+
+def load_sir(sir_name, sir_folder: Path = None, merge=False):
     if sir_folder is None:
         sir_folder = PROJECT_ROOT / "data" / "SIR_Cache"
     dataset_path = sir_folder / sir_name
@@ -550,6 +581,7 @@ def load_sir(sir_name, sir_folder: Path=None, merge=False):
             del data["I_Queue"]
         return data
 
+
 def load_sir_path(path: Path, merge=False):
     with open(path) as file:
         data = json.load(file)
@@ -557,3 +589,122 @@ def load_sir_path(path: Path, merge=False):
             data["I"] = list(set().union(*data["I_Queue"]))
             del data["I_Queue"]
         return data
+
+
+SIR = IntEnum("SIR", ["S", "I", "R"])
+SEIR = IntEnum("SEIR", ["S", "E", "I", "R"])
+
+
+class Partition(UserList):
+    """
+    DO NOT USE DIRECTLY!
+
+    An container representing a partition of integers 0..n-1 to classes 1..k
+    Stored internally as an array.
+    Supports querying as .[attr], where [attr] is specified in types
+    Supports imports from integer list and list of sets
+    """
+    type = None
+
+    def __init__(self, other=None, size=0):
+        # Stored internally as integers
+        self.data: List[int]
+        if other is None:
+            self.type = type(self).type
+            self._types = [e.name for e in self.type]
+            self.data = [1] * size
+        else:
+            self.type = other.type
+            self._types = [e.name for e in self.type]
+            self.data = other.data.copy()
+    # <================== Relies on cls.type [START] ==================>
+
+    @classmethod
+    def from_list(cls, l):
+        """
+        Copies data from a list representation into Partition container
+        """
+        p = cls(size=len(l))
+        p.data = l.copy()
+        return p
+
+    @classmethod
+    def from_sets(cls, sets):
+        """
+        Import data from a tupe of set indices, labels 1..k
+        Union of sets must be integers [0..len()-1]
+        """
+        assert len(sets) == len(cls.type)
+        p = cls(size=sum(map(len, sets)))
+        for label, collection in enumerate(sets):
+            for i in collection:
+                p.data[i] = label + 1
+        return p
+
+    @classmethod
+    def from_dist(cls, size, dist, rng=None):
+        """
+        Samples labels uniformly from distribution [dist] with [size] elements
+        """
+        if rng is None:
+            rng = np.random.default_rng()
+        raw = rng.choice(range(1, len(cls.type) + 1), size, p=dist)
+        return cls.from_list(raw)
+
+    # <================== Relies on cls.type [END] ==================>
+
+    def __getitem__(self, item: int) -> int:
+        return self.data[item]
+
+    def __setitem__(self, key: int, value: int) -> None:
+        self.data[key] = value
+
+    def __getattr__(self, attr):
+        if attr in self._types:
+            return set(i for i, e in enumerate(self.data) if e == self.type[attr])
+        raise AttributeError(
+            f"'{self.__class__.__name__}' object has no attribute '{attr}'. \nFilter attributes are: {self._types}")
+
+    def to_dict(self):
+        return {k: v for k, v in enumerate(self.data)}
+
+
+class PartitionSIR(Partition):
+    type = SIR
+
+    @classmethod
+    def from_json(cls, file_name):
+        raise NotImplementedError
+
+
+class PartitionSEIR(Partition):
+    type = SEIR
+
+    @classmethod
+    def from_json(cls, file_name):
+        raise NotImplementedError
+
+
+def uniform_sample(l: List[Any], p: float, rg=None):
+    """Samples elements from l uniformly with probability p"""
+    if rg is None:
+        rg = np.random
+    arr = rg.random(len(l))
+    return [x for i, x in enumerate(l) if arr[i] < p]
+
+
+rng = np.random.default_rng()
+
+
+def pct_to_int(amt, pcts):
+    """
+    Distributes amt according to pcts. Last element accumulates all fractions, may be off by (n - 1)
+    """
+    first = [int(amt * pct) for pct in pcts[:-1]]
+    return first + [amt - sum(first)]
+
+
+assert pct_to_int(10, [0.5, 0.5]) == [5, 5]
+assert pct_to_int(11, [0.5, 0.5]) == [5, 6]
+assert pct_to_int(20, [0.33, 0.33, 0.34]) == [6, 6, 8]
+
