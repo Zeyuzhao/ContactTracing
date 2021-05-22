@@ -194,10 +194,6 @@ def DegGreedy_fair(state: InfectionState):
     return quarantine
 
 
-def segmented_greedy(state: InfectionState, split_pct):
-    G = state.G
-
-
 '''def DepRound(state: InfectionState):
     
     problem = MinExposedLP(state)
