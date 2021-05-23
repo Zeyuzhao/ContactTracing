@@ -10,7 +10,9 @@ from os import path
 from collections import defaultdict
 from pathlib import Path
 from statistics import mean
-from typing import Set, Iterable, Tuple, List, Dict
+from typing import Set, Iterable, Tuple, List, Dict, Any, TypeVar, Optional
+from enum import IntEnum
+from collections import UserList
 
 import EoN
 import networkx as nx
@@ -557,3 +559,114 @@ def load_sir_path(path: Path, merge=False):
             data["I"] = list(set().union(*data["I_Queue"]))
             del data["I_Queue"]
         return data
+
+SIR = IntEnum("SIR", ["S", "I", "R"])
+SEIR = IntEnum("SEIR", ["S", "E", "I", "R"])
+
+class Partition(UserList):
+    """
+    DO NOT USE DIRECTLY!
+    An container representing a partition of integers 0..n-1 to classes 1..k
+    Stored internally as an array.
+    Supports querying as .[attr], where [attr] is specified in types
+    Supports imports from integer list and list of sets
+    """
+    type = None
+
+    def __init__(self, other=None, size=0):
+        # Stored internally as integers
+        self.data: List[int]
+        if other is None:
+            self.type = type(self).type
+            self._types = [e.name for e in self.type]
+            self.data = [1] * size
+        else:
+            self.type = other.type
+            self._types = [e.name for e in self.type]
+            self.data = other.data.copy()
+    # <================== Relies on cls.type [START] ==================>
+
+    @classmethod
+    def from_list(cls, l):
+        """
+        Copies data from a list representation into Partition container
+        """
+        p = cls(size=len(l))
+        p.data = l.copy()
+        return p
+
+    @classmethod
+    def from_sets(cls, sets):
+        """
+        Import data from a tupe of set indices, labels 1..k
+        Union of sets must be integers [0..len()-1]
+        """
+        assert len(sets) == len(cls.type)
+        p = cls(size=sum(map(len, sets)))
+        for label, collection in enumerate(sets):
+            for i in collection:
+                p.data[i] = label + 1
+        return p
+
+    @classmethod
+    def from_dist(cls, size, dist, rng=None):
+        """
+        Samples labels uniformly from distribution [dist] with [size] elements
+        """
+        if rng is None:
+            rng = np.random.default_rng()
+        raw = rng.choice(range(1, len(cls.type) + 1), size, p=dist)
+        return cls.from_list(raw)
+
+    # <================== Relies on cls.type [END] ==================>
+
+    def __getitem__(self, item: int) -> int:
+        return self.data[item]
+
+    def __setitem__(self, key: int, value: int) -> None:
+        self.data[key] = value
+
+    def __getattr__(self, attr):
+        if attr in self._types:
+            return set(i for i, e in enumerate(self.data) if e == self.type[attr])
+        raise AttributeError(
+            f"'{self.__class__.__name__}' object has no attribute '{attr}'. \nFilter attributes are: {self._types}")
+
+    def to_dict(self):
+        return {k: v for k, v in enumerate(self.data)}
+
+class PartitionSIR(Partition):
+    type = SIR
+
+    @classmethod
+    def from_json(cls, file_name):
+        raise NotImplementedError
+
+class PartitionSEIR(Partition):
+    type = SEIR
+
+    @classmethod
+    def from_json(cls, file_name):
+        raise NotImplementedError
+
+def uniform_sample(l: List[Any], p: float, rg=None):
+    """Samples elements from l uniformly with probability p"""
+    if rg is None:
+        rg = np.random
+    arr = rg.random(len(l))
+    return [x for i, x in enumerate(l) if arr[i] < p]
+
+rng = np.random.default_rng()
+
+def pct_to_int(amt, pcts):
+    """
+    Distributes amt according to pcts. Last element accumulates all fractions, may be off by (n - 1)
+    """
+    first = [int(amt * pct) for pct in pcts[:-1]]
+    return first + [amt - sum(first)]
+
+
+assert pct_to_int(10, [0.5, 0.5]) == [5, 5]
+assert pct_to_int(11, [0.5, 0.5]) == [5, 6]
+assert pct_to_int(20, [0.33, 0.33, 0.34]) == [6, 6, 8]
+

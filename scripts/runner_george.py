@@ -63,7 +63,7 @@ def time_trial_tracker(G: nx.graph, policy:str, transmission_rate: float, transm
                 to_quarantine = agent(state)
                 state.step(to_quarantine)
 
-            average += len(state.SIR.R)
+            average += len(state.SIR.R)/20
 
         if average >= target:
             l = m+1

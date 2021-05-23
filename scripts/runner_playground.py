@@ -13,45 +13,19 @@ G = load_graph_cville_labels()
 G = read_extra_edges(G, 0.15)
 G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 
-#G2 = load_graph_cville_labels()
-#G2 = read_extra_edges(G2, 0.15)
-#G2.centrality = nx.algorithms.eigenvector_centrality_numpy(G2)
-
-#G2 = load_graph_cville_labels()
-#G2.centrality = nx.algorithms.eigenvector_centrality_numpy(G2)
-
-
-#be5 for cville w/ added edges, ce6 for montgomery w/ added edges
-#b5 for cville, c7 for montgomery
-
 config = {
     "G" : [G],
     "budget": [1350],
-    #"budget": [i for i in range(400, 1260, 50)],
     "policy": ["none"],
     "transmission_rate": [0.05],
     "transmission_known": [True],
     "compliance_rate": [0.8],
     "compliance_known": [True],
-    "discovery_rate": [i/100 for i in range(50,101,1)],
-    "snitch_rate": [0.8],
+    "discovery_rate": [0.8],
+    "snitch_rate": [i/100 for i in range(50,101,1)],
     "from_cache": ["be5.json"],
     "agent": [DegGreedy_fair, DepRound_fair]
 }
-
-'''config_cville_extra = {
-    "G" : [G2],
-    "budget": [i for i in range(720, 2270, 20)],
-    "policy": ["none"],
-    "transmission_rate": [0.05],
-    "transmission_known": [True],
-    "compliance_rate": [0.8],
-    "compliance_known": [True],
-    "discovery_rate": [1],
-    "snitch_rate": [1],
-    "from_cache": ["be5.json"],
-    "agent": [Random, EC, DegGreedy_fair, DepRound_fair]
-}'''
 
 in_schema = list(config.keys())
 out_schema = ["infection_count", "infections_step"]
