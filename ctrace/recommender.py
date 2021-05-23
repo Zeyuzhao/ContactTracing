@@ -4,9 +4,8 @@ import numpy as np
 import networkx as nx
 
 from .round import D_prime
-from .utils import min_exposed_objective
+from .utils import min_exposed_objective, pct_to_int
 from .simulation import *
-#from .problem2 import *
 from .problem_label import *
 from .problem import *
 
@@ -46,6 +45,59 @@ def Degree(state: InfectionState):
         
     degrees.sort(reverse=True)
     return {i[1] for i in degrees[:state.budget]}
+
+def segmented_greedy(state: InfectionState, split_pcts=[0.75, 0.25], alloc_pcts=[.25, .75], carry=True, rng=np.random, DEBUG=False):
+    """
+    pcts are ordered from smallest degree to largest degree
+    split_pcts: segment size percentages
+    alloc_pcts: segment budget percentages
+    Overflow Mechanic: the budget may exceed the segment size.
+    We fill from right to left 
+    (greater chance of overflow: larger degree usually have fewer members but higher budget), 
+    and excess capacity is carried over to the next category.
+    """
+    if not math.isclose(1, sum(split_pcts)):
+        raise ValueError(
+            f"split_pcts '{split_pcts}' sum to {sum(split_pcts)}, not 1")
+    if not math.isclose(1, sum(alloc_pcts)):
+        raise ValueError(
+            f"alloc_pcts '{alloc_pcts}' sum to {sum(alloc_pcts)}, not 1")
+
+    budget = state.budget
+    G = state.G
+    split_amt = pct_to_int(len(state.V1), split_pcts)
+    alloc_amt = pct_to_int(budget, alloc_pcts)
+
+    v1_degrees = [(n, G.degree(n)) for n in state.V1]
+    v1_sorted = [n for n, d in sorted(v1_degrees, key=lambda x: x[1])]
+
+    v1_segments = np.split(v1_sorted, np.cumsum(split_amt[:-1]))
+
+    overflow = 0
+    samples = []
+    for segment, amt in reversed(list(zip(v1_segments, alloc_amt))):
+        # Overflow is carried over to the next segment
+        segment_budget = amt
+        if carry:
+            segment_budget += overflow
+
+        # Compute overflow
+        if segment_budget > len(segment):
+            overflow = segment_budget - len(segment)
+            segment_budget = len(segment)
+        else:
+            overflow = 0
+
+        sample = rng.choice(segment, segment_budget, replace=False)
+        samples.extend(sample)
+
+        if DEBUG:
+            print(f"{segment_budget} / {len(segment)} (overflow: {overflow})")
+            print("segment: ", segment)
+            print("sample: ", sample)
+            print("--------------")
+            assert len(samples) <= budget
+    return samples
 
 #Accounts for edges between V1
 '''def Degree2(state: InfectionState):
