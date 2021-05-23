@@ -13,17 +13,6 @@ G = load_graph_montgomery_labels()
 G = read_extra_edges(G, 0.15)
 G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 
-#G2 = load_graph_cville_labels()
-#G2 = read_extra_edges(G2, 0.15)
-#G2.centrality = nx.algorithms.eigenvector_centrality_numpy(G2)
-
-#G2 = load_graph_cville_labels()
-#G2.centrality = nx.algorithms.eigenvector_centrality_numpy(G2)
-
-
-#be5 for cville w/ added edges, ce6 for montgomery w/ added edges
-#b5 for cville, c7 for montgomery
-
 config = {
     "G" : [G],
     "budget": [750],
@@ -38,20 +27,6 @@ config = {
     "from_cache": ["ce6.json"],
     "agent": [DegGreedy_fair, DepRound_fair]
 }
-
-'''config_cville_extra = {
-    "G" : [G2],
-    "budget": [i for i in range(720, 2270, 20)],
-    "policy": ["none"],
-    "transmission_rate": [0.05],
-    "transmission_known": [True],
-    "compliance_rate": [0.8],
-    "compliance_known": [True],
-    "discovery_rate": [1],
-    "snitch_rate": [1],
-    "from_cache": ["be5.json"],
-    "agent": [Random, EC, DegGreedy_fair, DepRound_fair]
-}'''
 
 in_schema = list(config.keys())
 out_schema = ["infection_count", "infections_step"]
@@ -78,19 +53,5 @@ def time_trial_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: 
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
 run.exec()
 
-'''config = {
-    "G" : [G2],
-    "budget": [1000,2000],
-    "transmission_rate": [0.06],
-    "compliance_rate": [1],
-    "global_rate":  [.05],        
-    "discovery_rate": [i/100 for i in range(1,101)],
-    "snitch_rate":  [.8],
-    "from_cache": ["a5.json"],
-    "agent": [DegGreedy]
-}
-
-run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
-run.exec()'''
 
 #%%
