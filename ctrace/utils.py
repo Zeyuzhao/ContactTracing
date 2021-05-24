@@ -11,7 +11,7 @@ from collections import defaultdict
 from pathlib import Path
 from statistics import mean
 from typing import Set, Iterable, Tuple, List, Dict, Any, TypeVar, Optional
-from collections import UserList
+from collections import UserList, Counter
 from enum import IntEnum
 
 import EoN
@@ -36,6 +36,30 @@ def edge_transmission(u: int, v: int, G: nx.Graph):
         if random.random() < G[u][v]['transmission']:
             return 1
         return 0
+
+
+def pair_greedy(pairs, label_budgets, budget, mapper):
+    """
+    pairs: (obj_val, id)
+    label_budgets: label -> budget
+    budget: int
+    mapper: id -> label
+    """
+    label_budgets = {k: v for k, v in label_budgets.items() if v is not None}
+
+    result = set()
+    for val, v in pairs:
+        if len(result) >= budget:
+            break
+        label = mapper(v)
+        if label not in label_budgets:
+            result.add(v)
+        else:
+            # Add greedily until budget runs out for a particular label
+            if label_budgets[label] > 0:
+                result.add(v)
+                label_budgets[label] -= 1
+    return result
 
 
 def allocate_budget(G: nx.Graph, V1: set, budget: int, labels: list, label_map: dict, policy: str):
@@ -66,6 +90,145 @@ def allocate_budget(G: nx.Graph, V1: set, budget: int, labels: list, label_map: 
         budget_labels.append(math.floor(
             budget*distribution[i]/distribution_sum))
     return budget_labels
+
+# <================ Adjustments ================>
+
+# Letter Description
+# p: (0, 4) preschool
+# s: (5, 17) school-aged
+# a: (18, 49) adults
+# o: (50, 64) older-adults
+# g: (65, ) golden-aged
+
+# None: no restrictions for the category specifically, but global budget constraint still holds
+
+
+# No Restrictions
+policy_A = {
+    0: None,
+    1: None,
+    2: None,
+    3: None,
+    4: None,
+}
+
+# Proportional
+policy_B = {
+    0: 1,
+    1: 1,
+    2: 1,
+    3: 1,
+    4: 1,
+}
+# Double for golden-aged
+policy_C = {
+    0: 1,
+    1: 1,
+    2: 1,
+    3: 1,
+    4: 2,
+}
+# Halved for adults and older adults
+policy_D = {
+    0: 1,
+    1: 1,
+    2: 0.5,
+    3: 0.5,
+    4: 1,
+}
+
+# Unrestricted golden-aged and preschool
+policy_E = {
+    0: None,
+    1: 1,
+    2: 0.5,
+    3: 0.5,
+    4: None,
+}
+
+fair_policies = {
+    'A': policy_A,
+    'B': policy_B,
+    'C': policy_C,
+    'D': policy_D,
+    'E': policy_E,
+}
+
+
+def compute_label_budgets(G, scales, budget=None):
+    pop_counts = Counter(G.nodes[n].get('age_group') for n in G.nodes)
+    adjusted = rescale_none(pop_counts, scales, budget)
+
+    return {k: adjusted[k] for k in sorted(adjusted)}
+
+
+def rescale_none(pop_counts, policy, budget=None):
+    """
+    Rescales and allows for None in policy proportion factors.
+    Filters out the nones, and performs rescaling on the remaining numbers.
+
+    pop_counts: dict[pop_id] -> count
+    policy: dict[pop_id] -> proportion factor
+    """
+    scales = [v for k, v in policy.items() if v is not None]
+    indices = [k for k, v in policy.items() if v is not None]
+    nulls = [k for k, v in policy.items() if v is None]
+    total = sum(scales)
+    if total == 0:
+        return policy  # 0 -> 0, None -> None
+
+    counts = rescale([pop_counts[i] for i in indices], scales, budget)
+    counts = round_fracs(counts)
+
+    # Expand filtered back into original from
+    soln = {}
+    for k in policy:
+        if k in nulls:
+            soln[k] = None
+        else:
+            soln[k] = counts[indices.index(k)]
+    return soln
+
+
+def rescale(nums, scales, budget=None):
+    """
+    Rescale nums with scales to budget. Budget defaults to sum(nums)
+
+    Ex:
+    nums = [10, 20]
+    scale = [2, 1]
+    budget = 30
+    will return [15, 15]
+    """
+    raw = np.multiply(nums, scales)
+    if np.sum(raw) == 0:
+        raise ValueError("Rescaling denominator may not 0")
+    if budget is None:
+        budget = np.sum(nums)
+    return list(raw * budget / np.sum(raw))
+
+
+def round_fracs(amts):
+    """
+    Rounds array, ensuring that sum(result) == sum(amts)
+    Using even-rounding (rounds to the nearest even for 0.5)
+    All fractions are closed (accumulated) in last element.
+    """
+    if len(amts) == 0:
+        return []
+    if len(amts) == 1:
+        return [round(amts[0])]
+    first = [round(amt) for amt in amts[:-1]]
+    return first + [int(sum(amts) - sum(first))]
+
+
+assert rescale([10, 20], [2, 1]) == [15, 15]
+assert rescale([10, 10], [3, 1]) == [15, 5]
+
+assert rescale([10, 20], [2, 1], 60) == [30, 30]
+assert rescale([10, 10], [3, 1], 40) == [30, 10]
+
+assert rescale([30], [1], 40) == [40]
 
 
 def find_contours(G: nx.Graph, infected):
@@ -350,6 +513,14 @@ def prep_dataset(name: str, data_dir: Path = None, sizes=(None,)):
     return G'''
 
 
+def load_graph(name, **args):
+    if name == "montgomery":
+        return load_graph_montgomery_labels()
+    if name == "cville":
+        return load_graph_cville_labels()
+    raise ValueError(f"{name} is not a recognized graph name.")
+
+
 def load_graph_montgomery_labels():
     G = nx.Graph()
     G.NAME = "montgomery"
@@ -591,10 +762,6 @@ def load_sir_path(path: Path, merge=False):
         return data
 
 
-SIR = IntEnum("SIR", ["S", "I", "R"])
-SEIR = IntEnum("SEIR", ["S", "E", "I", "R"])
-
-
 class Partition(UserList):
     """
     DO NOT USE DIRECTLY!
@@ -669,6 +836,10 @@ class Partition(UserList):
         return {k: v for k, v in enumerate(self.data)}
 
 
+SIR = IntEnum("SIR", ["S", "I", "R"])
+SEIR = IntEnum("SEIR", ["S", "E", "I", "R"])
+
+
 class PartitionSIR(Partition):
     type = SIR
 
@@ -707,4 +878,3 @@ def pct_to_int(amt, pcts):
 assert pct_to_int(10, [0.5, 0.5]) == [5, 5]
 assert pct_to_int(11, [0.5, 0.5]) == [5, 6]
 assert pct_to_int(20, [0.33, 0.33, 0.34]) == [6, 6, 8]
-

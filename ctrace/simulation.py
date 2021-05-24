@@ -9,7 +9,7 @@ import math
 from typing import Set
 from collections import namedtuple
 
-from .utils import find_excluded_contours_edges_PQ, edge_transmission, allocate_budget
+from .utils import find_excluded_contours_edges_PQ, edge_transmission, allocate_budget, compute_label_budgets, fair_policies
 from . import PROJECT_ROOT
 
 SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I1", "I2", "R"])
@@ -50,7 +50,7 @@ class InfectionState:
         frequencies = list(nx.get_node_attributes(
             self.G, 'age_group').values())
         k = 1
-        
+
         # k = max(0, len(G.nodes)*(self.compliance_rate-1)/sum([frequencies.count(i)*(
         #     self.compliance_map[i]-1) for i in range(len(self.compliance_map))]))
 
@@ -86,6 +86,8 @@ class InfectionState:
 
     # returns a SimulationState object loaded from a file
     def load(self, G: nx.graph, file):
+        raise NotImplementedError
+
         with open(PROJECT_ROOT / "data" / "SIR_Cache" / file, 'r') as infile:
             j = json.load(infile)
 
@@ -98,6 +100,7 @@ class InfectionState:
 
     # saves a SimulationState object to a file
     def save(self, file):
+        raise NotImplementedError
 
         to_save = {
             "G": self.G.name,
@@ -144,5 +147,6 @@ class InfectionState:
             self.G, self.SIR.I2, self.SIR.R, self.discovery_rate, self.snitch_rate)
 
     def set_budget_labels(self):
-        self.budget_labels = allocate_budget(
-            self.G, self.V1, self.budget, self.labels, self.label_map, self.policy)
+        print(fair_policies[self.policy])
+        self.budget_labels = compute_label_budgets(
+            self.G, fair_policies[self.policy], self.budget)

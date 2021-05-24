@@ -71,12 +71,11 @@ class MinExposedProgram2_label:
                 cost.SetCoefficient(self.X1[u], 1)
         else:
             for label in self.labels:
-                cost: Constraint = self.solver.Constraint(0, self.budget_labels[label])
-                for u in self.contour1:
-                    if (self.G.nodes[u]["age_group"]==label):
-                        cost.SetCoefficient(self.X1[u], 1)
-                    else:
-                        cost.SetCoefficient(self.X1[u], 0)
+                if self.budget_labels[label] is not None:
+                    cost: Constraint = self.solver.Constraint(0, self.budget_labels[label])
+                    for u in self.contour1:
+                        if (self.G.nodes[u]["age_group"]==label):
+                            cost.SetCoefficient(self.X1[u], 1)
         
         if self.compliance_known:
             for u in self.contour1:

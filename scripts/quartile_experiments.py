@@ -9,20 +9,20 @@ import pandas as pd
 import networkx as nx
 
 
-G = load_graph_montgomery_labels()
-config = {
-    "G": [G],
-    "budget": [i for i in range(400, 1260, 10)],
-    "policy": ["none"],
-    "transmission_rate": [0.05],
-    "transmission_known": [False],
-    "compliance_rate": [-1],  # GO INTO SIMULATION AND SET K = 1
-    "compliance_known": [False],
-    "discovery_rate": [1],
-    "snitch_rate": [1],
-    "from_cache": ["c7.json"],
-    "agent": []
-}
+# G = load_graph_montgomery_labels()
+# config = {
+#     "G": [G],
+#     "budget": [i for i in range(400, 1260, 10)],
+#     "policy": ["none"],
+#     "transmission_rate": [0.05],
+#     "transmission_known": [False],
+#     "compliance_rate": [-1],  # GO INTO SIMULATION AND SET K = 1
+#     "compliance_known": [False],
+#     "discovery_rate": [1],
+#     "snitch_rate": [1],
+#     "from_cache": ["c7.json"],
+#     "agent": []
+# }
 
 
 # %%
@@ -42,6 +42,8 @@ G = load_graph_montgomery_labels()
 # be5 for cville w/ added edges, ce6 for montgomery w/ added edges
 # b5 for cville, c7 for montgomery
 
+
+G = load_graph_montgomery_labels()
 config = {
     "G": [G],
     "budget": [i for i in range(400, 1260, 10)],
@@ -57,21 +59,22 @@ config = {
     "agent": [segmented_greedy]
 }
 
-'''config_cville_extra = {
-    "G" : [G2],
+G2 = load_graph_cville_labels()
+config_cville = {
+    "G": [G2],
     "budget": [i for i in range(720, 2270, 20)],
     "policy": ["none"],
     "transmission_rate": [0.05],
     "transmission_known": [True],
-    "compliance_rate": [0.8],
-    "compliance_known": [True],
+    "compliance_rate": [-1],
+    "compliance_known": [False],
     "discovery_rate": [1],
     "snitch_rate": [1],
-    "from_cache": ["be5.json"],
-    "agent": [Random, EC, DegGreedy_fair, DepRound_fair]
-}'''
+    "from_cache": ["b5.json"],
+    "agent": [segmented_greedy]
+}
 
-in_schema = list(config.keys())
+in_schema = list(config_cville.keys())
 out_schema = ["infection_count", "infections_step"]
 TrackerInfo = namedtuple("TrackerInfo", out_schema)
 
@@ -96,6 +99,6 @@ def time_trial_tracker(G: nx.graph, budget: int, policy: str, transmission_rate:
 
 
 run = GridExecutorParallel.init_multiple(
-    config, in_schema, out_schema, func=time_trial_tracker, trials=10)
-run.exec(max_workers=40)
+    config_cville, in_schema, out_schema, func=time_trial_tracker, trials=10)
+run.exec(max_workers=80)
 # %%
