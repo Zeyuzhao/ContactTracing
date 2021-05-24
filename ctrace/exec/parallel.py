@@ -1,4 +1,4 @@
-#%%
+# %%
 import shortuuid
 from ctrace import PROJECT_ROOT
 from ctrace.exec.param import GraphParam, SIRParam, FileParam, ParamBase
@@ -30,7 +30,8 @@ class MultiExecutor():
         post_execution: Callable = lambda self: self,
         output_id: str = None,
         seed: bool = True,
-        validation: bool = True
+        validation: bool = True,
+        num_process=50,
     ):
         self.runner = runner
         self.schema = schema
@@ -54,7 +55,7 @@ class MultiExecutor():
         self._schema.insert(0, ('id', int))
         if self.seed:
             self._schema.append(('seed', int))
-        self.num_process = 10
+        self.num_process = num_process
 
         # Initialize functions
         self.output_id = output_id
@@ -214,11 +215,11 @@ class CsvSchemaWorker(Worker):
 
     def start(self):
         """
-        
+
         """
         # TODO: Replace prints with logging
         if self.run_root is None:
-            raise ValueError('run_root needs to a path')
+            raise ValueError('run_root needs to be a path')
 
         if self.queue is None:
             raise ValueError('need to pass a queue to run')
@@ -292,7 +293,7 @@ class CsvWorker(Worker):
                 writer.writerow(msg)
                 f.flush()
                 # print(f'DEBUG: Worker {self.name} writes entry {msg.get("id")}')
-#%%
+# %%
 
 
 if __name__ == '__main__':
@@ -308,8 +309,10 @@ if __name__ == '__main__':
     main_out_schema = ["id", "out_method"]
     aux_out_schema = ["id", "runtime"]
 
-    main_handler = CsvWorker("csv_main", main_out_schema, PurePath('main.csv'))
-    aux_handler = CsvWorker("csv_aux", aux_out_schema, PurePath('aux.csv'))
+    main_handler = CsvSchemaWorker(
+        name="csv_main", schema=main_out_schema, relpath=PurePath('main.csv'))
+    aux_handler = CsvSchemaWorker(
+        name="csv_aux", schema=aux_out_schema, relpath=PurePath('aux.csv'))
 
     def runner(data):
 

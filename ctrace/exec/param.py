@@ -56,9 +56,10 @@ class Param(ParamBase):
 
 @dataclass
 class LambdaParam(ParamBase):
+    data: Any = field(init=True, repr=False)
+
     def __post_init__(self):
-        if self.path is None:
-            self.path = self.finder()
+        self.name = self.data.__name__
 
 
 @dataclass

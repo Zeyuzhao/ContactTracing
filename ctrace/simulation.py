@@ -147,6 +147,5 @@ class InfectionState:
             self.G, self.SIR.I2, self.SIR.R, self.discovery_rate, self.snitch_rate)
 
     def set_budget_labels(self):
-        print(fair_policies[self.policy])
         self.budget_labels = compute_label_budgets(
             self.G, fair_policies[self.policy], self.budget)
