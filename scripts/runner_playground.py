@@ -27,7 +27,7 @@ G = load_graph_montgomery_labels()
 #montgomery budget: 750
 #cville budget: 1350
 
-'''config = {
+config = {
     "G" : [G],
     "budget": [750],
     "policy": ["none"],
@@ -35,11 +35,11 @@ G = load_graph_montgomery_labels()
     "transmission_known": [True],
     "compliance_rate": [0.8],
     "compliance_known": [True],
-    "discovery_rate": [i/100 for i in range(50, 101, 1)],
+    "discovery_rate": [i/100 for i in range(80, 101, 1)],
     "snitch_rate": [i/100 for i in range(50, 101, 1)],
     "from_cache": ["c7.json"],
     "agent": [DegGreedy_fair, DepRound_fair]
-}'''
+}
 
 '''G2 = load_graph_cville_labels()
 config = {
