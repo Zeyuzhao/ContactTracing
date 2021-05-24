@@ -66,3 +66,5 @@ def test_rescale_single():
     policy3 = dict(enumerate([2, None, None, None]))
     assert rescale_none([10, 100, 20, 50], policy3) == dict(
         enumerate([10, None, None, None]))
+
+    assert rescale_none([10], {0: 1}) == {0: 10}
