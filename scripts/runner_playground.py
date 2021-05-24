@@ -9,13 +9,14 @@ from ctrace.recommender import *
 from collections import namedtuple
 json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 
-G = load_graph_cville_labels()
+G = load_graph_montgomery_labels()
 G = read_extra_edges(G, 0.15)
 G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 
 config = {
     "G" : [G],
-    "budget": [1350],
+    "budget": [750],
+    #"budget": [i for i in range(400, 1260, 50)],
     "policy": ["none"],
     "transmission_rate": [0.05],
     "transmission_known": [True],
@@ -23,7 +24,7 @@ config = {
     "compliance_known": [True],
     "discovery_rate": [0.8],
     "snitch_rate": [i/100 for i in range(50,101,1)],
-    "from_cache": ["be5.json"],
+    "from_cache": ["ce6.json"],
     "agent": [DegGreedy_fair, DepRound_fair]
 }
 
@@ -52,19 +53,5 @@ def time_trial_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: 
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
 run.exec()
 
-'''config = {
-    "G" : [G2],
-    "budget": [1000,2000],
-    "transmission_rate": [0.06],
-    "compliance_rate": [1],
-    "global_rate":  [.05],        
-    "discovery_rate": [i/100 for i in range(1,101)],
-    "snitch_rate":  [.8],
-    "from_cache": ["a5.json"],
-    "agent": [DegGreedy]
-}
-
-run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
-run.exec()'''
 
 #%%
