@@ -129,10 +129,10 @@ cville = GraphParam('cville')
 
 run.add_cartesian({
     "graph": [montgomery],
-    "budget": [i for i in range(400, 1601, 400)],
-    "agent": [LambdaParam(DepRound_fair), LambdaParam(DegGreedy_fair)],
+    "budget": [i for i in range(400, 1260, 10)],
+    "agent": [LambdaParam(segmented_greedy)],
     # "budget": [i for i in range(400, 1260, 50)],
-    "policy": ["A", "B", "C", "D", "A_ONLY"],
+    "policy": ["A"],
     "transmission_rate": [0.05],
     "transmission_known": [False],
     "compliance_rate": [-1.0],
@@ -140,14 +140,14 @@ run.add_cartesian({
     "discovery_rate": [1.0],
     "snitch_rate": [1.0],
     "from_cache": ["c7.json"],
-    "trial_id": [i for i in range(10)]
+    "trial_id": [i for i in range(5)]
 })
 run.add_cartesian({
     "graph": [cville],
-    "budget": [i for i in range(800, 3201, 800)],
+    "budget": [i for i in range(720, 2270, 20)],
     # "budget": [i for i in range(720, 2270, 20)],
-    "agent": [LambdaParam(DepRound_fair), LambdaParam(DegGreedy_fair)],
-    "policy": ["A", "B", "C", "D", "A_ONLY"],
+    "agent": [LambdaParam(segmented_greedy)],
+    "policy": ["A"],
     "transmission_rate": [0.05],
     "transmission_known": [False],
     "compliance_rate": [-1.0],
@@ -155,7 +155,7 @@ run.add_cartesian({
     "discovery_rate": [1.0],
     "snitch_rate": [1.0],
     "from_cache": ["b5.json"],
-    "trial_id": [i for i in range(10)],
+    "trial_id": [i for i in range(5)],
 })
 
 # main_out_schema = ["mean_objective_value", "max_objective_value", "std_objective_value"]
