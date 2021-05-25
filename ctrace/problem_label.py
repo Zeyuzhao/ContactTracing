@@ -11,35 +11,37 @@ from .round import *
 from .utils import *
 from .simulation import *
 
+
 class MinExposedProgram2_label:
     def __init__(self, info: InfectionState, solver_id="GLOP"):
-        
+
         self.result = None
         #self.info = info
         self.G = info.G
         self.SIR = info.SIR
-        
+
         self.budget = info.budget
         self.policy = info.policy
         self.budget_labels = info.budget_labels
         self.labels = info.labels
-        
+
         self.p = info.transmission_rate
         self.transmission_known = info.transmission_known
         self.compliance_known = info.compliance_known
-        
+
         self.contour1, self.contour2 = info.V1, info.V2
         self.solver = pywraplp.Solver.CreateSolver(solver_id)
-        
+
         if self.transmission_known:
             self.P = info.P
             self.Q = info.Q
         else:
-            self.P, self.Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, info.Q, self.p)
+            self.P, self.Q = pq_independent(
+                self.G, self.SIR.I2, self.contour1, self.contour2, info.Q, self.p)
 
         if self.solver is None:
             raise ValueError("Solver failed to initialize!")
-    
+
         # Partial evaluation storage
         self.partials = {}
 
@@ -64,26 +66,29 @@ class MinExposedProgram2_label:
         # X-Y are complements
         for u in self.contour1:
             self.solver.Add(self.X1[u] + self.Y1[u] == 1)
-        
-        if self.policy == "none":
-            cost: Constraint = self.solver.Constraint(0, self.budget)
-            for u in self.contour1:
-                cost.SetCoefficient(self.X1[u], 1)
-        else:
-            for label in self.labels:
-                if self.budget_labels[label] is not None:
-                    cost: Constraint = self.solver.Constraint(0, self.budget_labels[label])
-                    for u in self.contour1:
-                        if (self.G.nodes[u]["age_group"]==label):
-                            cost.SetCoefficient(self.X1[u], 1)
-        
+
+        # Global Budget
+        cost: Constraint = self.solver.Constraint(0, self.budget)
+        for u in self.contour1:
+            cost.SetCoefficient(self.X1[u], 1)
+
+        # Label-wise sub budget
+        for label in self.labels:
+            if self.budget_labels[label] is not None:
+                cost: Constraint = self.solver.Constraint(
+                    0, self.budget_labels[label])
+                for u in self.contour1:
+                    if (self.G.nodes[u]["age_group"] == label):
+                        cost.SetCoefficient(self.X1[u], 1)
+
         if self.compliance_known:
             for u in self.contour1:
                 for v in self.G.neighbors(u):
                     if v in self.contour2:
                         #c = self.Q[u][v] * self.P[u] *(1-self.P[v])
                         c = self.Q[u][v] * self.P[u]
-                        self.solver.Add(self.Y2[v] >= c* ((1-self.G.nodes[u]['compliance_rate'])*self.X1[u] + self.Y1[u]))
+                        self.solver.Add(
+                            self.Y2[v] >= c * ((1-self.G.nodes[u]['compliance_rate'])*self.X1[u] + self.Y1[u]))
         else:
             for u in self.contour1:
                 for v in self.G.neighbors(u):
@@ -91,7 +96,7 @@ class MinExposedProgram2_label:
                         #c = self.Q[u][v] * self.P[u] *(1-self.P[v])
                         c = self.Q[u][v] * self.P[u]
                         self.solver.Add(self.Y2[v] >= c * self.Y1[u])
-        
+
         # Objective: Minimize number of people exposed in contour2
         num_exposed: Objective = self.solver.Objective()
         for v in self.contour2:
@@ -135,7 +140,8 @@ class MinExposedProgram2_label:
 
         # Indicators
         for i, u in enumerate(self.contour1):
-            self.quarantine_raw[i] = self.quarantined_solution[u] = self.X1[u].solution_value()
+            self.quarantine_raw[i] = self.quarantined_solution[u] = self.X1[u].solution_value(
+            )
             self.quarantine_map.append(u)
 
         self.objective_value = self.lp_objective_value()
@@ -185,7 +191,7 @@ class MinExposedProgram2_label:
 
     def get_solution(self):
         return self.quarantined_solution
-    
+
     def lp_objective_value(self):
         # Will raise error if not solved
         # Number of people exposed in V2
@@ -197,8 +203,10 @@ class MinExposedProgram2_label:
     def min_exposed_objective(self):
         """Simulate the MinExposed Objective outline in the paper. May only be called after recommend"""
         if self.result is None:
-            raise ValueError("Must call recommend() before retrieving objective value")
-        min_exposed_objective(self.info.G, self.info.SIR, self.info.transmission_rate, self.result)
+            raise ValueError(
+                "Must call recommend() before retrieving objective value")
+        min_exposed_objective(self.info.G, self.info.SIR,
+                              self.info.transmission_rate, self.result)
 
 
 class MinExposedLP2_label(MinExposedProgram2_label):
@@ -215,7 +223,7 @@ class MinExposedLP2_label(MinExposedProgram2_label):
 
 
 class MinExposedIP2_label(MinExposedProgram2_label):
-    #def __init__(self, info: InfectionState, solver_id="GUROBI"):
+    # def __init__(self, info: InfectionState, solver_id="GUROBI"):
     def __init__(self, info: InfectionState, solver_id="GLOP"):
         super().__init__(info, solver_id)
 
@@ -226,6 +234,7 @@ class MinExposedIP2_label(MinExposedProgram2_label):
             self.Y1[u] = self.solver.IntVar(0, 1, f"V1_y{u}")
         for v in self.contour2:
             self.Y2[v] = self.solver.NumVar(0, 1, f"V2_y{v}")
+
 
 class MinExposedSAADiffusion2(MinExposedProgram2_label):
     def __init__(self, info: InfectionState, solver_id="GLOP", num_samples=10, seed=42):
@@ -248,8 +257,9 @@ class MinExposedSAADiffusion2(MinExposedProgram2_label):
             raise ValueError("Solver failed to initialize!")
 
         # Compute P, Q from SIR
-        self.P, self.Q = pq_independent(self.G, self.SIR.I, self.contour1, self.p)
-    
+        self.P, self.Q = pq_independent(
+            self.G, self.SIR.I, self.contour1, self.p)
+
         # Partial evaluation storage
         self.partials = {}
 
@@ -258,7 +268,8 @@ class MinExposedSAADiffusion2(MinExposedProgram2_label):
         self.Y1: Dict[int, Variable] = {}
 
         # non-controllable - contour2 (over i samples)
-        self.Y2: List[Dict[int, Variable]] = [{} for i in range(self.num_samples)]
+        self.Y2: List[Dict[int, Variable]] = [{}
+                                              for i in range(self.num_samples)]
         self.init_variables()
 
         # Initialize constraints
@@ -269,10 +280,10 @@ class MinExposedSAADiffusion2(MinExposedProgram2_label):
         for u in self.contour1:
             self.X1[u] = self.solver.NumVar(0, 1, f"V1_x{u}")
             self.Y1[u] = self.solver.NumVar(0, 1, f"V1_y{u}")
-        
+
         for i in range(self.num_samples):
             for v in self.contour2:
-                self.Y2[i][v] = self.solver.NumVar(0, 1, f"V2[{i}]_y{v}") 
+                self.Y2[i][v] = self.solver.NumVar(0, 1, f"V2[{i}]_y{v}")
 
     def init_constraints(self):
         """Initializes the constraints according to the relaxed LP formulation of MinExposed"""
@@ -292,7 +303,7 @@ class MinExposedSAADiffusion2(MinExposedProgram2_label):
         for i in range(self.num_samples):
             for u in self.contour1:
                 for v in self.G.neighbors(u):
-                    if v in self.contour2 and random.random() < self.p: # Sample with uniform probability
+                    if v in self.contour2 and random.random() < self.p:  # Sample with uniform probability
                         self.contour_edge_samples[i].append((u, v))
                         self.solver.Add(self.Y2[i][v] >= self.Y1[u])
 
@@ -312,7 +323,7 @@ class MinExposedSAADiffusion2(MinExposedProgram2_label):
             for v in self.contour2:
                 objective_value += self.Y2[i][v].solution_value()
         return objective_value / self.num_samples
-        
+
     def lp_sample_objective_value(self, i):
         objective_value = 0
         for v in self.contour2:

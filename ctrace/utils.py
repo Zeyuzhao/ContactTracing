@@ -152,6 +152,13 @@ fair_policies = {
     'C': policy_C,
     'D': policy_D,
     'E': policy_E,
+    'A_ONLY': {  # Only Quarantine Adults
+        0: 0,
+        1: 0,
+        2: None,
+        3: 0,
+        4: 0,
+    },
 }
 
 

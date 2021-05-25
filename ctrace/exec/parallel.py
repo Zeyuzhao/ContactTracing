@@ -99,7 +99,7 @@ class MultiExecutor():
         # Collect signatures from FileParams
         new_tasks = list(MultiExecutor.cartesian_product(config))
         self.tasks.extend(new_tasks)
-        print(f"Attached {len(new_tasks)} tasks.")
+        print(f"Added {len(new_tasks)} cartesian tasks.")
 
     def add_collection(self, collection: List[Dict[str, Any]]):
         if self.validation:
@@ -268,7 +268,7 @@ class CsvWorker(Worker):
 
     def start(self):
         """
-        Each objected piped to queue must be in form [id, val1, val2 ...]
+        Each object piped to queue must be in form [id, val1, val2 ...]
         """
         # TODO: Replace prints with logging
         if self.run_root is None:
