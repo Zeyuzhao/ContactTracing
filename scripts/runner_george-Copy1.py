@@ -12,7 +12,7 @@ json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 G = load_graph_montgomery_labels()
 #G = load_graph_cville_labels()
 #G = read_extra_edges(G, 0.15)
-G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
+#G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 #G = load_graph_hid_duration()
 
 #be5 for cville w/ added edges, ce6 for montgomery w/ added edges
@@ -24,12 +24,12 @@ config = {
     #"budget": [i for i in range(100, 5000, 10)], #[i for i in range(100, 451, 50)],#[i for i in range(100,3710,10)],
     "transmission_rate": [0.05],
     "transmission_known": [True],
-    "compliance_rate": [0.8],#[i/100 for i in range(50, 101, 5)],#[i/100 for i in range(50,101,5)],
+    "compliance_rate": [0.8],                      #[i/100 for i in range(50,101,5)],
     "compliance_known": [True],
-    "discovery_rate": [i/100 for i in range(50,101,1)],
+    "discovery_rate": [i/100 for i in range(50, 101, 1)],
     "snitch_rate":  [0.8],
-    "from_cache": ["c7.json"], #be5 is cville with extra edges
-    "agent": [DegGreedy_fair],
+    "from_cache": ["c7.json"],                                                  #be5 is cville with extra edges
+    "agent": [DepRound_fair],
     "target": [33800]
 }
 

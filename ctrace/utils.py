@@ -94,6 +94,22 @@ def find_excluded_contours_edges_PQ(G: nx.Graph, infected: Set[int], excluded: S
     v1_k = {v for v in v1 if random.uniform(0,1) < discovery_rate}
     P = {v: (1 - math.prod(1-(G[i][v]["transmission"] if check_edge_transmission(G, i, v) else 0) for i in set(set(G.neighbors(v)) & set(infected)))) for v in v1_k}
     
+    '''
+    P = {}
+    exclusion = (set(infected) | set(excluded))
+    for v in infected:
+        for nbr in effective_neighbor(G, v, G.neighbors(v)):
+            if nbr not in exclusion and (random.uniform(0,1) < discovery_rate):
+                v1_k.add(nbr)
+                if nbr in P:
+                    P[nbr] *= 1-G[i][v]["transmission"]
+                else:
+                    P[nbr] = 1-G[i][v]["transmission"]
+                    
+    for key,value in P.items():
+        P[key] = 1-value
+    '''
+    
     v2_k = set()
     Q = {}
     exclusion = (set(infected) | set(excluded) | set(v1_k) )
@@ -111,7 +127,53 @@ def find_excluded_contours_edges_PQ(G: nx.Graph, infected: Set[int], excluded: S
                 else:
                     Q[u] = {v:0}
     return v1_k, v2_k, P, Q
+
+def find_excluded_contours_edges_PQ2(G: nx.Graph, infected: Set[int], excluded: Set[int], transmission_rate: float, snitch_rate:float = 1, transmission_known: bool = True):
+    P = {}
+    v1_k = set()
+    exclusion = (set(infected) | set(excluded))
+    for v in infected:
+        for nbr in effective_neighbor(G, v, G.neighbors(v)):
+            if nbr not in exclusion and (random.uniform(0,1) < snitch_rate):
+                v1_k.add(nbr)
+                if transmission_known:
+                    if nbr in P:
+                        P[nbr] *= 1-G[v][nbr]["transmission"]
+                    else:
+                        P[nbr] = 1-G[v][nbr]["transmission"]
+                else:
+                    if nbr in P:
+                        P[nbr] *= 1-transmission_rate
+                    else:
+                        P[nbr] = 1-transmission_rate
+                    
+    for key,value in P.items():
+        P[key] = 1-value
     
+    v2_k = set()
+    Q = {}
+    exclusion = (set(infected) | set(excluded) | set(v1_k) )
+    for u in v1_k:
+        for v in set(G.neighbors(u))-exclusion:
+            if check_edge_transmission(G, u, v) and (random.uniform(0,1) < snitch_rate):
+                if transmission_known:
+                    if u in Q:
+                        Q[u][v] = G[u][v]["transmission"]
+                    else:
+                        Q[u] = {v: G[u][v]["transmission"]}
+                else:
+                    if u in Q:
+                        Q[u][v] = transmission_rate
+                    else:
+                        Q[u] = {v: transmission_rate}
+                v2_k.add(v)
+            else:
+                if u in Q:
+                    Q[u][v] = 0
+                else:
+                    Q[u] = {v:0}
+    return v1_k, v2_k, P, Q
+
 '''def union_neighbors(G: nx.Graph, initial: Set[int], excluded: Set[int]):
     """Finds the union of neighbors of an initial set and remove excluded"""
     total = set().union(*[G.neighbors(v) for v in initial])
@@ -144,6 +206,11 @@ def pq_independent(G: nx.Graph, I: Iterable[int], V1: Iterable[int], V2: Iterabl
     Q = {}
     for key, values in Q_state.items():
         Q[key] = {v: p if values[v]!=0 else 0 for v in values.keys()}
+    return P, Q
+
+def pq_independent_simp(P_state, Q_state):
+    P = {v:1 for v in P_state}
+    Q = {u:{v:1 if Q_state[u][v] != 0 else 0 for v in Q_state[u].keys()} for u in Q_state.keys()}
     return P, Q
 
 def max_neighbors(G, V_1, V_2):

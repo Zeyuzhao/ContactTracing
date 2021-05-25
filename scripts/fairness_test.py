@@ -57,7 +57,7 @@ def time_trial_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: 
     q_total = set()
     while len(state.SIR.I1) + len(state.SIR.I2) != 0:
         to_quarantine = agent(state)
-        q_total.add(to_quarantine)
+        q_total|=(to_quarantine)
         state.step(to_quarantine)
         infections.append(len(state.SIR.I2))
 

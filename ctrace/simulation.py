@@ -9,13 +9,13 @@ import math
 from typing import Set
 from collections import namedtuple
 
-from .utils import find_excluded_contours_edges_PQ, edge_transmission, allocate_budget
+from .utils import find_excluded_contours_edges_PQ2, edge_transmission, allocate_budget
 from . import PROJECT_ROOT
 
 SIR_Tuple = namedtuple("SIR_Tuple", ["S", "I1", "I2", "R"])
                 
 class InfectionState:
-    def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, policy:str, transmission_rate:float, transmission_known: bool = False, compliance_rate:float = 1, compliance_known: bool = False, discovery_rate:float = 1, snitch_rate:float = 1):
+    def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, policy:str, transmission_rate:float, transmission_known: bool = False, compliance_rate:float = 1, compliance_known: bool = False, snitch_rate:float = 1):
     #def __init__(self, G:nx.graph, SIR: SIR_Tuple, budget:int, policy:str, transmission_rate:float, compliance_rate:float = 1, compliance_known: bool = False, partial_compliance:bool = False, I_knowledge:float = 1, discovery_rate:float = 1, snitch_rate:float = 1):
         self.G = G
         self.SIR = SIR_Tuple(*SIR)
@@ -25,7 +25,6 @@ class InfectionState:
         self.transmission_known = transmission_known
         self.compliance_rate = compliance_rate
         self.compliance_known = compliance_known
-        self.discovery_rate = discovery_rate
         self.snitch_rate = snitch_rate
        
         #the policies are: none, old, adult, young, equal --> defaults to "equal", which is proportionate to distribution of V1
@@ -45,8 +44,10 @@ class InfectionState:
         
         #Scale noncompliances such that the weighted average of compliances equals the parameter
         frequencies = list(nx.get_node_attributes(self.G, 'age_group').values())
-        #k = 1
-        k = max(0, len(G.nodes)*(self.compliance_rate-1)/sum([frequencies.count(i)*(self.compliance_map[i]-1) for i in range(len(self.compliance_map))]))
+        if compliance_rate < 0:
+            k = 1
+        else:
+            k = max(0, len(G.nodes)*(self.compliance_rate-1)/sum([frequencies.count(i)*(self.compliance_map[i]-1) for i in range(len(self.compliance_map))]))
         self.compliance_map = [(1-k*(1-self.compliance_map[i])) for i in range(len(self.compliance_map))]
         
         for node in G.nodes():
@@ -129,7 +130,7 @@ class InfectionState:
     
     def set_contours(self):
         #For knowledge of which edges are complied along, add parameter compliance_known:bool
-        (self.V1, self.V2, self.P, self.Q) = find_excluded_contours_edges_PQ(self.G, self.SIR.I2, self.SIR.R, self.discovery_rate, self.snitch_rate)
+        (self.V1, self.V2, self.P, self.Q) = find_excluded_contours_edges_PQ2(self.G, self.SIR.I2, self.SIR.R, self.transmission_rate, self.snitch_rate, self.transmission_known)
     
     def set_budget_labels(self):
         self.budget_labels = allocate_budget(self.G, self.V1, self.budget, self.labels, self.label_map, self.policy)
