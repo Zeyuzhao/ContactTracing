@@ -9,7 +9,7 @@ from ctrace.recommender import *
 from collections import namedtuple
 json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 
-G = load_graph_montgomery_labels()
+G = load_graph_cville_labels()
 #G = load_graph_cville_labels()
 #G = read_extra_edges(G, 0.15)
 G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
@@ -28,9 +28,9 @@ config = {
     "compliance_known": [True],
     "discovery_rate": [1],
     "snitch_rate":  [1],
-    "from_cache": ["c7.json"], #be5 is cville with extra edges
-    "agent": [DegGreedy_fair],
-    "target": [33800]
+    "from_cache": ["b5.json"], #be5 is cville with extra edges
+    "agent": [DegGreedy_fair, DepRound_fair],
+    "target": [67800]
 }
 
 in_schema = list(config.keys())
