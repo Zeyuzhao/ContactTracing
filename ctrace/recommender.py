@@ -46,6 +46,15 @@ def Degree(state: InfectionState):
     degrees.sort(reverse=True)
     return {i[1] for i in degrees[:state.budget]}
 
+def Degree2(state: InfectionState):
+    degrees: List[Tuple[int, int]] = []
+    for u in state.V1:
+        count = state.G.degree[u]
+        degrees.append((count, u))
+        
+    degrees.sort(reverse=True)
+    return {i[1] for i in degrees[:state.budget]}
+
 def segmented_greedy(state: InfectionState, split_pcts=[0.75, 0.25], alloc_pcts=[.25, .75], carry=True, rng=np.random, DEBUG=False):
     """
     pcts are ordered from smallest degree to largest degree
@@ -202,10 +211,7 @@ def DegGreedy2(state: InfectionState):
     return quarantine'''
 
 def DegGreedy_fair(state: InfectionState):
-    if not state.transmission_known:
-        P, Q = pq_independent(state.G, state.SIR.I2, state.V1, state.V2, state.Q, state.transmission_rate)
-    else:
-        P, Q = state.P, state.Q
+    P, Q = state.P, state.Q
     
     weights: List[Tuple[int, int]] = []
     

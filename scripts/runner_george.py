@@ -24,12 +24,11 @@ config = {
     #"budget": [i for i in range(100, 5000, 10)], #[i for i in range(100, 451, 50)],#[i for i in range(100,3710,10)],
     "transmission_rate": [0.05],
     "transmission_known": [True],
-    "compliance_rate": [i/100 for i in range(50,101,1)],#[i/100 for i in range(50, 101, 5)],#[i/100 for i in range(50,101,5)],
+    "compliance_rate": [0.8],#[i/100 for i in range(50, 101, 5)],#[i/100 for i in range(50,101,5)],
     "compliance_known": [True],
-    "discovery_rate": [1],
-    "snitch_rate":  [1],
+    "snitch_rate":  [i/100 for i in range(50,101,1)],
     "from_cache": ["b5.json"], #be5 is cville with extra edges
-    "agent": [DegGreedy_fair, DepRound_fair],
+    "agent": [DepRound_fair, DegGreedy_fair],
     "target": [67800]
 }
 
@@ -37,7 +36,7 @@ in_schema = list(config.keys())
 out_schema = ["equivalent_budget"]
 TrackerInfo = namedtuple("TrackerInfo", out_schema)
 
-def time_trial_tracker(G: nx.graph, policy:str, transmission_rate: float, transmission_known:bool, compliance_rate: float, compliance_known:bool, discovery_rate: float, snitch_rate: float, from_cache: str, agent, target: int, **kwargs):
+def time_trial_tracker(G: nx.graph, policy:str, transmission_rate: float, transmission_known:bool, compliance_rate: float, compliance_known:bool, snitch_rate: float, from_cache: str, agent, target: int, **kwargs):
 
     with open(PROJECT_ROOT / "data" / "SIR_Cache" / from_cache, 'r') as infile:
             j = json.load(infile)
@@ -57,7 +56,7 @@ def time_trial_tracker(G: nx.graph, policy:str, transmission_rate: float, transm
         iters += 1
         for i in range(20):
 
-            state = InfectionState(G, (S, I1, I2, R), m, policy, transmission_rate, transmission_known, compliance_rate, compliance_known, discovery_rate, snitch_rate)
+            state = InfectionState(G, (S, I1, I2, R), m, policy, transmission_rate, transmission_known, compliance_rate, compliance_known, snitch_rate)
 
             while len(state.SIR.I1) + len(state.SIR.I2) != 0:
                 to_quarantine = agent(state)

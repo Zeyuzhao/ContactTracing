@@ -32,12 +32,10 @@ class MinExposedProgram2_label:
         self.solver = pywraplp.Solver.CreateSolver(solver_id)
         
         if simp:
-            self.P, self.Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, info.Q, 1)
-        elif self.transmission_known:
+            self.P, self.Q = pq_independent_simp(info.P, info.Q)
+        else:
             self.P = info.P
             self.Q = info.Q
-        else:
-            self.P, self.Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, info.Q, self.p)
         
 
         if self.solver is None:
