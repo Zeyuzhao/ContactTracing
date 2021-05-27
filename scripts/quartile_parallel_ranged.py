@@ -124,7 +124,7 @@ def post_execution(self):
 
 
 run = MultiExecutor(runner_star, in_schema,
-                    post_execution=post_execution, seed=True, num_process=25)
+                    post_execution=post_execution, seed=True)
 
 # Add compact tasks (expand using cartesian)
 montgomery = GraphParam('montgomery')
@@ -133,10 +133,10 @@ cville = GraphParam('cville')
 # Schema
 run.add_cartesian({
     "graph": [montgomery],
-    "budget": [750],
+    # "budget": [750],
     "agent": [LambdaParam(segmented_greedy)],
-    "agent_params": [{'split_pcts': [round(1 - p, 3), round(p, 3)]} for p in np.arange(0, 1, 0.01)],
-    # "budget": [i for i in range(400, 1260, 50)],
+    "agent_params": [{'split_pcts': [round(1 - p, 3), round(p, 3)]} for p in np.arange(0, 1.1, 0.1)],
+    "budget": [i for i in range(400, 1260, 50)],
     "policy": ["A"],
     "transmission_rate": [0.05],
     "transmission_known": [False],
@@ -149,10 +149,10 @@ run.add_cartesian({
 })
 run.add_cartesian({
     "graph": [cville],
-    "budget": [1350],
-    # "budget": [i for i in range(720, 2270, 20)],
+    # "budget": [1350],
+    "budget": [i for i in range(720, 2270, 50)],
     "agent": [LambdaParam(segmented_greedy)],
-    "agent_params": [{'split_pcts': [round(1 - p, 3), round(p, 3)]} for p in np.arange(0, 1, 0.01)],
+    "agent_params": [{'split_pcts': [round(1 - p, 3), round(p, 3)]} for p in np.arange(0, 1.1, 0.1)],
     "policy": ["A"],
     "transmission_rate": [0.05],
     "transmission_known": [False],
@@ -169,5 +169,5 @@ run.add_cartesian({
 run.attach(main_handler)
 run.attach(aux_handler)
 
-# %%
+#%%
 run.exec()

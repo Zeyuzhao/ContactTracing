@@ -212,7 +212,7 @@ def optimized(problem: MinExposedLP, d: int):
     return (problem.objective_value, problem.quarantined_solution)
 
 
-def segmented_greedy(state: InfectionState, split_pcts=[0.75, 0.25], alloc_pcts=[.25, .75], carry=True, rng=np.random, DEBUG=False):
+def segmented_greedy(state: InfectionState, split_pcts=[0.8, 0.2], alloc_pcts=[.2, .8], carry=True, rng=np.random, DEBUG=False):
     """
     TODO: NEED TO REWRITE!!!
     pcts are ordered from smallest degree to largest degree
@@ -261,8 +261,10 @@ def segmented_greedy(state: InfectionState, split_pcts=[0.75, 0.25], alloc_pcts=
 
         if DEBUG:
             print(f"{segment_budget} / {len(segment)} (overflow: {overflow})")
-            print("segment: ", segment)
-            print("sample: ", sample)
+            # print("segment: ", segment)
+            # print("sample: ", sample)
             print("--------------")
+            if overflow != 0:
+                print("OVERFLOWED!!!")
             assert len(samples) <= budget
-    return samples
+    return [int(s) for s in samples]

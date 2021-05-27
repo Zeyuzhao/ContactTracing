@@ -230,7 +230,7 @@ class CsvSchemaWorker(Worker):
             writer = csv.DictWriter(
                 f, self.schema, restval=self.default, extrasaction='ignore')
             writer.writeheader()
-            print(f'INFO: Worker {self.name} initialized @ {self.path}')
+            print(f'INFO: CsvSchemaWorker {self.name} initialized @ {self.path}')
             while True:
                 msg = self.queue.get()
                 if (msg == self.terminator):
