@@ -199,7 +199,7 @@ def run(state):
 
 # %%
 # Build plot
-def update(num, raw_history=None, action_history=None, ax=None, labels=False):
+def draw_frame(num, raw_history=None, action_history=None, ax=None, labels=False):
     ax.clear()
     state = raw_history[num]
 
@@ -245,7 +245,7 @@ def update(num, raw_history=None, action_history=None, ax=None, labels=False):
 def draw_anim(raw_history, action_history, out_file=None):
     fig, ax = plt.subplots(figsize=(10, 10))
     ani = matplotlib.animation.FuncAnimation(
-        fig, update, frames=len(raw_history),
+        fig, draw_frame, frames=len(raw_history),
         interval=500, repeat=True, repeat_delay=1,
         fargs=(raw_history, action_history, ax)
     )
@@ -258,16 +258,17 @@ def draw_anim(raw_history, action_history, out_file=None):
     return html_out
 
 
-def draw_unrolled(raw_history, action_history, out_file):
+def draw_unrolled(raw_history, action_history, fig_title='SIR Sim', out_file=None):
     fig, axes = plt.subplots(3, 3, figsize=(10, 10))
-    fig.suptitle('SIR Simulation (Modified)', fontsize=16)
+    fig.suptitle(fig_title, fontsize=16)
     for i, ax in enumerate(axes.flatten()):
         if i < len(raw_history):
-            update(i, raw_history=raw_history,
+            draw_frame(i, raw_history=raw_history,
                    action_history=action_history, ax=ax)
         else:
             ax.set_axis_off()
-    fig.savefig(f'figs/{out_file}', dpi=fig.dpi)
+    if out_file:
+        fig.savefig(f'figs/{out_file}', dpi=fig.dpi)
 
 # %%
 
@@ -284,8 +285,9 @@ state = grid_world_init(
 # plt.show()
 
 raw_history, action_history = run(state)
-# html_out = draw_anim(raw_history, action_history, 'anim.html')
 
+#%%
+html_out = draw_anim(raw_history, action_history, 'anim.html')
 
 # %%
 draw_unrolled(raw_history, action_history, 'anim.png')
