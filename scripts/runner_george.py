@@ -9,9 +9,9 @@ from ctrace.recommender import *
 from collections import namedtuple
 json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 
-#G = load_graph_montgomery_labels()
 G = load_graph_cville_labels()
-#G = read_extra_edges(G, 0.15)
+#G = load_graph_cville_labels()
+G = read_extra_edges(G, 0.15)
 #G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 #G = load_graph_hid_duration()
 
@@ -19,17 +19,15 @@ G = load_graph_cville_labels()
 
 config = {
     "G" : [G],
-    #"budget":[i for i in range(400, 1260, 50)],
     "policy": ["none"],
-    #"budget": [i for i in range(100, 5000, 10)],       #[i for i in range(100, 451, 50)],#[i for i in range(100,3710,10)],
     "transmission_rate": [0.05],
     "transmission_known": [True],
-    "compliance_rate": [i/100 for i in range(50, 101,1)],                           #[i/100 for i in range(50, 101, 5)],#[i/100 for i in range(50,101,5)],
+    "compliance_rate": [i/100 for i in range(50,101,1)],    #[i/100 for i in range(50, 101, 5)],#[i/100 for i in range(50,101,5)],
     "compliance_known": [True],
     "snitch_rate":  [1],
-    "from_cache": ["b5.json"], #be5 is cville with extra edges
-    "agent": [DepRound_fair, DegGreedy_fair, segmented_greedy],
-    "target": [64151]
+    "from_cache": ["be5.json"],                             #be5 is cville with extra edges
+    "agent": [DepRound_fair],
+    "target": [77281.405]
 }
 
 in_schema = list(config.keys())
@@ -43,8 +41,8 @@ def time_trial_tracker(G: nx.graph, policy:str, transmission_rate: float, transm
             (S, I1, I2, R) = (j["S"], j["I1"], j["I2"], j["R"])
             infections = j["infections"]
             
-    l = 200
-    r = 8000
+    l = 500
+    r = 6000 
 
     iters = 0
 

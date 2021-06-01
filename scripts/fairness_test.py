@@ -14,7 +14,7 @@ json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 #G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 
 G2 = load_graph_cville_labels()
-#G2 = read_extra_edges(G2, 0.15)
+G2 = read_extra_edges(G2, 0.15)
 #G2.centrality = nx.algorithms.eigenvector_centrality_numpy(G2)
 
 #G2 = load_graph_cville_labels()
