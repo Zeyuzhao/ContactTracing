@@ -67,7 +67,7 @@ class MinExposedProgram2:
 
         # Y2[v] becomes a lower bound for the probability that vertex v is infected
         if self.compliance_known and not self.transmission_known:
-            P, Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, self.p)
+            #P, Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, self.p)
             for u in self.contour1:
                 for v in self.G.neighbors(u):
                     if v in self.contour2 and self.Q[u][v]!=0:
@@ -82,7 +82,7 @@ class MinExposedProgram2:
                         self.solver.Add(self.Y2[v] >= c* ((1-self.G.nodes[u]['compliance_rate'])*self.X1[u] + self.Y1[u]))
         
         elif not self.compliance_known and not self.transmission_known:
-            P, Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, self.p)
+            #P, Q = pq_independent(self.G, self.SIR.I2, self.contour1, self.contour2, self.p)
             for u in self.contour1:
                 for v in self.G.neighbors(u):
                     if v in self.contour2 and self.Q[u][v]!=0:

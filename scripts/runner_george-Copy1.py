@@ -27,11 +27,11 @@ config = {
     #"budget": [i for i in range(100, 5000, 10)], #[i for i in range(100, 451, 50)],#[i for i in range(100,3710,10)],
     "transmission_rate": [0.05],
     "transmission_known": [True],
-    "compliance_rate": [0.8],                                                   #[i/100 for i in range(50,101,5)],
+    "compliance_rate": [i/100 for i in range(70, 101, 1)],                                                   #[i/100 for i in range(50,101,5)],
     "compliance_known": [True],
-    "snitch_rate":  [i/100 for i in range(50, 101, 1)],
+    "snitch_rate":  [1],
     "from_cache": ["c7.json"],                                                  #be5 is cville with extra edges
-    "agent": [DegGreedy_fair, DepRound_fair],
+    "agent": [DepRound_fair],
     "target": [34200]
 }
 
@@ -46,12 +46,12 @@ def time_trial_tracker(G: nx.graph, policy:str, transmission_rate: float, transm
             (S, I1, I2, R) = (j["S"], j["I1"], j["I2"], j["R"])
             infections = j["infections"]
             
-    l = 0
-    r = 10000 
+    l = 300
+    r = 1200
 
     iters = 0
 
-    while l <= r:
+    while l <= r-16:
         m = l + (r-l)//2
 
         average = 0
@@ -75,7 +75,7 @@ def time_trial_tracker(G: nx.graph, policy:str, transmission_rate: float, transm
     return TrackerInfo(m)
 
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=1)
-run.exec()
+run.exec(max_workers=40)
 
 '''config = {
     "G" : [G2],

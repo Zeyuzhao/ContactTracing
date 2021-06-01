@@ -47,44 +47,48 @@ config = {
     "transmission_known": [True],
     "compliance_rate": [0.8],
     "compliance_known": [True],
-    "discovery_rate": [1],
     "snitch_rate":  [1],
     "from_cache": [i for i in list(os.listdir(PROJECT_ROOT/"data"/"SIR_Cache"/"optimal_trials"/"cville_trials")) if i[0]=="c"],
     "lambda_round": [0.5]
 }
 
 in_schema = list(config.keys())
-out_schema = ["d", "edge_size", "total"]
+out_schema = ["d", "V1_size", "edge_size", "total"]
 TrackerInfo = namedtuple("TrackerInfo", out_schema)
 
-def overlap_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: float, transmission_known: bool, compliance_rate: float, compliance_known:bool, discovery_rate: float, snitch_rate: float, from_cache: str, lambda_round: int, **kwargs):
+def overlap_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: float, transmission_known: bool, compliance_rate: float, compliance_known:bool, snitch_rate: float, from_cache: str, lambda_round: int, **kwargs):
 
     with open(PROJECT_ROOT / "data" / "SIR_Cache" / "optimal_trials"/"cville_trials"/from_cache, 'r') as infile:
             j = json.load(infile)
             (S, I1, I2, R) = (j["S"], j["I1"], j["I2"], j["R"])
             infections = j["infections"]
 
-    state = InfectionState(G, (S, I1, I2, R), budget, policy, transmission_rate, transmission_known, compliance_rate, compliance_known, discovery_rate, snitch_rate)
+    state = InfectionState(G, (S, I1, I2, R), budget, policy, transmission_rate, transmission_known, compliance_rate, compliance_known, snitch_rate)
     
     quarantine_dep = DepRound_test(state, lambda_round)
     quarantine_greedy = DegGreedy_fair(state)
-    quarantine_degree = Degree(state)
+    #quarantine_degree = Degree(state)
     
-    state.transmission_known = False
-    state.compliance_known = False
-    quarantine_greedy_avg = DegGreedy_fair(state)
+    #state.transmission_known = False
+    #state.compliance_known = False
+    #quarantine_greedy_avg = DegGreedy_fair(state)
     
     quarantine_seg = set(segmented_greedy(state))
+    quarantine_rand = Random(state)
     
-    q_sets = [quarantine_dep, quarantine_greedy, quarantine_greedy_avg, quarantine_degree, quarantine_seg]
+    q_sets = [quarantine_dep, quarantine_greedy]
     
     total = []
     for i in range(len(q_sets)):
-        for j in range(i, len(q_sets)):
-            if len(q_sets[j])!=0:
-                total.append(len(q_sets[i]&q_sets[j])/len(q_sets[j]))
-            else:
-                total.append(-1)
+        if len(q_sets[i])!=0:
+            total.append(len(q_sets[i]&quarantine_rand)/len(quarantine_rand))
+        else:
+            total.append(-1)
+    for i in range(len(q_sets)):
+        if len(q_sets[i])!=0:
+            total.append(len(q_sets[i]&quarantine_seg)/len(quarantine_seg))
+        else:
+            total.append(-1)
     
     d = 0
     edge_size = 0
@@ -93,7 +97,7 @@ def overlap_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: flo
         edge_size += d_temp
         d = max(d, d_temp)
     
-    return TrackerInfo(d, edge_size, total)
+    return TrackerInfo(d, len(state.V1), edge_size, total)
 
 run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=overlap_tracker, trials=1)
 run.exec(max_workers=40)

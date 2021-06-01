@@ -10,8 +10,8 @@ from collections import namedtuple
 json_dir = PROJECT_ROOT / "data" / "SIR_Cache"
 
 G = load_graph_montgomery_labels()
-#G = read_extra_edges(G, 0.15)
-G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
+G = read_extra_edges(G, 0.15)
+#G.centrality = nx.algorithms.eigenvector_centrality_numpy(G)
 
 #G2 = load_graph_cville_labels()
 #G2 = read_extra_edges(G2, 0.15)
@@ -33,13 +33,12 @@ config = {
     "policy": ["none"],
     "transmission_rate": [0.05],
     "transmission_known": [True],
-    "compliance_rate": [0.8],
+    "compliance_rate": [i/100 for i in range(50, 101, 1)],
     "compliance_known": [True],
-    "snitch_rate": [i/100 for i in range(50, 101, 1)],
-    "from_cache": ["c7.json"],
-    "agent": [Random, EC]
+    "snitch_rate": [1],
+    "from_cache": ["ce6.json"],
+    "agent": [segmented_greedy]
 }
-
 
 in_schema = list(config.keys())
 out_schema = ["infection_count", "infections_step"]
@@ -63,6 +62,6 @@ def time_trial_tracker(G: nx.graph, budget: int, policy:str, transmission_rate: 
     return TrackerInfo(len(state.SIR.R), infections)
 
 
-run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=20)
-run.exec()
+run = GridExecutorParallel.init_multiple(config, in_schema, out_schema, func=time_trial_tracker, trials=10)
+run.exec(max_workers=40)
 #%%

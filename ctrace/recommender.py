@@ -46,14 +46,14 @@ def Degree(state: InfectionState):
     degrees.sort(reverse=True)
     return {i[1] for i in degrees[:state.budget]}
 
-def Degree2(state: InfectionState):
+'''def Degree2(state: InfectionState):
     degrees: List[Tuple[int, int]] = []
     for u in state.V1:
         count = state.G.degree[u]
         degrees.append((count, u))
         
     degrees.sort(reverse=True)
-    return {i[1] for i in degrees[:state.budget]}
+    return {i[1] for i in degrees[:state.budget]}'''
 
 def segmented_greedy(state: InfectionState, split_pcts=[0.75, 0.25], alloc_pcts=[.25, .75], carry=True, rng=np.random, DEBUG=False):
     """
