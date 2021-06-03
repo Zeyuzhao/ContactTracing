@@ -11,18 +11,19 @@ from .problem_label import *
 from .problem import *
 
 
-def NoIntervention(state: InfectionState):
+def NoIntervention(state: InfectionState, extra = False):
+    if extra == True:
+        return {'action': set()}
     return set()
 
 
-def Random(state: InfectionState):
-    return set(random.sample(state.V1, min(state.budget, len(state.V1))))
+def Random(state: InfectionState, extra = False):
+    action = set(random.sample(state.V1, min(state.budget, len(state.V1))))
+    if extra == True:
+        return {'action': action}
+    return action
 
-
-def Random_label(state: InfectionState):
-    if (state.policy == "none"):
-        return Random(state)
-
+def Random_label(state: InfectionState, extra = False):
     # Distribute budget across age groups
     state.set_budget_labels()
 
@@ -32,10 +33,12 @@ def Random_label(state: InfectionState):
             node for node in state.V1 if state.G.nodes[node]["age_group"] == label)
         quarantine = quarantine.union(
             set(random.sample(V1_label, min((state.budget_labels[label]), len(V1_label)))))
+    if extra:
+        return {'action': quarantine}
     return quarantine
 
 
-def EC(state: InfectionState):
+def EC(state: InfectionState, extra= False):
 
     eigens: List[Tuple[int, int]] = []
 
@@ -43,10 +46,14 @@ def EC(state: InfectionState):
         eigens.append((state.G.centrality[u], u))
 
     eigens.sort(reverse=True)
-    return {i[1] for i in eigens[:state.budget]}
+    
+    action = {i[1] for i in eigens[:state.budget]}
+    if extra:
+        return {'action': action}
+    return action
 
 
-def DegGreedy_fair(state: InfectionState):
+def DegGreedy_fair(state: InfectionState, extra = False):
     """
     state.budget_labels: a mapping from id -> budget (does support None budgets)
 
@@ -81,12 +88,14 @@ def DegGreedy_fair(state: InfectionState):
     state.set_budget_labels()
     quarantine = pair_greedy(weights, state.budget_labels,
                              state.budget, (lambda x: state.G.nodes[x]["age_group"]))
+    if extra:
+        return {'action': quarantine}
     return quarantine
 
 # Fairness
 
 
-def DepRound_fair(state: InfectionState):
+def DepRound_fair(state: InfectionState, extra=False):
     state.set_budget_labels()
 
     problem2 = MinExposedLP2_label(state, solver_id="GUROBI")
@@ -103,18 +112,22 @@ def DepRound_fair(state: InfectionState):
                         range(len(probabilities))]
         rounded = rounded + D_prime(np.array(partial_prob))
 
-    return set([problem2.quarantine_map[k] for (k, v) in enumerate(rounded) if v == 1])
+    action = set([problem2.quarantine_map[k] for (k, v) in enumerate(rounded) if v == 1])
+    if extra:
+        return {'action': action}
+    return action
 
 
-def MILP_fair(state: InfectionState):
+def MILP_fair(state: InfectionState, extra=False):
     state.set_budget_labels()
 
     problem2 = MinExposedIP2_label(state, solver_id="GUROBI")
     problem2.solve_lp()
     indicators = problem2.get_variables()
+    
+    if extra:
+        return {'action': set([problem2.quarantine_map[k] for (k, v) in enumerate(indicators) if v == 1]), 'is_optimal': problem2.is_optimal}
     return set([problem2.quarantine_map[k] for (k, v) in enumerate(indicators) if v == 1])
-
-
 
 
 def SAA_Diffusion(state: InfectionState, debug=False, num_samples=10):
@@ -223,7 +236,7 @@ def optimized(problem: MinExposedLP, d: int):
     return (problem.objective_value, problem.quarantined_solution)
 
 
-def binary_segmented_greedy(state: InfectionState, k1=.2, k2=.8, carry=True,rng=np.random, DEBUG=False):
+def binary_segmented_greedy(state: InfectionState, k1=.2, k2=.8, carry=True,rng=np.random, DEBUG=False, extra=False):
     """
     k1 - top proportion of nodes classified as "high" degree
     k2 - proportion of budget assigned to "high" degree nodes
@@ -264,6 +277,8 @@ def binary_segmented_greedy(state: InfectionState, k1=.2, k2=.8, carry=True,rng=
         rng.choice(v1_sorted[top_size:], budgets[1], replace=False).tolist()
     )
 
+    if extra:
+        return {'action': samples}
     return samples
 
 

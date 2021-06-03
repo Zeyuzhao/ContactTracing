@@ -1,12 +1,13 @@
 # %%
 import os
+import traceback
 from ctrace.utils import calculateExpected, calculateMILP
 import numpy as np
 from ctrace import PROJECT_ROOT
 from ctrace.simulation import InfectionState
 from ctrace.exec.param import GraphParam, SIRParam, FileParam, ParamBase, LambdaParam
 from ctrace.exec.parallel import CsvWorker, MultiExecutor, CsvSchemaWorker
-from ctrace.recommender import MILP_fair, evaluate, binary_segmented_greedy, DepRound_fair, DegGreedy_fair
+from ctrace.recommender import MILP_fair, evaluate, binary_segmented_greedy, DepRound_fair, DegGreedy_fair, Random_label
 import json
 import shutil
 import random
@@ -55,6 +56,7 @@ main_out_schema = [
     "id",
     "milp_obj",
     "expected_obj",
+    "is_optimal",
     "I_size",
     "v1_size",
     "v2_size",
@@ -98,11 +100,14 @@ def runner(
     )
 
     try:
-        # 45 min limit
-        with timeout(2700): 
+        # 1hr min limit
+        with timeout(14400): 
             time1 = time.perf_counter()
-            action = agent(state)
+            result = agent(state, extra=True)
             time2 = time.perf_counter()
+
+        action = result['action']
+        is_optimal = result.get('is_optimal')
         
         milp_obj = calculateMILP(state, action)
         expected_obj = calculateExpected(state, action)
@@ -112,14 +117,17 @@ def runner(
             "id": id,
             "milp_obj": milp_obj,
             "expected_obj": expected_obj,
+            "is_optimal": is_optimal,
             "I_size": len(state.SIR.I2),
             "v1_size": len(state.V1),
             "v2_size": len(state.V2),
             "time": time2 - time1, 
         }
         queues["csv_main"].put(main_out)
-    except:
-        print(f'Skipping {id} due to error')
+    except TimeoutError as e:
+        print(f'Skipping {id} due to timeout')
+    except Exception as e:
+        traceback.print_exc()
 
 
 def runner_star(x):
@@ -137,8 +145,14 @@ def post_execution(self):
             shutil.rmtree(self.output_directory / "data")
 
 
-run = MultiExecutor(runner_star, in_schema,
-                    post_execution=post_execution, seed=True, num_process=80)
+run = MultiExecutor(
+    runner_star, 
+    in_schema,
+    post_execution=post_execution, 
+    seed=True, 
+    num_process=80,
+    name_prefix='opt_ratio'
+)
 
 # Add compact tasks (expand using cartesian)
 montgomery = GraphParam('montgomery')
@@ -148,7 +162,8 @@ cville = GraphParam('cville')
 run.add_cartesian({
     "graph": [montgomery],
     "budget": [750],
-    "agent": [LambdaParam(binary_segmented_greedy), LambdaParam(DegGreedy_fair),  LambdaParam(DepRound_fair), LambdaParam(MILP_fair)],
+    "agent": [LambdaParam(binary_segmented_greedy), LambdaParam(DegGreedy_fair),  LambdaParam(DepRound_fair), LambdaParam(Random_label), LambdaParam(MILP_fair)],
+    # "agent": [LambdaParam(MILP_fair)],
     # "budget": [i for i in range(400, 1260, 50)],
     "policy": ["A"],
     "transmission_rate": [0.05],
@@ -164,7 +179,7 @@ run.add_cartesian({
     "graph": [cville],
     "budget": [1350],
     # "budget": [i for i in range(720, 2270, 20)],
-    "agent": [LambdaParam(binary_segmented_greedy), LambdaParam(DegGreedy_fair),  LambdaParam(DepRound_fair), LambdaParam(MILP_fair)],
+    "agent": [LambdaParam(binary_segmented_greedy), LambdaParam(DegGreedy_fair),  LambdaParam(DepRound_fair), LambdaParam(Random_label), LambdaParam(MILP_fair)],
     "policy": ["A"],
     "transmission_rate": [0.05],
     "transmission_known": [True],
