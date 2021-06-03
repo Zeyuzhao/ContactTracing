@@ -552,6 +552,13 @@ def load_graph(name, **args):
         return load_graph_montgomery_labels()
     if name == "cville":
         return load_graph_cville_labels()
+
+    if name == "montgomery_extra":
+        G =  load_graph_montgomery_labels()
+        return read_extra_edges(G, 0.15)
+    if name == "cville_extra":
+        G = load_graph_cville_labels()
+        return read_extra_edges(G, 0.15)
     raise ValueError(f"{name} is not a recognized graph name.")
 
 

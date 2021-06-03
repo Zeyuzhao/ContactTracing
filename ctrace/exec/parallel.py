@@ -31,6 +31,7 @@ class MultiExecutor():
         output_id: str = None,
         seed: bool = True,
         validation: bool = True,
+        name_prefix = 'run',
         num_process=50,
     ):
         self.runner = runner
@@ -57,6 +58,7 @@ class MultiExecutor():
             self._schema.append(('seed', int))
         self.num_process = num_process
 
+        self.name_prefix = name_prefix
         # Initialize functions
         self.output_id = output_id
         self.init_output_directory()
@@ -65,7 +67,7 @@ class MultiExecutor():
 
     def init_output_directory(self):
         if self.output_id is None:
-            self.output_id = f"run_{shortuuid.uuid()[:5]}"
+            self.output_id = f"{self.name_prefix}_{shortuuid.uuid()[:5]}"
         # Setup output directories
         self.output_directory = PROJECT_ROOT / "output" / self.output_id
         self.output_directory.mkdir(parents=True, exist_ok=True)

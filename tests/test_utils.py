@@ -1,6 +1,6 @@
 import pytest
-from ctrace.utils import pair_greedy, rescale, rescale_none
-
+from ctrace.utils import pair_greedy, rescale, rescale_none, segmented_allocation
+import networkx as nx
 
 def test_pair_greedy_no_labels():
     pairs = [(10, 5), (10, 4), (4, 2), (3, 1), (2, 0), (1, 6), (0, 3)]
@@ -68,3 +68,17 @@ def test_rescale_single():
         enumerate([10, None, None, None]))
 
     assert rescale_none([10], {0: 1}) == {0: 10}
+
+def test_segmented_allocation_both():
+    assert segmented_allocation(sizes=[5, 5], budgets=[3,3], carry=True) == [3, 3]
+    assert segmented_allocation(sizes=[3, 3], budgets=[5,5], carry=True) == [3, 3]
+
+def test_segmented_allocation_over_transfer():
+    assert segmented_allocation(sizes=[1, 5], budgets=[3,4], carry=True) == [1, 5]
+
+    assert segmented_allocation(sizes=[5, 1], budgets=[3,4], carry=True) == [5, 1]
+
+def test_segmented_allocation_under_transfer():
+    assert segmented_allocation(sizes=[1, 10], budgets=[3,4], carry=True) == [1, 6]
+
+    assert segmented_allocation(sizes=[10, 1], budgets=[4,3], carry=True) == [6, 1]

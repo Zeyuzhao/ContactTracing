@@ -6,7 +6,7 @@ from ctrace import PROJECT_ROOT
 from ctrace.simulation import InfectionState
 from ctrace.exec.param import GraphParam, SIRParam, FileParam, ParamBase, LambdaParam
 from ctrace.exec.parallel import CsvWorker, MultiExecutor, CsvSchemaWorker
-from ctrace.recommender import MILP_fair, evaluate, segmented_greedy, DepRound_fair, DegGreedy_fair
+from ctrace.recommender import MILP_fair, evaluate, binary_segmented_greedy, DepRound_fair, DegGreedy_fair
 import json
 import shutil
 import random
@@ -14,6 +14,26 @@ import copy
 import pickle
 from pathlib import PurePath
 import time
+
+from functools import wraps
+import errno
+import os
+import signal
+
+class TimeoutError(Exception):
+    pass
+
+class timeout:
+    def __init__(self, seconds=1, error_message='Timeout'):
+        self.seconds = seconds
+        self.error_message = error_message
+    def handle_timeout(self, signum, frame):
+        raise TimeoutError(self.error_message)
+    def __enter__(self):
+        signal.signal(signal.SIGALRM, self.handle_timeout)
+        signal.alarm(self.seconds)
+    def __exit__(self, type, value, traceback):
+        signal.alarm(0)
 
 # Example Usage
 in_schema = [
@@ -77,26 +97,29 @@ def runner(
         transmission_known, compliance_rate, compliance_known, discovery_rate, snitch_rate
     )
 
-    time1 = time.perf_counter()
-    action = agent(state)
-    time2 = time.perf_counter()
-
-    milp_obj = calculateMILP(state, action)
-    expected_obj = calculateExpected(state, action)
-
-    # Output data to  and folders
-
-    main_out = {
-        "id": id,
-        "milp_obj": milp_obj,
-        "expected_obj": expected_obj,
-        "I_size": len(state.SIR.I2),
-        "v1_size": len(state.V1),
-        "v2_size": len(state.V2),
-        "time": time2 - time1, 
-    }
-
-    queues["csv_main"].put(main_out)
+    try:
+        # 45 min limit
+        with timeout(2700): 
+            time1 = time.perf_counter()
+            action = agent(state)
+            time2 = time.perf_counter()
+        
+        milp_obj = calculateMILP(state, action)
+        expected_obj = calculateExpected(state, action)
+        
+        # Output data to  and folders
+        main_out = {
+            "id": id,
+            "milp_obj": milp_obj,
+            "expected_obj": expected_obj,
+            "I_size": len(state.SIR.I2),
+            "v1_size": len(state.V1),
+            "v2_size": len(state.V2),
+            "time": time2 - time1, 
+        }
+        queues["csv_main"].put(main_out)
+    except:
+        print(f'Skipping {id} due to error')
 
 
 def runner_star(x):
@@ -125,13 +148,13 @@ cville = GraphParam('cville')
 run.add_cartesian({
     "graph": [montgomery],
     "budget": [750],
-    "agent": [LambdaParam(segmented_greedy), LambdaParam(DegGreedy_fair),  LambdaParam(DepRound_fair), LambdaParam(MILP_fair),],
+    "agent": [LambdaParam(binary_segmented_greedy), LambdaParam(DegGreedy_fair),  LambdaParam(DepRound_fair), LambdaParam(MILP_fair)],
     # "budget": [i for i in range(400, 1260, 50)],
     "policy": ["A"],
     "transmission_rate": [0.05],
-    "transmission_known": [False],
+    "transmission_known": [True],
     "compliance_rate": [-1.0],
-    "compliance_known": [False],
+    "compliance_known": [True],
     "discovery_rate": [1.0],
     "snitch_rate": [1.0],
     "from_cache": os.listdir(PROJECT_ROOT/"data"/"SIR_Cache"/"optimal_trials"/ 'montgomery_trials'),
@@ -141,12 +164,12 @@ run.add_cartesian({
     "graph": [cville],
     "budget": [1350],
     # "budget": [i for i in range(720, 2270, 20)],
-    "agent": [LambdaParam(segmented_greedy), LambdaParam(DegGreedy_fair),  LambdaParam(DepRound_fair), LambdaParam(MILP_fair),],
+    "agent": [LambdaParam(binary_segmented_greedy), LambdaParam(DegGreedy_fair),  LambdaParam(DepRound_fair), LambdaParam(MILP_fair)],
     "policy": ["A"],
     "transmission_rate": [0.05],
-    "transmission_known": [False],
+    "transmission_known": [True],
     "compliance_rate": [-1.0],
-    "compliance_known": [False],
+    "compliance_known": [True],
     "discovery_rate": [1.0],
     "snitch_rate": [1.0],
     "from_cache": os.listdir(PROJECT_ROOT/"data"/"SIR_Cache"/"optimal_trials" / 'cville_trials'),
