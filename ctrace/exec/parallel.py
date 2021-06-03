@@ -228,7 +228,7 @@ class CsvSchemaWorker(Worker):
 
         with open(self.path, 'w') as f:
             writer = csv.DictWriter(
-                f, self.schema, restval=self.default, extrasaction='ignore')
+                f, self.schema, restval=self.default, extrasaction='raise')
             writer.writeheader()
             print(f'INFO: CsvSchemaWorker {self.name} initialized @ {self.path}')
             while True:

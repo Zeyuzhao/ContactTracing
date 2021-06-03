@@ -1,3 +1,5 @@
+#%%
+
 """
 Utility Functions, such as contours and PQ
 """
@@ -219,7 +221,7 @@ def round_fracs(amts):
     """
     Rounds array, ensuring that sum(result) == sum(amts)
     Using even-rounding (rounds to the nearest even for 0.5)
-    All fractions are closed (accumulated) in last element.
+    All fractions are closed (accumulated) to last element.
     """
     if len(amts) == 0:
         return []
@@ -236,6 +238,31 @@ assert rescale([10, 20], [2, 1], 60) == [30, 30]
 assert rescale([10, 10], [3, 1], 40) == [30, 10]
 
 assert rescale([30], [1], 40) == [40]
+
+
+def segmented_allocation(sizes, budgets, carry):
+    assert len(budgets) == len(sizes)
+    surplus = 0
+
+    budgets_prior = budgets[:]
+    # Check for budget surpluses
+    for i in range(len(sizes)):
+        if budgets[i] > sizes[i]:
+            surplus += (budgets[i] - sizes[i])
+            budgets[i] = sizes[i]
+    # Allocate excess budget
+    if carry:
+        for i in range(len(sizes)):
+            if (budgets[i] >= sizes[i]):
+                pass
+            elif (sizes[i] - budgets[i]) < surplus: # Surplus not used up
+                surplus -= (sizes[i] - budgets[i])
+                budgets[i] = sizes[i]
+            elif (sizes[i] - budgets[i]) >= surplus: # Surplus used up
+                budgets[i] = budgets[i] + surplus
+                surplus = 0
+    assert sum(budgets_prior) == (sum(budgets) + surplus) # Surplus invariant
+    return budgets
 
 
 def find_contours(G: nx.Graph, infected):
@@ -885,3 +912,34 @@ def pct_to_int(amt, pcts):
 assert pct_to_int(10, [0.5, 0.5]) == [5, 5]
 assert pct_to_int(11, [0.5, 0.5]) == [5, 6]
 assert pct_to_int(20, [0.33, 0.33, 0.34]) == [6, 6, 8]
+
+
+def calculateExpected(state, quarantine):
+    P, Q = state.P, state.Q
+    total = 0
+    for v in state.V2:
+        expected = 1
+        for u in (set(state.G.neighbors(v)) & state.V1):
+            if u not in quarantine:
+                expected *= (1-P[u]*Q[u][v])
+            else:
+                expected *= (1-(1-state.G.nodes[u]['compliance_rate'])*P[u]*Q[u][v])
+        total += (1-expected)
+    return total
+
+
+def calculateMILP(state, quarantine):
+    P, Q = state.P, state.Q
+    total = 0
+    for v in state.V2:
+        expected = 0
+        for u in (set(state.G.neighbors(v)) & state.V1):
+            if u not in quarantine:
+                expected = max(expected, P[u]*Q[u][v])
+            else:
+                expected = max(expected, (1-state.G.nodes[u]['compliance_rate'])*P[u]*Q[u][v])
+        total += expected
+    return total
+    
+# %%
+

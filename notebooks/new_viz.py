@@ -110,15 +110,15 @@ feature_grid = {
 
 # %%
 
-def grid_world_init(initial_infection=(0.05, 0.1), small_world=base_grid, seed=42):
+def grid_world_init(initial_infection=(0.05, 0.1), width=10, small_world=base_grid, labels=False, seed=42):
     rng = np.random.default_rng(seed)
-    G, pos = small_world_grid(**small_world, width=10, seed=seed)
+    G, pos = small_world_grid(**small_world, width=width, seed=seed)
     G.pos = pos
     # Simulate compliance rates and age groups
     for n in G.nodes:
         G.nodes[n].update({
             'compliance_rate_og': 1,
-            'age_group': (n % 2) + 1,
+            'age_group': (n % 2) + 1 if labels else 0,
         })
     for e in G.edges:
         G.edges[e].update({
@@ -158,7 +158,7 @@ def pct_format(name, v1, v2):
     return f"{name}: {v1}/{v2} ({pct})"
 
 
-def run(state):
+def run(state, debug=False):
     raw_history = []
     action_history = []
     while len(state.SIR.I2) + len(state.SIR.I1) != 0:
@@ -166,21 +166,22 @@ def run(state):
         action_history.append(action)
         raw_history.append(copy.deepcopy(state))
 
-        print(f"Budgets: {state.budget_labels}")
-        print(
-            f"Size (I1, I2, I): {(len(state.SIR.I1), len(state.SIR.I2), len(state.SIR.I1) + len(state.SIR.I2))}")
-        print(f"V1 Size: {len(state.V1)}")
-        print(f"V2 Size: {len(state.V2)}")
-        print(pct_format("Budget Utilization", len(action), state.budget))
-        print(pct_format("V1 Quarantined (out of V1)", len(action), len(state.V1)))
-        print(pct_format("I1 Quarantined (out of Q)", len(
-            set(state.SIR.I1) & set(action)), len(action)))
-        print(f"I1: {state.SIR.I1}")
-        print(f"I2: {state.SIR.I2}")
-        print(f"V1: {state.V1}")
-        print(f"V2: {state.V2}")
-        print(f"Q: {action}")
-        print("-----------------------------")
+        if debug:
+            print(f"Budgets: {state.budget_labels}")
+            print(
+                f"Size (I1, I2, I): {(len(state.SIR.I1), len(state.SIR.I2), len(state.SIR.I1) + len(state.SIR.I2))}")
+            print(f"V1 Size: {len(state.V1)}")
+            print(f"V2 Size: {len(state.V2)}")
+            print(pct_format("Budget Utilization", len(action), state.budget))
+            print(pct_format("V1 Quarantined (out of V1)", len(action), len(state.V1)))
+            print(pct_format("I1 Quarantined (out of Q)", len(
+                set(state.SIR.I1) & set(action)), len(action)))
+            print(f"I1: {state.SIR.I1}")
+            print(f"I2: {state.SIR.I2}")
+            print(f"V1: {state.V1}")
+            print(f"V2: {state.V2}")
+            print(f"Q: {action}")
+            print("-----------------------------")
 
         # Mutable state
         state.step(action)
@@ -239,15 +240,14 @@ def draw_frame(num, raw_history=None, action_history=None, ax=None, labels=False
 
 
 # %%
-
+from functools import partial
 
 # To video
 def draw_anim(raw_history, action_history, out_file=None):
     fig, ax = plt.subplots(figsize=(10, 10))
     ani = matplotlib.animation.FuncAnimation(
-        fig, draw_frame, frames=len(raw_history),
+        fig, partial(draw_frame, raw_history=raw_history, action_history=action_history, ax=ax), frames=len(raw_history),
         interval=500, repeat=True, repeat_delay=1,
-        fargs=(raw_history, action_history, ax)
     )
     html_out = ani.to_jshtml()
     plt.close(fig)
@@ -274,21 +274,68 @@ def draw_unrolled(raw_history, action_history, fig_title='SIR Sim', out_file=Non
 
 
 state = grid_world_init(
-    initial_infection=(0.05, 0.1),
+    initial_infection=(0, 0.25),
     small_world=base_grid,
+    width=20,
     seed=42,
 )
-# fig, ax = plt.subplots(figsize=(6, 6))
 
-# fast_draw_style(state.G, seir_node_style,
-#                 seir_edge_style, ax=ax, DEBUG=False)
-# plt.show()
+fig, ax = plt.subplots(figsize=(6, 6))
 
-raw_history, action_history = run(state)
+fast_draw_style(state.G, seir_node_style,
+                seir_edge_style, ax=ax, DEBUG=False)
+plt.show()
 
 #%%
+
+
+state.labels
+#%%
+
+from ctrace.utils import *
+from ctrace.recommender import *
+
+#%%
+seg_action = binary_segmented_greedy(state, k1=0.2, k2=0.8, carry=True,rng=rng, DEBUG=False)
+
+
+#%%
+
+action = DegGreedy_fair(state)
+milp_action = MILP_fair(state)
+round_action = DepRound_fair(state)
+
+
+# Test calculate methods
+ce_val = calculateExpected(state, action)
+cm_val = calculateMILP(state, action)
+
+# Test for consistancy
+greedy_val = calculateMILP(state, action)
+milp_val = calculateMILP(state, milp_action)
+round_val = calculateMILP(state, round_action)
+
+# print(f'Direct Calculation Expected: {ce_val}')
+# print(f'Direct Calculation MILP: {cm_val}')
+# print(f'LP Evaluation: {lp_val}')
+# print(f'LP Evaluation2: {lp_val2}')
+
+print(f"Greedy Value: {greedy_val}")
+print(f'MILP Value: {milp_val}')
+print(f'Round Value: {round_val}')
+
+
+# Check MILP Optimality
+
+
+
+#%%
+raw_history, action_history = run(state)
 html_out = draw_anim(raw_history, action_history, 'anim.html')
 
 # %%
 draw_unrolled(raw_history, action_history, 'anim.png')
 # %%
+
+
+

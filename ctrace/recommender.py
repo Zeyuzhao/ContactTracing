@@ -4,7 +4,7 @@ import numpy as np
 import networkx as nx
 
 from .round import D_prime
-from .utils import min_exposed_objective, pct_to_int
+from .utils import min_exposed_objective, pct_to_int, segmented_allocation
 from .simulation import *
 #from .problem2 import *
 from .problem_label import *
@@ -89,7 +89,7 @@ def DegGreedy_fair(state: InfectionState):
 def DepRound_fair(state: InfectionState):
     state.set_budget_labels()
 
-    problem2 = MinExposedLP2_label(state)
+    problem2 = MinExposedLP2_label(state, solver_id="GUROBI")
     problem2.solve_lp()
     probabilities = problem2.get_variables()
 
@@ -104,6 +104,17 @@ def DepRound_fair(state: InfectionState):
         rounded = rounded + D_prime(np.array(partial_prob))
 
     return set([problem2.quarantine_map[k] for (k, v) in enumerate(rounded) if v == 1])
+
+
+def MILP_fair(state: InfectionState):
+    state.set_budget_labels()
+
+    problem2 = MinExposedIP2_label(state, solver_id="GUROBI")
+    problem2.solve_lp()
+    indicators = problem2.get_variables()
+    return set([problem2.quarantine_map[k] for (k, v) in enumerate(indicators) if v == 1])
+
+
 
 
 def SAA_Diffusion(state: InfectionState, debug=False, num_samples=10):
@@ -212,7 +223,53 @@ def optimized(problem: MinExposedLP, d: int):
     return (problem.objective_value, problem.quarantined_solution)
 
 
-def segmented_greedy(state: InfectionState, split_pcts=[0.8, 0.2], alloc_pcts=[.2, .8], carry=True, rng=np.random, DEBUG=False):
+def binary_segmented_greedy(state: InfectionState, k1=.2, k2=.8, carry=True,rng=np.random, DEBUG=False):
+    """
+    k1 - top proportion of nodes classified as "high" degree
+    k2 - proportion of budget assigned to "high" degree nodes
+    carry - whether to assign surplus budget to under-constrained segments
+    """
+    budget = state.budget
+    G = state.G
+    v1_degrees = [(n, G.degree(n)) for n in state.V1]
+    # Large to small
+    v1_sorted = [n for n, d in sorted(v1_degrees, key=lambda x: x[1], reverse=True)]
+
+    # Rounding transaction
+    top_size = int(k1 * len(v1_sorted))
+    top_budget = int(k2 * budget)
+
+    bottom_size = len(v1_sorted) - top_size
+    bottom_budget = budget - top_budget
+
+    # Size invariant
+    assert (top_size + bottom_size) == len(v1_sorted)
+    assert (top_budget + bottom_budget) == budget
+
+
+    sizes = [top_size, bottom_size]
+    budgets = [top_budget, bottom_budget]
+    budgets = segmented_allocation(sizes, budgets, carry=True)
+
+    # Size constraint
+    assert budgets[0] <= top_size
+    assert budgets[1] <= bottom_size
+
+    samples = []
+    samples.extend(
+        rng.choice(v1_sorted[:top_size], budgets[0], replace=False).tolist()
+    )
+
+    samples.extend(
+        rng.choice(v1_sorted[top_size:], budgets[1], replace=False).tolist()
+    )
+
+    return samples
+
+
+
+
+def multi_segmented_greedy(state: InfectionState, split_pcts=[0.8, 0.2], alloc_pcts=[.2, .8], carry=True, rng=np.random, DEBUG=False):
     """
     TODO: NEED TO REWRITE!!!
     pcts are ordered from smallest degree to largest degree
@@ -243,6 +300,8 @@ def segmented_greedy(state: InfectionState, split_pcts=[0.8, 0.2], alloc_pcts=[.
 
     overflow = 0
     samples = []
+
+    
     for segment, amt in reversed(list(zip(v1_segments, alloc_amt))):
         # Overflow is carried over to the next segment
         segment_budget = amt
@@ -268,3 +327,20 @@ def segmented_greedy(state: InfectionState, split_pcts=[0.8, 0.2], alloc_pcts=[.
                 print("OVERFLOWED!!!")
             assert len(samples) <= budget
     return [int(s) for s in samples]
+
+def evaluate(state: InfectionState, action):
+    state.set_budget_labels()
+
+    problem = MinExposedLP2_label(state)
+
+    # Pre-set the solveable parameters
+    for node in action:
+        problem.set_variable_id(node, 1)
+
+    action = set(action)
+    # Set the rest to zero
+    for node in problem.contour1:
+        if node not in action:
+            problem.set_variable_id(node, 0)
+    problem.solve_lp()
+    return problem.objective_value

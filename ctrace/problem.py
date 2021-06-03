@@ -293,3 +293,4 @@ class MinExposedSAADiffusion(MinExposedProgram):
         for v in self.contour2:
             objective_value += self.Y2[i][v].solution_value()
         return objective_value
+

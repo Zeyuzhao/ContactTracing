@@ -1,6 +1,7 @@
 # from ctrace.min_cut import PartitionSIR
 import networkx as nx
 import matplotlib.pyplot as plt
+import matplotlib
 import pandas as pd
 import numpy as np
 import random
@@ -154,153 +155,6 @@ def small_world_grid(width: int, max_norm=False, sparsity=0, p=1, local_range=1,
     G = nx.relabel_nodes(G, mapper)
     nx.set_node_attributes(G, pos, 'pos')
     return G, pos
-
-
-def grid_sir(
-    G: nx.Graph,
-    ax,
-    pos: Dict[int, Number],
-    sir=None,
-    quarantined_nodes: List[int] = [],
-    non_compliant_nodes: List[int] = [],
-    exposed_nodes: List[int] = [],
-    edges: List[int] = [],
-    edge_color=None,
-    **args,
-):
-    # G should be in a 2d grid form!
-    if sir is None:
-        sir = all_sus(G)
-
-    if quarantined_nodes is None:
-        quarantined_nodes = []
-        # marked = random.sample(set(G.nodes), 10)
-
-    if non_compliant_nodes is None:
-        non_compliant_nodes = []
-
-    if exposed_nodes is None:
-        exposed_nodes = []
-
-    if edges is None:
-        edges = G.edges
-
-    if edge_color is None:
-        edge_color = ["black"] * len(edges)
-
-    if len(edges) != len(edge_color):
-        raise ValueError("edges must match edge_colors")
-
-    if pos is None:
-        pos = {x: x["pos"] for x in G.nodes}
-
-    node_size = [None] * len(G.nodes)
-    node_color = [None] * len(G.nodes)
-    border_color = [None] * len(G.nodes)
-    linewidths = [0] * len(G.nodes)
-    for i in range(len(G.nodes)):
-        # Handle SIR
-        if i in sir.S:
-            node_size[i] = 10
-            if i in non_compliant_nodes:
-                node_color[i] = "red"
-            elif i in exposed_nodes:
-                node_color[i] = "yellow"
-            else:
-                node_color[i] = "black"
-        elif i in sir.I:
-            node_size[i] = 50
-            node_color[i] = "red"
-        else:
-            node_size[i] = 10
-            node_color[i] = "silver"
-
-        # Handle Quarantine
-        if i in quarantined_nodes:
-            border_color[i] = "tab:blue"
-            linewidths[i] = 1
-        else:
-            border_color[i] = "black"
-            linewidths[i] = 1
-
-    # Draw edges that are from I, V1, and V2
-    nodes = nx.draw_networkx_nodes(
-        G,
-        pos=pos,
-        node_color=node_color,
-        node_size=node_size,
-        edgecolors=border_color,
-        linewidths=linewidths,
-        ax=ax
-    )
-
-    NEW_METHOD = True
-    if NEW_METHOD:
-        short_edges, short_props = zip(
-            *list(filter(lambda x: not G[x[0][0]][x[0][1]].get("long"), zip(edges, edge_color))))
-        longs = list(zip(
-            *list(filter(lambda x: G[x[0][0]][x[0][1]].get("long"), zip(edges, edge_color)))))
-
-        if len(longs) == 2:  # Handle case with no edges (HACK)
-            long_edges, long_props = longs
-        else:
-            long_edges, long_props = ([], [])
-
-        draw_networkx_edges(
-            G,
-            pos=pos,
-            edgelist=short_edges,
-            edge_color=short_props,
-            # width=[],
-            node_size=node_size,
-            ax=ax,
-            arrowstyle='-',
-        )
-
-        draw_networkx_edges(
-            G,
-            pos=pos,
-            edgelist=long_edges,
-            edge_color=long_props,
-            # width=[],
-            node_size=node_size,
-            ax=ax,
-            connectionstyle="arc3,rad=0.2",
-            arrowstyle='-',
-        )
-    else:
-        nx.draw_networkx_edges(
-            G,
-            pos=pos,
-            edgelist=edges,
-            edge_color=edge_color,
-            # width=[],
-            node_size=node_size,
-            ax=ax,
-            arrowstyle='-',
-        )
-
-
-def draw_single(G, title=None, figsize=(4, 4), **args):
-    fig, ax = plt.subplots(figsize=figsize)
-    ax.set_title(title, fontsize=8)
-    grid_sir(G, ax, **args)
-
-
-def draw_multiple(G, args):
-    draw_multiple_grid(G, args, 1, len(args))
-
-
-def draw_multiple_grid(G, args, a, b):
-    fig, ax = plt.subplots(a, b, figsize=(4 * a, 4 * b))
-
-    # for a,b in itertools.product(range(a), range(b)):
-    #     ax[a, b].set_axis_off()
-    for i, ((x, y), config) in enumerate(zip(itertools.product(range(a), range(b)), args)):
-        ax[x, y].set_title(config.get("title"), fontsize=8)
-        grid_sir(G, ax[x, y], **config)
-    return fig, ax
-
 
 # Styling dictionaries
 # Later attributes take precedence
@@ -556,7 +410,242 @@ def fast_draw_style(G, node_style, edge_style, ax=None, DEBUG=False):
                 arrows=True,
             )
 
-# Patched draw_networkx_edges
+# %%
+# I1 = E
+# I2 = I
+
+# <==================== Style Registry ====================>
+
+LARGE_NODE_RADIUS = 100
+SMALL_NODE_RADIUS = 50
+seir_node_style = {
+    # Default styling
+    "default": {
+        "node_size": SMALL_NODE_RADIUS,
+        "node_color": "black",
+        "edgecolors": "black",
+        "linewidths": 0.5,
+    },
+    "seir": {
+        SEIR.E: {"node_size": LARGE_NODE_RADIUS, "node_color": "red"},
+        SEIR.I: {"node_size": LARGE_NODE_RADIUS, "node_color": "darkred"},
+        SEIR.R: {"node_size": LARGE_NODE_RADIUS, "node_color": "skyblue"},
+    },
+    "isolate": {
+        True: {"edgecolors": "aqua", "linewidths": 1.5}
+    },
+    #     "V1": {
+    #         True: {"node_size": 30, "node_color": "orange"},
+    #     }
+}
+
+seir_edge_style = {
+    # connectionstyle and arrowstyle are function-wide parameters
+    # NOTE: For limit the number of unique connectionstyle / arrowstyle pairs
+    "default": {
+        "edge_color": "black",
+        "arrowstyle": "-",
+    },
+    "long": {
+        False: {},
+        True: {"connectionstyle": "arc3,rad=0.2"},
+    },
+
+    # Overriding (cut overrides transmission)
+    "transmit": {
+        False: {},
+        True: {"edge_color": "red"},
+    },
+    "cut": {
+        False: {},
+        True: {"edge_color": "blue"},
+    },
+}
+
+# <==================== Graph Registry ====================>
+base_grid = {
+    'max_norm': False,
+    'sparsity': 0,
+    'p': 1,
+    'local_range': 1,
+    'num_long_range': 0,
+    'r': 2,
+}
+
+feature_grid = {
+    'max_norm': True,
+    'sparsity': 0.1,
+    'p': 1,
+    'local_range': 1,
+    'num_long_range': 1,
+    'r': 2,
+}
+
+complex_grid = {
+    'max_norm': True,
+    'sparsity': 0.1,
+    'p': 0.3,
+    'local_range': 1,
+    'num_long_range': 2,
+    'r': 2,
+}
+
+# %%
+
+def grid_world_init(initial_infection=(0.05, 0.1), width=10, small_world=base_grid, labels=False, seed=42):
+    rng = np.random.default_rng(seed)
+    G, pos = small_world_grid(**small_world, width=width, seed=seed)
+    G.pos = pos
+    # Simulate compliance rates and age groups
+    for n in G.nodes:
+        G.nodes[n].update({
+            'compliance_rate_og': 1,
+            'age_group': (n % 2) + 1 if labels else 0,
+        })
+    for e in G.edges:
+        G.edges[e].update({
+            'duration': 10000,
+        })
+
+    i1_frac, i2_frac = initial_infection
+    seir = PartitionSEIR.from_dist(
+        len(G), [1 - i1_frac - i2_frac, i1_frac, i2_frac, 0], rng=rng)
+
+    state = InfectionState(
+        G=G,
+        SIR=(list(seir.S), list(seir.E), list(seir.I), list(seir.R)),
+        budget=10,
+        policy="A",
+        transmission_rate=0.20,
+        transmission_known=True,
+        compliance_rate=1,
+        compliance_known=True,
+        discovery_rate=1,
+        snitch_rate=1
+    )
+    nx.set_node_attributes(G, seir.to_dict(), "seir")
+    return state
+
+# state.set_budget_labels()
+# print(state.V1)
+# print('Evens', [v for v in state.V1 if G.nodes[v]["age_group"] == 1])
+# print('Odds', [v for v in state.V1 if G.nodes[v]["age_group"] == 2])
+# print(state.budget_labels)
+
+# %%
+
+
+def pct_format(name, v1, v2):
+    pct = f"{(v1 / v2) * 100:.1f}%" if v2 != 0 else "-%"
+    return f"{name}: {v1}/{v2} ({pct})"
+
+
+def run(state, debug=False):
+    raw_history = []
+    action_history = []
+    while len(state.SIR.I2) + len(state.SIR.I1) != 0:
+        action = DegGreedy_fair(state)
+        action_history.append(action)
+        raw_history.append(copy.deepcopy(state))
+
+        if debug:
+            print(f"Budgets: {state.budget_labels}")
+            print(
+                f"Size (I1, I2, I): {(len(state.SIR.I1), len(state.SIR.I2), len(state.SIR.I1) + len(state.SIR.I2))}")
+            print(f"V1 Size: {len(state.V1)}")
+            print(f"V2 Size: {len(state.V2)}")
+            print(pct_format("Budget Utilization", len(action), state.budget))
+            print(pct_format("V1 Quarantined (out of V1)", len(action), len(state.V1)))
+            print(pct_format("I1 Quarantined (out of Q)", len(
+                set(state.SIR.I1) & set(action)), len(action)))
+            print(f"I1: {state.SIR.I1}")
+            print(f"I2: {state.SIR.I2}")
+            print(f"V1: {state.V1}")
+            print(f"V2: {state.V2}")
+            print(f"Q: {action}")
+            print("-----------------------------")
+
+        # Mutable state
+        state.step(action)
+
+    # Ending state
+    raw_history.append(state)
+    action_history.append(set())
+    return raw_history, action_history
+
+# Build plot
+def draw_frame(num, raw_history=None, action_history=None, ax=None, labels=False):
+    ax.clear()
+    state = raw_history[num]
+
+    G_draw = state.G.copy()
+
+    seir = PartitionSEIR.from_sets(state.SIR)
+    nx.set_node_attributes(G_draw, seir.to_dict(), "seir")
+
+    if num > 0:
+        action = {n: True for n in action_history[num - 1]}
+        nx.set_node_attributes(G_draw, action, "isolate")
+
+    transmit = {e: (seir[e[0]] == SEIR.E or seir[e[0]] == SEIR.I) or (seir[e[1]] == SEIR.E or seir[e[1]] == SEIR.I)
+                for e in G_draw.edges}
+#     nx.set_edge_attributes(G_draw, transmit, "transmit")
+
+    nx.set_node_attributes(G_draw, {n: True for n in state.V1}, "V1")
+    nx.set_node_attributes(G_draw, {n: True for n in state.V2}, "V2")
+#     nx.set_node_attributes(rand_G, vertex_soln, "status")
+#     nx.set_edge_attributes(rand_G, edge_soln, "cut")
+
+#     transmit = {e: vertex_soln[e[0]] or vertex_soln[e[1]]
+#                 for e in rand_G.edges}
+#     nx.set_edge_attributes(rand_G, transmit, "transmit")
+
+    fast_draw_style(G_draw, seir_node_style,
+                    seir_edge_style, ax=ax, DEBUG=False)
+
+    if labels:
+        nx.draw_networkx_labels(G_draw, G_draw.pos, font_size=10, ax=ax,
+                                verticalalignment='bottom', horizontalalignment="right")
+    # Scale plot ax
+    ax.set_title(
+        f"Step {num}: ({len(seir.S)}, {len(seir.E)}, {len(seir.I)}, {len(seir.R)})", fontweight="bold")
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+
+# %%
+from functools import partial
+
+# To video
+def draw_anim(raw_history, action_history, out_file=None):
+    fig, ax = plt.subplots(figsize=(10, 10))
+    ani = matplotlib.animation.FuncAnimation(
+        fig, partial(draw_frame, raw_history=raw_history, action_history=action_history, ax=ax), frames=len(raw_history),
+        interval=500, repeat=True, repeat_delay=1,
+    )
+    html_out = ani.to_jshtml()
+    plt.close(fig)
+    if out_file is not None:
+        with open(f'figs/{out_file}', "w") as f:
+            f.write(html_out)
+    return html_out
+
+
+def draw_unrolled(raw_history, action_history, fig_title='SIR Sim', out_file=None):
+    fig, axes = plt.subplots(3, 3, figsize=(10, 10))
+    fig.suptitle(fig_title, fontsize=16)
+    for i, ax in enumerate(axes.flatten()):
+        if i < len(raw_history):
+            draw_frame(i, raw_history=raw_history,
+                   action_history=action_history, ax=ax)
+        else:
+            ax.set_axis_off()
+    if out_file:
+        fig.savefig(f'figs/{out_file}', dpi=fig.dpi)
+
+
+
+
 
 
 def draw_networkx_edges(
