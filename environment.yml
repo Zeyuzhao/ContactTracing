@@ -1,0 +1,19 @@
+name: tracing
+channels:
+    - defaults
+    - https://conda.anaconda.org/gurobi
+dependencies:
+    - numpy
+    - networkx
+    - matplotlib
+    - pandas
+    - pytest
+    - scipy
+    - seaborn
+    - requests
+    - pip
+    - jupyter
+    - tqdm
+    - pip:
+          - EoN
+          - ortools
